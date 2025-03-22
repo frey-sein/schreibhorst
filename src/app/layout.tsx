@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Schreibhorst - KI-gestützter Schreibassistent",
+  title: "Nützlich - KI-gestützter Schreibassistent",
   description: "Ihr KI-gestützter Schreibassistent für kreatives Schreiben",
 };
 
@@ -19,8 +19,8 @@ export default function RootLayout({
       <body className={inter.className}>
         <div className="min-h-screen bg-white">
           <header className="bg-white border-b border-gray-200">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-              <h1 className="text-2xl font-bold text-gray-900">Schreibhorst</h1>
+            <div className="mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <img src="/Logo-nuetzlich-gruen.svg" alt="Nützlich Logo" className="h-10 mb-1.5" />
             </div>
           </header>
           <main className="flex h-[calc(100vh-4rem)]">
