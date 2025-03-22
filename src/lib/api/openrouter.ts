@@ -5,72 +5,75 @@ interface ChatMessage {
 
 interface ChatCompletionRequest {
   messages: ChatMessage[];
-  model?: string;
+  model: string;
   temperature?: number;
   stream?: boolean;
 }
 
 export class OpenRouterClient {
   private apiKey: string;
-  private apiBase: string;
+  private baseUrl = 'https://openrouter.ai/api/v1';
 
-  constructor(apiKey?: string) {
-    // In browser context, apiKey will be passed in from the server
-    // In server context, we can use the environment variable directly
-    if (typeof window !== 'undefined' && !apiKey) {
-      throw new Error('OPENROUTER_API_KEY ist nicht konfiguriert');
-    } else if (typeof window === 'undefined' && !process.env.OPENROUTER_API_KEY) {
-      throw new Error('OPENROUTER_API_KEY ist nicht konfiguriert');
+  constructor(apiKey: string) {
+    if (!apiKey) {
+      throw new Error('OpenRouter API key is required');
     }
-    
-    this.apiKey = apiKey || process.env.OPENROUTER_API_KEY || '';
-    this.apiBase = process.env.NEXT_PUBLIC_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
+    this.apiKey = apiKey;
   }
 
-  async createChatCompletion(request: ChatCompletionRequest) {
-    const response = await fetch(`${this.apiBase}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-        'HTTP-Referer': 'https://schreibhorst.ai',
-        'X-Title': 'Schreibhorst',
-      },
-      body: JSON.stringify({
-        ...request,
-        model: request.model || process.env.NEXT_PUBLIC_DEFAULT_MODEL,
-      }),
-    });
+  async streamChatCompletion(request: ChatCompletionRequest): Promise<Response> {
+    try {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+          'HTTP-Referer': 'https://github.com/carsten-frey/schreibhorst',
+          'X-Title': 'Schreibhorst'
+        },
+        body: JSON.stringify({
+          ...request,
+          stream: true
+        })
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`OpenRouter API error: ${response.status} - ${JSON.stringify(errorData)}`);
+      }
+
+      return response;
+    } catch (error) {
+      console.error('OpenRouter API request failed:', error);
+      throw error;
     }
-
-    return response.json();
   }
 
-  async streamChatCompletion(request: ChatCompletionRequest) {
-    const response = await fetch(`${this.apiBase}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-        'HTTP-Referer': 'https://schreibhorst.ai',
-        'X-Title': 'Schreibhorst',
-      },
-      body: JSON.stringify({
-        ...request,
-        model: request.model || process.env.NEXT_PUBLIC_DEFAULT_MODEL,
-        stream: true,
-      }),
-    });
+  async createChatCompletion(request: ChatCompletionRequest): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+          'HTTP-Referer': 'https://github.com/carsten-frey/schreibhorst',
+          'X-Title': 'Schreibhorst'
+        },
+        body: JSON.stringify({
+          ...request,
+          stream: false
+        })
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`OpenRouter API error: ${response.status} - ${JSON.stringify(errorData)}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('OpenRouter API request failed:', error);
+      throw error;
     }
-
-    return response.body;
   }
 } 

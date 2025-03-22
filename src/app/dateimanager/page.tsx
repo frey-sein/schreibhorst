@@ -3,23 +3,28 @@
 import { useState, useEffect } from 'react';
 import { StorageService, FileItem } from '@/lib/services/storage';
 import FileUploader from '@/app/components/FileUploader';
+import FileIcon from '@/app/components/FileIcon';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function DateimanagerPage() {
+  const [isClient, setIsClient] = useState(false);
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [items, setItems] = useState<FileItem[]>([]);
   const [newItemName, setNewItemName] = useState('');
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [newItemType, setNewItemType] = useState<'file' | 'folder'>('folder');
   const [selectedItem, setSelectedItem] = useState<FileItem | null>(null);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']));
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const storageService = StorageService.getInstance();
 
   useEffect(() => {
+    setIsClient(true);
     setItems(storageService.getItems());
+    setExpandedFolders(new Set(['root']));
   }, []);
 
   const generateId = () => {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    return uuidv4();
   };
 
   const getCurrentFolderId = () => {
@@ -98,31 +103,34 @@ export default function DateimanagerPage() {
 
   const renderFolderTree = (parentId: string | null, level: number = 0) => {
     const items = storageService.getItemsByParentId(parentId);
-    return items.map(item => {
-      const isExpanded = expandedFolders.has(item.id);
-      const hasChildren = storageService.getItemsByParentId(item.id).length > 0;
-      const isCurrentFolder = getCurrentFolderId() === item.id;
+    return items
+      .filter(item => item.type === 'folder') // Nur Ordner anzeigen
+      .map(item => {
+        const isExpanded = expandedFolders.has(item.id);
+        const hasChildren = storageService.getItemsByParentId(item.id).some(child => child.type === 'folder');
+        const isCurrentFolder = getCurrentFolderId() === item.id;
 
-      return (
-        <div key={item.id}>
-          <div
-            className={`flex items-center gap-2 px-2 py-1 rounded-lg cursor-pointer hover:bg-gray-100 ${
-              isCurrentFolder ? 'bg-gray-100' : ''
-            }`}
-            style={{ paddingLeft: `${level * 1.5 + 0.5}rem` }}
-            onClick={() => {
-              if (item.type === 'folder') {
-                handleNavigateToFolder(item.id, item.name);
-              }
-            }}
-          >
-            {item.type === 'folder' && hasChildren && (
-              <button
+        return (
+          <div key={item.id}>
+            <div
+              className={`flex items-center gap-2 px-2 py-1 rounded-lg cursor-pointer hover:bg-gray-100 ${
+                isCurrentFolder ? 'bg-gray-100' : ''
+              }`}
+              style={{ paddingLeft: `${level * 0.75 + 0.5}rem` }}
+              onClick={() => {
+                if (item.type === 'folder') {
+                  handleNavigateToFolder(item.id, item.name);
+                }
+              }}
+            >
+              <div
                 onClick={(e) => {
                   e.stopPropagation();
-                  toggleFolder(item.id);
+                  if (hasChildren) {
+                    toggleFolder(item.id);
+                  }
                 }}
-                className="p-1 hover:bg-gray-200 rounded"
+                className={`p-1 hover:bg-gray-200 rounded cursor-pointer ${!hasChildren ? 'invisible' : ''}`}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -138,26 +146,25 @@ export default function DateimanagerPage() {
                     clipRule="evenodd"
                   />
                 </svg>
-              </button>
-            )}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 text-gray-600"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-            </svg>
-            <span className="text-sm text-gray-900 truncate">{item.name}</span>
-          </div>
-          {isExpanded && item.type === 'folder' && (
-            <div style={{ marginLeft: `${level * 1.5 + 0.5}rem` }}>
-              {renderFolderTree(item.id, level + 1)}
+              </div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4 text-gray-600"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+              </svg>
+              <span className="text-sm text-gray-900 truncate">{item.name}</span>
             </div>
-          )}
-        </div>
-      );
-    });
+            {isExpanded && hasChildren && (
+              <div style={{ marginLeft: `${level * 0.75 + 0.5}rem` }}>
+                {renderFolderTree(item.id, level + 1)}
+              </div>
+            )}
+          </div>
+        );
+      });
   };
 
   const getBreadcrumbPath = () => {
@@ -176,6 +183,44 @@ export default function DateimanagerPage() {
     
     return path;
   };
+
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-[#fafafa]">
+        <main className="pt-16">
+          <div className="max-w-[2000px] mx-auto px-6 py-8">
+            <div className="flex gap-6">
+              <div className="w-64 flex-shrink-0">
+                <div className="bg-white rounded-2xl border border-gray-200 p-4">
+                  <h2 className="text-sm font-medium text-gray-900 mb-4">Ordnerstruktur</h2>
+                  <div className="space-y-1">
+                    <div className="animate-pulse">
+                      <div className="h-8 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-8 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-8 bg-gray-200 rounded"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                  <div className="animate-pulse">
+                    <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/4 mb-6"></div>
+                    <div className="space-y-2">
+                      <div className="h-12 bg-gray-200 rounded"></div>
+                      <div className="h-12 bg-gray-200 rounded"></div>
+                      <div className="h-12 bg-gray-200 rounded"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
@@ -311,20 +356,18 @@ export default function DateimanagerPage() {
                         }}
                         className="flex-1 flex items-center gap-3"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className={`h-5 w-5 ${
-                            item.type === 'folder' ? 'text-gray-400' : 'text-gray-400'
-                          }`}
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          {item.type === 'folder' ? (
+                        {item.type === 'folder' ? (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5 text-gray-400"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
                             <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                          ) : (
-                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                          )}
-                        </svg>
+                          </svg>
+                        ) : (
+                          <FileIcon type={item.fileType || ''} className="h-5 w-5 text-gray-400" />
+                        )}
                         <span className="text-gray-700">{item.name}</span>
                         {item.lastModified && (
                           <span className="ml-auto text-sm text-gray-400">

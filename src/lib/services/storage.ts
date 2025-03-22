@@ -32,7 +32,7 @@ export class StorageService {
       if (storedItems) {
         this.items = JSON.parse(storedItems).map((item: any) => ({
           ...item,
-          lastModified: item.lastModified ? new Date(item.lastModified) : undefined
+          lastModified: item.lastModified ? new Date(item.lastModified) : new Date()
         }));
       } else {
         // Initialisiere mit Root-Ordner
@@ -40,7 +40,8 @@ export class StorageService {
           id: 'root',
           name: 'Meine Dateien',
           type: 'folder',
-          parentId: null
+          parentId: null,
+          lastModified: new Date()
         }];
         this.saveItems();
       }
@@ -50,7 +51,8 @@ export class StorageService {
         id: 'root',
         name: 'Meine Dateien',
         type: 'folder',
-        parentId: null
+        parentId: null,
+        lastModified: new Date()
       }];
     }
   }
@@ -68,7 +70,11 @@ export class StorageService {
   }
 
   public addItem(item: FileItem): void {
-    this.items.push(item);
+    const newItem = {
+      ...item,
+      lastModified: new Date()
+    };
+    this.items.push(newItem);
     this.saveItems();
   }
 

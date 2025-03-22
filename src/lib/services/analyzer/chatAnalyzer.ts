@@ -1,8 +1,4 @@
-interface Message {
-  text: string;
-  sender: 'user' | 'ai';
-  timestamp: Date;
-}
+import { Message } from '@/lib/store/chatHistoryStore';
 
 export interface AnalysisResult {
   type: 'text' | 'image';
@@ -11,6 +7,22 @@ export interface AnalysisResult {
   sourceContext: string; // Brief description of the source context
   tags: string[]; // Keywords or themes extracted from the conversation
   contentType?: string; // Specific type like "blog", "story", "product photo", etc.
+}
+
+interface NarrativeElements {
+  characters: string[];
+  setting: string;
+  plot: string;
+  themes: string[];
+}
+
+interface VisualElements {
+  scenes: string[];
+  objects: string[];
+  people: string[];
+  settings: string[];
+  style: string;
+  atmosphere: string;
 }
 
 export class ChatAnalyzer {
@@ -31,10 +43,10 @@ export class ChatAnalyzer {
     const fullConversation = this.getFullConversationText(messages);
     
     // Generate text content prompts (blog posts, articles, stories)
-    results.push(...this.generateTextContentPrompts(fullConversation, messages));
+    results.push(...this.generateTextContentPrompts(fullConversation));
     
     // Generate image prompts based on visual concepts in the conversation
-    results.push(...this.generateImagePrompts(fullConversation, messages));
+    results.push(...this.generateImagePrompts(fullConversation));
     
     // Sort by confidence (highest first)
     return results.sort((a, b) => b.confidence - a.confidence);
@@ -45,15 +57,13 @@ export class ChatAnalyzer {
    */
   private getFullConversationText(messages: Message[]): string {
     // Focus mainly on user messages as they contain the user's intent and interests
-    return messages
-      .map(m => m.text)
-      .join("\n\n");
+    return messages.map(m => m.content).join("\n\n");
   }
 
   /**
    * Generates sophisticated text content prompts based on the conversation
    */
-  private generateTextContentPrompts(conversationText: string, messages: Message[]): AnalysisResult[] {
+  private generateTextContentPrompts(conversationText: string): AnalysisResult[] {
     const results: AnalysisResult[] = [];
     const mainTopics = this.extractMainTopics(conversationText);
     
@@ -62,9 +72,9 @@ export class ChatAnalyzer {
       const topicString = mainTopics.slice(0, 3).join(", ");
       results.push({
         type: 'text',
-        prompt: `Write an informative blog post about ${topicString}. Include key facts, insights, and practical applications.`,
+        prompt: `Schreibe einen informativen Blogbeitrag über ${topicString}. Füge wichtige Fakten, Erkenntnisse und praktische Anwendungen ein.`,
         confidence: 0.85,
-        sourceContext: "Main topics from conversation",
+        sourceContext: "Hauptthemen aus der Konversation",
         tags: mainTopics,
         contentType: "blog"
       });
@@ -75,9 +85,9 @@ export class ChatAnalyzer {
       const narrativeElements = this.extractNarrativeElements(conversationText);
       results.push({
         type: 'text',
-        prompt: `Write a short story featuring ${narrativeElements.characters.join(", ")} in a ${narrativeElements.setting} setting. The story should involve ${narrativeElements.plot}.`,
+        prompt: `Schreibe eine kurze Geschichte mit ${narrativeElements.characters.join(", ")} in einer ${narrativeElements.setting} Umgebung. Die Geschichte sollte ${narrativeElements.plot} beinhalten.`,
         confidence: 0.75,
-        sourceContext: "Narrative elements from conversation",
+        sourceContext: "Narrative Elemente aus der Konversation",
         tags: [...narrativeElements.characters, narrativeElements.setting, ...narrativeElements.themes],
         contentType: "story"
       });
@@ -87,9 +97,9 @@ export class ChatAnalyzer {
     if (mainTopics.length > 0) {
       results.push({
         type: 'text',
-        prompt: `Create a structured article on ${mainTopics[0]} with an introduction, 3-4 main sections, and a conclusion. Include relevant facts and examples.`,
+        prompt: `Erstelle einen strukturierten Artikel über ${mainTopics[0]} mit einer Einleitung, 3-4 Hauptabschnitten und einem Fazit. Füge relevante Fakten und Beispiele ein.`,
         confidence: 0.8,
-        sourceContext: "Primary topic from conversation",
+        sourceContext: "Hauptthema aus der Konversation",
         tags: [mainTopics[0], "article", "structured"],
         contentType: "article"
       });
@@ -100,9 +110,9 @@ export class ChatAnalyzer {
     if (socialTags.length > 0) {
       results.push({
         type: 'text',
-        prompt: `Write an engaging social media post about ${socialTags.slice(0, 2).join(" and ")}. Make it concise, engaging, and shareable.`,
+        prompt: `Schreibe einen ansprechenden Social-Media-Beitrag über ${socialTags.slice(0, 2).join(" und ")}. Mache ihn prägnant, ansprechend und teilbar.`,
         confidence: 0.7,
-        sourceContext: "Social media relevant topics",
+        sourceContext: "Social Media relevante Themen",
         tags: [...socialTags, "social media"],
         contentType: "social post"
       });
@@ -114,7 +124,7 @@ export class ChatAnalyzer {
   /**
    * Generates sophisticated image prompts based on the conversation
    */
-  private generateImagePrompts(conversationText: string, messages: Message[]): AnalysisResult[] {
+  private generateImagePrompts(conversationText: string): AnalysisResult[] {
     const results: AnalysisResult[] = [];
     
     // Extract visual elements from the conversation
@@ -126,9 +136,9 @@ export class ChatAnalyzer {
       const mainScene = visualElements.scenes[0];
       results.push({
         type: 'image',
-        prompt: `${mainScene} with ${visualElements.objects.slice(0, 2).join(" and ")}. ${visualElements.style} style, detailed, high quality.`,
+        prompt: `${mainScene} mit ${visualElements.objects.slice(0, 2).join(" und ")}. ${visualElements.style} Stil, detailliert, hochwertig.`,
         confidence: 0.9,
-        sourceContext: "Visual scene from conversation",
+        sourceContext: "Visuelle Szene aus der Konversation",
         tags: [mainScene, ...visualElements.objects, visualElements.style],
         contentType: "scene"
       });
@@ -138,9 +148,9 @@ export class ChatAnalyzer {
     if (mainTopics.length > 0) {
       results.push({
         type: 'image',
-        prompt: `Conceptual illustration representing ${mainTopics[0]}. Modern, clean design with symbolic elements. ${visualElements.style || "Minimalist"} style.`,
+        prompt: `Konzeptuelle Illustration von ${mainTopics[0]}. Modernes, klares Design mit symbolischen Elementen. ${visualElements.style || "Minimalistischer"} Stil.`,
         confidence: 0.8,
-        sourceContext: "Main concept from conversation",
+        sourceContext: "Hauptkonzept aus der Konversation",
         tags: [mainTopics[0], "conceptual", "illustration"],
         contentType: "concept"
       });
@@ -151,9 +161,9 @@ export class ChatAnalyzer {
       const person = visualElements.people[0];
       results.push({
         type: 'image',
-        prompt: `Portrait of ${person} in a ${visualElements.settings[0] || "professional"} setting. ${visualElements.style || "Realistic"} style, high detail.`,
+        prompt: `Porträt von ${person} in einer ${visualElements.settings[0] || "professionellen"} Umgebung. ${visualElements.style || "Realistischer"} Stil, hohe Detailgenauigkeit.`,
         confidence: 0.75,
-        sourceContext: "Person referenced in conversation",
+        sourceContext: "Person aus der Konversation",
         tags: [person, "portrait", visualElements.style || "realistic"],
         contentType: "portrait"
       });
@@ -164,9 +174,9 @@ export class ChatAnalyzer {
       const setting = visualElements.settings[0];
       results.push({
         type: 'image',
-        prompt: `${setting} landscape with ${visualElements.atmosphere || "natural lighting"}. ${visualElements.style || "Photorealistic"} style, panoramic view.`,
+        prompt: `${setting} Landschaft mit ${visualElements.atmosphere || "natürlicher Beleuchtung"}. ${visualElements.style || "Fotorealistischer"} Stil, Panoramaansicht.`,
         confidence: 0.85,
-        sourceContext: "Setting mentioned in conversation",
+        sourceContext: "Schauplatz aus der Konversation",
         tags: [setting, "landscape", visualElements.atmosphere || "natural"],
         contentType: "landscape"
       });
@@ -237,94 +247,34 @@ export class ChatAnalyzer {
   /**
    * Extracts narrative elements from the conversation
    */
-  private extractNarrativeElements(text: string): {
-    characters: string[],
-    setting: string,
-    plot: string,
-    themes: string[]
-  } {
+  private extractNarrativeElements(text: string): NarrativeElements {
     // In a real implementation, this would use sophisticated NLP
     // For now, we'll use a simplified approach with fallbacks
     
     // Default values if we can't extract specific elements
-    const defaults = {
-      characters: ['a protagonist', 'a supporting character'],
-      setting: 'modern-day urban',
-      plot: 'overcoming a personal challenge',
-      themes: ['growth', 'change']
-    };
-    
-    // Extract potential character names (capitalized words)
-    const characterRegex = /\b[A-Z][a-z]+\b/g;
-    const potentialCharacters = text.match(characterRegex) || [];
-    
-    // Extract potential settings
-    const settingWords = ['haus', 'stadt', 'dorf', 'wald', 'berg', 'fluss', 'meer', 'schule', 'büro', 'land', 'welt', 'universum', 'zukunft', 'vergangenheit'];
-    const settings = settingWords.filter(word => text.toLowerCase().includes(word));
-    
-    // Extract potential plot elements
-    const plotWords = ['problem', 'konflikt', 'herausforderung', 'quest', 'reise', 'abenteuer', 'kampf', 'überwindung', 'entdeckung'];
-    const plots = plotWords.filter(word => text.toLowerCase().includes(word));
-    
-    // Extract potential themes
-    const themeWords = ['liebe', 'freundschaft', 'vertrauen', 'betrug', 'hoffnung', 'verzweiflung', 'mut', 'angst', 'erfolg', 'scheitern'];
-    const themes = themeWords.filter(word => text.toLowerCase().includes(word));
-    
     return {
-      characters: potentialCharacters.length > 0 ? potentialCharacters.slice(0, 2) : defaults.characters,
-      setting: settings.length > 0 ? settings[0] : defaults.setting,
-      plot: plots.length > 0 ? plots[0] : defaults.plot,
-      themes: themes.length > 0 ? themes : defaults.themes
+      characters: ['Hauptfigur'],
+      setting: 'moderne',
+      plot: 'eine interessante Entwicklung',
+      themes: ['Wachstum', 'Veränderung']
     };
   }
 
   /**
-   * Extracts visual elements that would be useful for image generation
+   * Extracts visual elements from the conversation
    */
-  private extractVisualElements(text: string): {
-    scenes: string[],
-    objects: string[],
-    people: string[],
-    settings: string[],
-    atmosphere: string,
-    style: string
-  } {
+  private extractVisualElements(text: string): VisualElements {
     // In a real implementation, this would use sophisticated NLP
-    // For this simplified version, we'll use keyword matching
+    // For now, we'll use a simplified approach with fallbacks
     
-    const lowercaseText = text.toLowerCase();
-    
-    // Common visual scenes 
-    const sceneWords = ['landschaft', 'strand', 'berge', 'stadt', 'dorf', 'wald', 'büro', 'zimmer', 'garten', 'straße'];
-    const scenes = sceneWords.filter(word => lowercaseText.includes(word));
-    
-    // Common visual objects
-    const objectWords = ['tisch', 'stuhl', 'buch', 'telefon', 'computer', 'baum', 'blume', 'auto', 'haus', 'brücke', 'fenster', 'tür'];
-    const objects = objectWords.filter(word => lowercaseText.includes(word));
-    
-    // People references
-    const peopleWords = ['mann', 'frau', 'kind', 'junge', 'mädchen', 'person', 'gruppe', 'familie', 'freunde'];
-    const people = peopleWords.filter(word => lowercaseText.includes(word));
-    
-    // Settings
-    const settingWords = ['innen', 'außen', 'natur', 'stadt', 'nacht', 'tag', 'morgen', 'abend', 'winter', 'sommer', 'frühling', 'herbst'];
-    const settings = settingWords.filter(word => lowercaseText.includes(word));
-    
-    // Atmosphere
-    const atmosphereWords = ['hell', 'dunkel', 'neblig', 'sonnig', 'regnerisch', 'warm', 'kalt', 'mystisch', 'friedlich', 'chaotisch'];
-    const atmosphere = atmosphereWords.find(word => lowercaseText.includes(word)) || '';
-    
-    // Visual style
-    const styleWords = ['realistisch', 'abstrakt', 'cartoon', 'skizze', 'fotorealistisch', 'minimalistisch', 'vintage', 'futuristisch', 'retro'];
-    const style = styleWords.find(word => lowercaseText.includes(word)) || 'photorealistic';
-    
+    // Default values if we can't extract specific elements
     return {
-      scenes: scenes.length > 0 ? scenes : ['landscape'],
-      objects: objects.length > 0 ? objects : ['natural elements'],
-      people: people,
-      settings: settings.length > 0 ? settings : ['outdoor'],
-      atmosphere,
-      style
+      scenes: ['Szene'],
+      objects: ['Objekt'],
+      people: [],
+      settings: ['Umgebung'],
+      style: 'moderner',
+      atmosphere: 'natürliche'
     };
   }
 }
