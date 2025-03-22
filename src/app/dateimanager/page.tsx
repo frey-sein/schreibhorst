@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { StorageService, FileItem } from '@/lib/services/storage';
+import { StorageService, FileItem, FileVersion } from '@/lib/services/storage';
 import FileUploader from '@/app/components/FileUploader';
 import FileIcon from '@/app/components/FileIcon';
 import { v4 as uuidv4 } from 'uuid';
+import ShareDialog from '@/app/components/ShareDialog';
+import VersionHistory from '@/app/components/VersionHistory';
+import ImagePreview from '@/app/components/ImagePreview';
 
 export default function DateimanagerPage() {
   const [isClient, setIsClient] = useState(false);
@@ -15,6 +18,15 @@ export default function DateimanagerPage() {
   const [newItemType, setNewItemType] = useState<'file' | 'folder'>('folder');
   const [selectedItem, setSelectedItem] = useState<FileItem | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [selectedFileForShare, setSelectedFileForShare] = useState<FileItem | null>(null);
+  const [isReplacing, setIsReplacing] = useState(false);
+  const [selectedFileForReplace, setSelectedFileForReplace] = useState<FileItem | null>(null);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [selectedFileForHistory, setSelectedFileForHistory] = useState<FileItem | null>(null);
+  const [versions, setVersions] = useState<FileVersion[]>([]);
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [selectedFileForPreview, setSelectedFileForPreview] = useState<FileItem | null>(null);
   const storageService = StorageService.getInstance();
 
   useEffect(() => {
@@ -54,20 +66,77 @@ export default function DateimanagerPage() {
     setIsCreatingNew(false);
   };
 
-  const handleFileUpload = (file: File) => {
-    const newItem: FileItem = {
-      id: generateId(),
-      name: file.name,
-      type: 'file',
-      parentId: getCurrentFolderId(),
-      lastModified: new Date(),
-      fileSize: file.size,
-      fileType: file.type
-    };
+  const handleFileUpload = async (file: File) => {
+    try {
+      console.log('Datei wird hochgeladen:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
 
-    storageService.addItem(newItem);
-    setItems(storageService.getItems());
-    setIsCreatingNew(false);
+      // Konvertiere die Datei zu Base64
+      const base64Content = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (!e.target?.result) {
+            reject(new Error('Keine Daten gelesen'));
+            return;
+          }
+          
+          const base64String = e.target.result as string;
+          console.log('Base64-Daten generiert:', {
+            originalLength: base64String.length,
+            prefixRemoved: base64String.substring(0, 50)
+          });
+          
+          resolve(base64String);
+        };
+        reader.onerror = (error) => {
+          console.error('Fehler beim Lesen der Datei:', error);
+          reject(error);
+        };
+        reader.readAsDataURL(file);
+      });
+
+      const newItem: FileItem = {
+        id: generateId(),
+        name: file.name,
+        type: 'file',
+        parentId: getCurrentFolderId(),
+        lastModified: new Date(),
+        fileSize: file.size,
+        fileType: file.type,
+        content: base64Content
+      };
+
+      console.log('Neues Item wird erstellt:', {
+        name: newItem.name,
+        type: newItem.fileType,
+        hasContent: !!newItem.content,
+        contentLength: newItem.content?.length
+      });
+
+      storageService.addItem(newItem);
+      
+      // Überprüfe, ob die Datei korrekt gespeichert wurde
+      const savedItem = storageService.getItemById(newItem.id);
+      console.log('Gespeichertes Item:', {
+        name: savedItem?.name,
+        type: savedItem?.fileType,
+        hasContent: !!savedItem?.content,
+        contentLength: savedItem?.content?.length
+      });
+
+      if (!savedItem?.content) {
+        throw new Error('Datei wurde nicht korrekt gespeichert');
+      }
+
+      setItems(storageService.getItems());
+      setIsCreatingNew(false);
+    } catch (error) {
+      console.error('Fehler beim Hochladen der Datei:', error);
+      alert('Fehler beim Hochladen der Datei: ' + (error instanceof Error ? error.message : 'Unbekannter Fehler'));
+    }
   };
 
   const handleNavigateToFolder = (folderId: string, folderName: string) => {
@@ -99,6 +168,71 @@ export default function DateimanagerPage() {
       }
       return newSet;
     });
+  };
+
+  const handleShareClick = (item: FileItem) => {
+    setSelectedFileForShare(item);
+    setShowShareDialog(true);
+  };
+
+  const handleReplaceClick = (item: FileItem) => {
+    setSelectedFileForReplace(item);
+    setIsReplacing(true);
+  };
+
+  const handleFileReplace = async (file: File) => {
+    if (!selectedFileForReplace) return;
+
+    try {
+      await storageService.replaceFile(selectedFileForReplace.id, file);
+      setItems(storageService.getItems());
+      setIsReplacing(false);
+      setSelectedFileForReplace(null);
+    } catch (error) {
+      console.error('Fehler beim Ersetzen der Datei:', error);
+      alert(error instanceof Error ? error.message : 'Fehler beim Ersetzen der Datei');
+    }
+  };
+
+  const handleShowVersionHistory = (item: FileItem) => {
+    setSelectedFileForHistory(item);
+    setVersions(storageService.getFileVersions(item.id));
+    setShowVersionHistory(true);
+  };
+
+  const handleRestoreVersion = async (versionId: string) => {
+    try {
+      await storageService.restoreVersion(versionId);
+      setItems(storageService.getItems());
+      setShowVersionHistory(false);
+      setSelectedFileForHistory(null);
+    } catch (error) {
+      console.error('Fehler beim Wiederherstellen der Version:', error);
+      alert(error instanceof Error ? error.message : 'Fehler beim Wiederherstellen der Version');
+    }
+  };
+
+  const isImageFile = (fileType: string) => {
+    console.log('Prüfe Bildtyp:', fileType);
+    return fileType.startsWith('image/');
+  };
+
+  const handlePreviewClick = (item: FileItem) => {
+    console.log('Preview Click für:', {
+      name: item.name,
+      type: item.fileType,
+      hasContent: !!item.content
+    });
+
+    if (item.fileType && isImageFile(item.fileType)) {
+      setSelectedFileForPreview(item);
+      setShowImagePreview(true);
+    } else {
+      console.log('Keine Bildvorschau möglich:', {
+        fileType: item.fileType,
+        isImage: item.fileType ? isImageFile(item.fileType) : false
+      });
+    }
   };
 
   const renderFolderTree = (parentId: string | null, level: number = 0) => {
@@ -342,16 +476,12 @@ export default function DateimanagerPage() {
                   {getCurrentFolderItems().map((item) => (
                     <div
                       key={item.id}
-                      className={`w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors rounded-lg border border-gray-100 ${
-                        selectedItem?.id === item.id ? 'bg-gray-50' : ''
-                      }`}
+                      className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors rounded-lg border border-gray-100"
                     >
                       <button
                         onClick={() => {
                           if (item.type === 'folder') {
                             handleNavigateToFolder(item.id, item.name);
-                          } else {
-                            setSelectedItem(selectedItem?.id === item.id ? null : item);
                           }
                         }}
                         className="flex-1 flex items-center gap-3"
@@ -375,15 +505,47 @@ export default function DateimanagerPage() {
                           </span>
                         )}
                       </button>
-                      {selectedItem?.id === item.id && (
-                        <button
-                          onClick={() => handleDeleteItem(item)}
-                          className="p-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                      {item.type === 'file' && (
+                        <div className="flex gap-2">
+                          {item.fileType && isImageFile(item.fileType) && (
+                            <button
+                              onClick={() => handlePreviewClick(item)}
+                              className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                              title="Bildvorschau"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleShowVersionHistory(item)}
+                            className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Versionshistorie"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleReplaceClick(item)}
+                            className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Datei ersetzen"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteItem(item)}
+                            className="p-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Datei löschen"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -393,6 +555,77 @@ export default function DateimanagerPage() {
           </div>
         </div>
       </main>
+
+      {/* Share Dialog */}
+      {showShareDialog && selectedFileForShare && (
+        <ShareDialog
+          file={selectedFileForShare}
+          onClose={() => {
+            setShowShareDialog(false);
+            setSelectedFileForShare(null);
+          }}
+        />
+      )}
+
+      {/* FileUploader für das Ersetzen */}
+      {isReplacing && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-light text-gray-900">Datei ersetzen</h2>
+              <button
+                onClick={() => {
+                  setIsReplacing(false);
+                  setSelectedFileForReplace(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Aktuelle Datei
+                </label>
+                <div className="text-sm text-gray-900">{selectedFileForReplace?.name}</div>
+              </div>
+              <FileUploader
+                onFileSelect={handleFileReplace}
+                onCancel={() => {
+                  setIsReplacing(false);
+                  setSelectedFileForReplace(null);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Version History Dialog */}
+      {showVersionHistory && (
+        <VersionHistory
+          versions={versions}
+          onRestore={handleRestoreVersion}
+          onClose={() => {
+            setShowVersionHistory(false);
+            setSelectedFileForHistory(null);
+          }}
+        />
+      )}
+
+      {/* Image Preview Dialog */}
+      {showImagePreview && selectedFileForPreview && (
+        <ImagePreview
+          file={selectedFileForPreview}
+          onClose={() => {
+            setShowImagePreview(false);
+            setSelectedFileForPreview(null);
+          }}
+        />
+      )}
     </div>
   );
 } 

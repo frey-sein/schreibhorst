@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { saveAs } from 'file-saver';
@@ -11,93 +11,75 @@ interface FileUploaderProps {
 }
 
 export default function FileUploader({ onFileSelect, onCancel }: FileUploaderProps) {
-  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
+  const supportedFormats = [
+    'text/plain',
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'image/jpeg',
+    'image/png',
+    'image/svg+xml',
+    'image/gif',
+    'image/webp'
+  ];
+
+  const formatNames = {
+    'text/plain': 'TXT',
+    'application/pdf': 'PDF',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word (DOCX)',
+    'application/vnd.ms-excel': 'Excel (XLS)',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel (XLSX)',
+    'image/jpeg': 'JPEG',
+    'image/png': 'PNG',
+    'image/svg+xml': 'SVG',
+    'image/gif': 'GIF',
+    'image/webp': 'WebP'
+  };
+
+  const handleFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const fileType = file.type;
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+
+      if (!supportedFormats.includes(fileType) && !['docx', 'xlsx', 'xls'].includes(fileExtension || '')) {
+        alert('Bitte laden Sie nur unterstützte Dateiformate hoch.');
+        return;
+      }
+
+      onFileSelect(file);
+    }
+  };
+
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault();
     setIsDragging(true);
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
+  const handleDragLeave = (event: React.DragEvent) => {
+    event.preventDefault();
     setIsDragging(false);
   };
 
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
     setIsDragging(false);
 
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      await handleFile(files[0]);
-    }
-  };
+    const file = event.dataTransfer.files[0];
+    if (file) {
+      const fileType = file.type;
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
 
-  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      await handleFile(files[0]);
-    }
-  };
-
-  const handleFile = async (file: File) => {
-    const fileType = file.type.toLowerCase();
-    const fileExtension = file.name.split('.').pop()?.toLowerCase();
-
-    // Erlaubte Dateitypen
-    const allowedTypes = [
-      'text/plain',
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel'
-    ];
-
-    if (!allowedTypes.includes(fileType) && !['docx', 'xlsx', 'xls'].includes(fileExtension || '')) {
-      alert('Bitte laden Sie nur Text-, PDF-, Word- oder Excel-Dateien hoch.');
-      return;
-    }
-
-    try {
-      let processedFile: File;
-
-      if (fileType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-          fileType === 'application/vnd.ms-excel' ||
-          fileExtension === 'xlsx' ||
-          fileExtension === 'xls') {
-        // Excel-Datei verarbeiten
-        const arrayBuffer = await file.arrayBuffer();
-        const workbook = XLSX.read(arrayBuffer);
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(firstSheet);
-        
-        // Konvertiere zu Text
-        const textContent = jsonData.map(row => 
-          Object.values(row).join('\t')
-        ).join('\n');
-
-        // Erstelle neue Textdatei
-        const textBlob = new Blob([textContent], { type: 'text/plain' });
-        processedFile = new File([textBlob], file.name.replace(/\.(xlsx|xls)$/, '.txt'), { type: 'text/plain' });
-      } else if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                 fileExtension === 'docx') {
-        // Word-Datei verarbeiten
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        const textContent = result.value;
-        
-        // Erstelle neue Textdatei
-        const textBlob = new Blob([textContent], { type: 'text/plain' });
-        processedFile = new File([textBlob], file.name.replace(/\.docx$/, '.txt'), { type: 'text/plain' });
-      } else {
-        processedFile = file;
+      if (!supportedFormats.includes(fileType) && !['docx', 'xlsx', 'xls'].includes(fileExtension || '')) {
+        alert('Bitte laden Sie nur unterstützte Dateiformate hoch.');
+        return;
       }
 
-      onFileSelect(processedFile);
-    } catch (error) {
-      console.error('Fehler bei der Dateiverarbeitung:', error);
-      alert('Es gab einen Fehler bei der Verarbeitung der Datei.');
+      onFileSelect(file);
     }
   };
 
@@ -116,7 +98,7 @@ export default function FileUploader({ onFileSelect, onCancel }: FileUploaderPro
           ref={fileInputRef}
           onChange={handleFileInput}
           className="hidden"
-          accept=".txt,.pdf,.docx,.xlsx,.xls"
+          accept={supportedFormats.join(',')}
         />
         <div className="space-y-2">
           <svg
@@ -144,7 +126,7 @@ export default function FileUploader({ onFileSelect, onCancel }: FileUploaderPro
             <span>per Drag & Drop hierher ziehen</span>
           </div>
           <p className="text-sm text-gray-500">
-            Unterstützte Formate: TXT, PDF, Word (DOCX), Excel (XLSX, XLS)
+            Unterstützte Formate: {Object.values(formatNames).join(', ')}
           </p>
         </div>
       </div>
