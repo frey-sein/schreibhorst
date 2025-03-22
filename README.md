@@ -1,47 +1,36 @@
-# Schreibhorst
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## About
-Schreibhorst is a content creation assistant that combines conversational AI with powerful content generation capabilities. The application features a dual-panel interface with a chat interface on the left and a "stage" on the right. 
+## Getting Started
 
-Users can research topics through natural conversation (utilizing MCP tools under the hood like scraping, web research, etc.) and then move the resulting prompts to the stage where they are executed to generate various types of content (images, text, video, etc.). This content can then be assembled into posts for social media platforms like Instagram, LinkedIn, and website blogs (e.g., WordPress).
+First, run the development server:
 
-## Core Features
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-### LLM Chat
-- Input window with completion
-- Model selection (manual + automatic)
-- Integration with Open Router algorithms
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-### Research Process
-- Conversational interface for topic exploration
-- Manual selection of completions (Toggle Green Checkmark)
-- Background tools for web research, information retrieval, and fact-checking
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-### Staging Area
-- Content display and organization
-- Options to fix, regenerate, or manually edit content
-- Support for text, images, and potentially video
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-### Export & Archive
-- Download functionality for created content
-- Archiving system for past projects
-- Export formats compatible with various platforms
+## Learn More
 
-## Development Todos
+To learn more about Next.js, take a look at the following resources:
 
-- [ ] Set up Next.js project structure
-- [ ] Implement basic UI layout with chat panel and stage panel
-- [ ] Create chat interface with input and completion display
-- [ ] Integrate with MCP tools for enhanced conversation capabilities
-- [ ] Implement model selection and algorithm integration
-- [ ] Create "move to stage" functionality
-- [ ] Build stage interface with content display and editing options
-- [ ] Implement content generation features (text, image, etc.)
-- [ ] Create export functionality for various platforms
-- [ ] Design and implement archiving system
-- [ ] Add authentication and user management
-- [ ] Create settings and preferences panel
-- [ ] Implement responsive design for various devices
-- [ ] Add documentation and help resources
-- [ ] Set up testing infrastructure
-- [ ] Implement error handling and logging
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
