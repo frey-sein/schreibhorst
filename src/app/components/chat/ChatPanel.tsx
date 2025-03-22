@@ -126,27 +126,47 @@ export default function ChatPanel() {
     ]);
   }, []);
 
+  // Lade Chat aus der Historie
+  const handleSelectChat = (chatId: string) => {
+    const chat = getChat(chatId);
+    if (chat) {
+      setCurrentChatId(chatId);
+      // Konvertiere die Message-Objekte in das richtige Format
+      const convertedMessages = chat.messages.map(msg => ({
+        id: msg.id || Date.now().toString(),
+        text: msg.content || msg.text,
+        sender: msg.role === 'user' ? 'user' : 'assistant',
+        timestamp: msg.timestamp || new Date().toISOString()
+      }));
+      setMessages(convertedMessages);
+      setIsHistoryOpen(false);
+    }
+  };
+
   // Speichere Chat in der Historie
   useEffect(() => {
     if (messages.length > 0) {
-      // Generiere einen sinnvollen Titel aus der Konversation
       let chatTitle = 'Neuer Chat';
-      
-      // Suche nach der ersten Benutzernachricht
       const firstUserMessage = messages.find(msg => msg.sender === 'user');
       if (firstUserMessage) {
-        // Verwende die ersten 50 Zeichen der ersten Benutzernachricht
         chatTitle = firstUserMessage.text.substring(0, 50) + (firstUserMessage.text.length > 50 ? '...' : '');
       }
+      
+      // Konvertiere die Messages in das Format für die Historie
+      const convertedMessages = messages.map(msg => ({
+        id: msg.id,
+        content: msg.text,
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        timestamp: msg.timestamp
+      }));
       
       const chat: ChatHistory = {
         id: currentChatId,
         title: chatTitle,
-        messages: messages,
+        messages: convertedMessages,
         lastUpdated: new Date(),
       };
 
-      // Aktualisiere den bestehenden Chat oder füge einen neuen hinzu
       const existingChat = getChat(currentChatId);
       if (existingChat) {
         updateChat(currentChatId, chat);
@@ -155,16 +175,6 @@ export default function ChatPanel() {
       }
     }
   }, [messages, currentChatId, addChat, updateChat, getChat]);
-
-  // Lade Chat aus der Historie
-  const handleSelectChat = (chatId: string) => {
-    const chat = getChat(chatId);
-    if (chat) {
-      setCurrentChatId(chatId);
-      setMessages(chat.messages);
-      setIsHistoryOpen(false);
-    }
-  };
 
   // Function to manually trigger chat analysis
   const analyzeChat = async () => {

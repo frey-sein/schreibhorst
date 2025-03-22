@@ -9,7 +9,7 @@ export default function Header() {
   const isWissen = pathname === '/wissen';
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-[#f4f4f4]/80 backdrop-blur-md border-b border-gray-100 shadow-md">
       <div className="max-w-[2000px] mx-auto px-6 py-4 flex justify-between items-center">
         <Link href="/" className="hover:opacity-80 transition-opacity">
           <img src="/Logo-nuetzlich-gruen.svg" alt="Nützlich Logo" className="h-8" />
