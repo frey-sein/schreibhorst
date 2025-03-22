@@ -18,26 +18,28 @@ export default function FileUploader({ onFileSelect, onCancel }: FileUploaderPro
     'text/plain',
     'application/pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
     'image/jpeg',
     'image/png',
     'image/svg+xml',
     'image/gif',
-    'image/webp'
+    'image/webp',
+    'application/postscript'
   ];
 
-  const formatNames = {
-    'text/plain': 'TXT',
+  const formatNames: { [key: string]: string } = {
+    'text/plain': 'Text (TXT)',
     'application/pdf': 'PDF',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word (DOCX)',
-    'application/vnd.ms-excel': 'Excel (XLS)',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel (XLSX)',
+    'application/vnd.ms-excel': 'Excel (XLS)',
     'image/jpeg': 'JPEG',
     'image/png': 'PNG',
     'image/svg+xml': 'SVG',
     'image/gif': 'GIF',
-    'image/webp': 'WebP'
+    'image/webp': 'WebP',
+    'application/postscript': 'EPS'
   };
 
   const handleFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {

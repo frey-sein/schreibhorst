@@ -7,6 +7,7 @@ import FileIcon from '@/app/components/FileIcon';
 import { v4 as uuidv4 } from 'uuid';
 import ShareDialog from '@/app/components/ShareDialog';
 import VersionHistory from '@/app/components/VersionHistory';
+import FilePreview from '@/app/components/FilePreview';
 import ImagePreview from '@/app/components/ImagePreview';
 
 export default function DateimanagerPage() {
@@ -224,13 +225,18 @@ export default function DateimanagerPage() {
       hasContent: !!item.content
     });
 
-    if (item.fileType && isImageFile(item.fileType)) {
+    if (item.fileType && (
+      item.fileType.startsWith('image/') ||
+      item.fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      item.fileType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      item.fileType === 'application/vnd.ms-excel' ||
+      item.fileType === 'application/postscript'
+    )) {
       setSelectedFileForPreview(item);
       setShowImagePreview(true);
     } else {
-      console.log('Keine Bildvorschau möglich:', {
-        fileType: item.fileType,
-        isImage: item.fileType ? isImageFile(item.fileType) : false
+      console.log('Keine Vorschau möglich:', {
+        fileType: item.fileType
       });
     }
   };
@@ -302,13 +308,13 @@ export default function DateimanagerPage() {
   };
 
   const getBreadcrumbPath = () => {
-    const path = ['Meine Dateien'];
+    const path = [];
     let currentId = getCurrentFolderId();
     
     while (currentId !== 'root') {
       const parent = storageService.getItemById(currentId);
       if (parent) {
-        path.unshift(parent.name);
+        path.unshift(parent);
         currentId = parent.parentId || 'root';
       } else {
         break;
@@ -377,21 +383,24 @@ export default function DateimanagerPage() {
                 <div className="flex justify-between items-center mb-6">
                   <div>
                     <h1 className="text-2xl font-light text-gray-900 tracking-tight mb-2">Dateimanager</h1>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      {getBreadcrumbPath().map((folder, index) => (
-                        <div key={index} className="flex items-center">
-                          {index > 0 && <span className="mx-2">/</span>}
+                    <div className="flex items-center space-x-2 text-sm text-gray-500 mb-4">
+                      <button
+                        onClick={() => setCurrentPath([])}
+                        className="hover:text-gray-700"
+                      >
+                        Meine Dateien
+                      </button>
+                      {getBreadcrumbPath().map((folder, index, array) => (
+                        <div key={folder.id} className="flex items-center">
+                          <span className="mx-2">/</span>
                           <button
                             onClick={() => {
-                              if (index === 0) {
-                                setCurrentPath([]);
-                              } else {
-                                setCurrentPath(currentPath.slice(0, index));
-                              }
+                              const newPath = array.slice(0, index + 1).map(f => f.id);
+                              setCurrentPath(newPath);
                             }}
                             className="hover:text-gray-700"
                           >
-                            {folder}
+                            {folder.name}
                           </button>
                         </div>
                       ))}
@@ -507,15 +516,27 @@ export default function DateimanagerPage() {
                       </button>
                       {item.type === 'file' && (
                         <div className="flex gap-2">
-                          {item.fileType && isImageFile(item.fileType) && (
+                          {item.fileType && (
+                            isImageFile(item.fileType) ||
+                            item.fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                            item.fileType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                            item.fileType === 'application/vnd.ms-excel'
+                          ) && (
                             <button
                               onClick={() => handlePreviewClick(item)}
                               className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                              title="Bildvorschau"
+                              title={`${isImageFile(item.fileType) ? 'Bildvorschau' : 'Vorschau'}`}
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                              </svg>
+                              {isImageFile(item.fileType) ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                  <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
                             </button>
                           )}
                           <button
@@ -616,13 +637,22 @@ export default function DateimanagerPage() {
         />
       )}
 
-      {/* Image Preview Dialog */}
+      {/* Vorschau-Dialog */}
       {showImagePreview && selectedFileForPreview && (
-        <ImagePreview
+        <FilePreview
           file={selectedFileForPreview}
           onClose={() => {
             setShowImagePreview(false);
             setSelectedFileForPreview(null);
+          }}
+          onReplace={async (file: File) => {
+            try {
+              await storageService.replaceFile(selectedFileForPreview.id, file);
+              setItems(storageService.getItems());
+            } catch (error) {
+              console.error('Fehler beim Ersetzen der Datei:', error);
+              throw error;
+            }
           }}
         />
       )}
