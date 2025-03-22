@@ -14,11 +14,16 @@ export class OpenRouterClient {
   private apiKey: string;
   private apiBase: string;
 
-  constructor() {
-    if (!process.env.OPENROUTER_API_KEY) {
+  constructor(apiKey?: string) {
+    // In browser context, apiKey will be passed in from the server
+    // In server context, we can use the environment variable directly
+    if (typeof window !== 'undefined' && !apiKey) {
+      throw new Error('OPENROUTER_API_KEY ist nicht konfiguriert');
+    } else if (typeof window === 'undefined' && !process.env.OPENROUTER_API_KEY) {
       throw new Error('OPENROUTER_API_KEY ist nicht konfiguriert');
     }
-    this.apiKey = process.env.OPENROUTER_API_KEY;
+    
+    this.apiKey = apiKey || process.env.OPENROUTER_API_KEY || '';
     this.apiBase = process.env.NEXT_PUBLIC_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
   }
 

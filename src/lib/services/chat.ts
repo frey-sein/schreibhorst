@@ -6,10 +6,9 @@ interface ChatMessage {
 }
 
 export class ChatService {
-  private client: OpenRouterClient;
-
+  // We'll use API routes instead of accessing the client directly from the browser
   constructor() {
-    this.client = new OpenRouterClient();
+    // No direct client instantiation here
   }
 
   async sendMessage(message: string, context: string[] = []) {

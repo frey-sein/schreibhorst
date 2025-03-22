@@ -31,6 +31,7 @@ export default function ChatPanel() {
   ]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // We'll use an API route instead of directly instantiating the service with API keys
   const chatService = new ChatService();
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {

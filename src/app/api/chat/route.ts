@@ -4,7 +4,8 @@ import { OpenRouterClient } from '@/lib/api/openrouter';
 export async function POST(request: Request) {
   try {
     const { messages, model, temperature } = await request.json();
-    const client = new OpenRouterClient();
+    // Create the client with the server-side API key
+    const client = new OpenRouterClient(process.env.OPENROUTER_API_KEY);
 
     const response = await client.createChatCompletion({
       messages,
