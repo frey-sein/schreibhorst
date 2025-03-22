@@ -17,6 +17,14 @@ Users can research topics through natural conversation (utilizing MCP tools unde
 - Manual selection of completions (Toggle Green Checkmark)
 - Background tools for web research, information retrieval, and fact-checking
 
+### Chat Analyzer
+- Content analysis of conversations to identify key themes, topics, and concepts
+- Extraction of potential prompts for content generation
+- Detection of creative intents and content preferences expressed by users
+- Transformation of conversational elements into structured generation prompts
+- Ranking system for evaluating prompt quality and relevance
+- Bridge between conversation interface and content generation tools
+
 ### Staging Area
 - Content display and organization
 - Options to fix, regenerate, or manually edit content
@@ -31,11 +39,17 @@ Users can research topics through natural conversation (utilizing MCP tools unde
 
 - [x] Set up Next.js project structure
 - [x] Implement basic UI layout with chat panel and stage panel
-- [ ] Create chat interface with input and completion display
+- [x] Create chat interface with input and completion display
 - [ ] Integrate with MCP tools for enhanced conversation capabilities
 - [ ] Implement model selection and algorithm integration
+- [ ] Implement an analyzer for the chat to generate prompts that can be sent to the stage where they will be used as OpenRouter inputs for content generation (text and image generation)
+  - [ ] Build content analysis system to identify key topics and concepts
+  - [ ] Create algorithm for extracting and formulating generation prompts
+  - [ ] Implement intent detection to identify creative requests
+  - [ ] Develop a ranking system for potential prompts
+  - [ ] Design the interface between chat analysis and stage components
 - [ ] Create "move to stage" functionality
-- [ ] Build stage interface with content display and editing options
+- [x] Build stage interface with content display and editing options
 - [ ] Implement content generation features (text, image, etc.)
 - [ ] Create export functionality for various platforms
 - [ ] Design and implement archiving system

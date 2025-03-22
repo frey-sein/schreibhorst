@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { usePromptStore } from '@/lib/store/promptStore';
+import { AnalysisResult } from '@/lib/services/analyzer/chatAnalyzer';
 
 interface TextDraft {
   id: number;
   content: string;
   isSelected: boolean;
+  sourcePrompt?: AnalysisResult;
 }
 
 interface ImageDraft {
@@ -13,6 +16,7 @@ interface ImageDraft {
   url: string;
   isSelected: boolean;
   title: string;
+  sourcePrompt?: AnalysisResult;
 }
 
 export default function StagePanel() {
@@ -55,6 +59,63 @@ export default function StagePanel() {
     }
   ]);
 
+  // Get prompts from the store
+  const { textPrompts, imagePrompts, clearPrompts } = usePromptStore();
+
+  // Handle new prompts coming in
+  useEffect(() => {
+    if (textPrompts.length > 0) {
+      // Process new text prompts that aren't already in the drafts
+      const newTextPrompts = textPrompts.filter(
+        (prompt: AnalysisResult) => !textDrafts.some(draft => draft.sourcePrompt?.prompt === prompt.prompt)
+      );
+      
+      if (newTextPrompts.length > 0) {
+        // Add new drafts from prompts
+        const newDrafts = newTextPrompts.map((prompt: AnalysisResult, index: number) => ({
+          id: textDrafts.length + index + 1,
+          content: prompt.prompt,
+          isSelected: false,
+          sourcePrompt: prompt
+        }));
+        
+        setTextDrafts(prev => [...prev, ...newDrafts]);
+      }
+    }
+  }, [textPrompts]);
+
+  // Handle new image prompts
+  useEffect(() => {
+    if (imagePrompts.length > 0) {
+      // Process new image prompts that aren't already in the drafts
+      const newImagePrompts = imagePrompts.filter(
+        (prompt: AnalysisResult) => !imageDrafts.some(draft => draft.sourcePrompt?.prompt === prompt.prompt)
+      );
+      
+      if (newImagePrompts.length > 0) {
+        // In a real app, we would call an image generation API here
+        // For now, just use placeholder images
+        const placeholderImages = [
+          "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=60",
+          "https://images.unsplash.com/photo-1506260408121-e353d10b87c7?w=800&auto=format&fit=crop&q=60",
+          "https://images.unsplash.com/photo-1434725039720-aaad6dd32dfe?w=800&auto=format&fit=crop&q=60",
+          "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=800&auto=format&fit=crop&q=60"
+        ];
+        
+        // Add new drafts from prompts
+        const newDrafts = newImagePrompts.map((prompt: AnalysisResult, index: number) => ({
+          id: imageDrafts.length + index + 1,
+          url: placeholderImages[index % placeholderImages.length],
+          title: prompt.prompt.length > 25 ? prompt.prompt.substring(0, 25) + '...' : prompt.prompt,
+          isSelected: false,
+          sourcePrompt: prompt
+        }));
+        
+        setImageDrafts(prev => [...prev, ...newDrafts]);
+      }
+    }
+  }, [imagePrompts]);
+
   const handleTextSelect = (id: number) => {
     setTextDrafts(prev => prev.map(draft => ({
       ...draft,
@@ -70,12 +131,12 @@ export default function StagePanel() {
   };
 
   const handleRegenerateTexts = () => {
-    // TODO: Implementiere die Logik zum Neu Generieren der Texte
+    // TODO: Implement text regeneration with actual API
     console.log("Texte neu generieren...");
   };
 
   const handleRegenerateImages = () => {
-    // TODO: Implementiere die Logik zum Neu Generieren der Bilder
+    // TODO: Implement image regeneration with actual API
     console.log("Bilder neu generieren...");
   };
 
@@ -112,6 +173,25 @@ export default function StagePanel() {
                 }`}
               >
                 <p className="text-gray-700 leading-relaxed">{draft.content}</p>
+                {draft.sourcePrompt && (
+                  <>
+                    {draft.sourcePrompt.contentType && (
+                      <div className="mt-2 text-xs text-gray-500 font-medium">
+                        Typ: {draft.sourcePrompt.contentType}
+                      </div>
+                    )}
+                    <div className="mt-1 text-xs text-gray-500">
+                      Quelle: {draft.sourcePrompt.sourceContext}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {draft.sourcePrompt.tags.map((tag, i) => (
+                        <span key={i} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
                 {draft.isSelected && (
                   <div className="mt-3 text-sm text-[#2c2c2c] font-medium">Ausgewählt</div>
                 )}
@@ -150,6 +230,24 @@ export default function StagePanel() {
                 />
                 <div className="absolute bottom-0 left-0 right-0 p-4 text-white transform translate-y-full group-hover:translate-y-0 transition-transform duration-200 z-20">
                   <h4 className="text-sm font-medium">{draft.title}</h4>
+                  {draft.sourcePrompt && (
+                    <>
+                      {draft.sourcePrompt.contentType && (
+                        <div className="mt-1 text-xs text-white/90 font-medium">
+                          {draft.sourcePrompt.contentType}
+                        </div>
+                      )}
+                      {draft.sourcePrompt.tags.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {draft.sourcePrompt.tags.slice(0, 3).map((tag, i) => (
+                            <span key={i} className="text-xs px-2 py-0.5 bg-black/30 text-white rounded-full">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
                 {draft.isSelected && (
                   <div className="absolute top-3 right-3 bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-sm font-medium z-30">
@@ -170,6 +268,12 @@ export default function StagePanel() {
           </button>
           <button className="px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100">
             Speichern
+          </button>
+          <button 
+            onClick={() => clearPrompts()}
+            className="px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100"
+          >
+            Zurücksetzen
           </button>
           <button className="px-5 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium ml-auto">
             Exportieren
