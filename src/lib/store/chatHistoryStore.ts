@@ -6,6 +6,7 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  imageUrl?: string;  // Optional URL für generierte Bilder
 }
 
 export interface ChatHistory {

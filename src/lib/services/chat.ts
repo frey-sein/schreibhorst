@@ -1,9 +1,5 @@
 import { OpenRouterClient } from '../api/openrouter';
-
-interface ChatMessage {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-}
+import { ChatMessage } from '@/types/chat';
 
 export class ChatService {
   private static instance: ChatService;
@@ -79,85 +75,51 @@ export class ChatService {
     onError: (error: Error) => void
   ): Promise<void> {
     try {
-      const apiUrl = this.getApiUrl();
-      console.log('Sending request to:', apiUrl);
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: message }],
-          model,
-        }),
+      const client = this.getClient();
+      const response = await client.streamChatCompletion({
+        messages: [{ role: 'user', content: message }],
+        model,
+        temperature: 0.7,
+        stream: true
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('API error response:', errorData);
         throw new Error(`API error response: ${JSON.stringify(errorData)}`);
       }
 
       const reader = response.body?.getReader();
       if (!reader) {
-        console.error('No response body available');
         throw new Error('No response body available');
       }
 
       const decoder = new TextDecoder();
       let buffer = '';
-      let hasProcessedData = false;
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            console.log('Stream reading completed');
-            break;
-          }
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
-          console.log('Raw chunk received:', chunk);
-          
-          buffer += chunk;
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-          for (const line of lines) {
-            if (line.trim() === '') continue;
-            
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6).trim();
-              console.log('Processing data line:', data);
-              
-              if (data === '[DONE]') {
-                console.log('Received [DONE] signal');
-                return;
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.choices?.[0]?.delta?.content) {
+                onChunk(parsed.choices[0].delta.content);
               }
-              
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.choices?.[0]?.delta?.content) {
-                  const content = parsed.choices[0].delta.content;
-                  console.log('Processing content chunk:', content);
-                  hasProcessedData = true;
-                  onChunk(content);
-                }
-              } catch (e) {
-                console.error('Error parsing JSON data:', e);
-                console.error('Problematic data:', data);
-              }
+            } catch (e) {
+              console.error('Error parsing chunk:', e);
             }
           }
         }
-      } finally {
-        reader.releaseLock();
-      }
-
-      if (!hasProcessedData) {
-        console.error('No data was processed during stream');
-        throw new Error('Keine Daten während des Streams verarbeitet');
       }
     } catch (error) {
       console.error('Chat service error:', error);

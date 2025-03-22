@@ -151,10 +151,18 @@ export default function StagePanel() {
   return (
     <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0]">
       {/* Header */}
-      <div className="p-6 border-b border-gray-100 bg-white/80 backdrop-blur-md">
-        <div>
-          <h2 className="text-2xl font-light text-gray-900 tracking-tight">Deine Entwürfe</h2>
-          <p className="text-sm text-gray-500 mt-1">Wähle deine besten Entwürfe</p>
+      <div className="sticky top-[64px] z-20 h-[120px] p-6 border-b border-gray-100 bg-white/80 backdrop-blur-md">
+        <div className="flex justify-between items-start gap-4 w-full">
+          <div className="flex-1">
+            <h2 className="text-xl lg:text-2xl font-light text-gray-900 tracking-tight">Deine Entwürfe</h2>
+            <p className="text-xs lg:text-sm text-gray-500 mt-1 break-normal">Wähle deine besten Entwürfe</p>
+          </div>
+          {/* Unsichtbares Element für gleiche Höhe */}
+          <div className="flex items-start space-x-3 shrink-0 invisible">
+            <div className="p-2.5 border border-gray-200 rounded-full w-[48px] h-[48px]"></div>
+            <div className="p-2.5 border border-gray-200 rounded-full w-[48px] h-[48px]"></div>
+            <div className="px-4 py-2.5 border border-gray-200 rounded-full w-48 lg:w-64 h-[48px]"></div>
+          </div>
         </div>
       </div>
 

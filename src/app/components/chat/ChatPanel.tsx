@@ -7,7 +7,6 @@ import { usePromptStore } from '@/lib/store/promptStore';
 import { AnalysisResult } from '@/lib/services/analyzer/chatAnalyzer';
 import { useChatHistoryStore, type Message, type ChatHistory } from '@/lib/store/chatHistoryStore';
 import ChatHistoryComponent from './ChatHistory';
-import ChatMessages from './ChatMessages';
 import { v4 as uuidv4 } from 'uuid';
 import { DocumentService } from '@/lib/services/document/documentService';
 import { format } from 'date-fns';
@@ -15,6 +14,8 @@ import { de } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 import { Document, Paragraph } from 'docx';
 import { ChatAnalyzer } from '@/lib/services/analyzer/chatAnalyzer';
+import { ChatBubbleLeftIcon, PaperClipIcon, PaperAirplaneIcon, SparklesIcon, PlusIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { ChatMessage } from '@/types/chat';
 
 // Verfügbare OpenRouter Modelle
 const AVAILABLE_MODELS = [
@@ -86,14 +87,16 @@ const processFile = async (file: File): Promise<string> => {
 };
 
 export default function ChatPanel() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>(process.env.NEXT_PUBLIC_DEFAULT_MODEL || 'openai/gpt-3.5-turbo');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [currentChatId, setCurrentChatId] = useState<string>(uuidv4());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Get prompt store functions
   const { addPrompt } = usePromptStore();
@@ -103,15 +106,23 @@ export default function ChatPanel() {
   const analyzerService = new ChatAnalyzer();
   const documentService = DocumentService.getInstance();
 
-  // Setze die initiale Willkommensnachricht
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  useEffect(() => {
+    // Setze die Willkommensnachricht nach dem Mounten
     setMessages([
       {
-        id: '1',
-        role: 'assistant',
-        content: 'Willkommen! Ich bin dein KI-Schreibassistent. Wie kann ich dir heute helfen?',
-        timestamp: new Date().toISOString(),
-      },
+        id: 'welcome',
+        text: 'Hallo! Ich bin Ihr KI-Assistent. Wie kann ich Ihnen helfen?',
+        sender: 'assistant',
+        timestamp: new Date().toISOString()
+      }
     ]);
   }, []);
 
@@ -122,32 +133,36 @@ export default function ChatPanel() {
       let chatTitle = 'Neuer Chat';
       
       // Suche nach der ersten Benutzernachricht
-      const firstUserMessage = messages.find(msg => msg.role === 'user');
+      const firstUserMessage = messages.find(msg => msg.sender === 'user');
       if (firstUserMessage) {
         // Verwende die ersten 50 Zeichen der ersten Benutzernachricht
-        chatTitle = firstUserMessage.content.substring(0, 50) + (firstUserMessage.content.length > 50 ? '...' : '');
+        chatTitle = firstUserMessage.text.substring(0, 50) + (firstUserMessage.text.length > 50 ? '...' : '');
       }
       
-      const chat = {
-        id: uuidv4(),
+      const chat: ChatHistory = {
+        id: currentChatId,
         title: chatTitle,
         messages: messages,
         lastUpdated: new Date(),
       };
 
-      addChat(chat);
+      // Aktualisiere den bestehenden Chat oder füge einen neuen hinzu
+      const existingChat = getChat(currentChatId);
+      if (existingChat) {
+        updateChat(currentChatId, chat);
+      } else {
+        addChat(chat);
+      }
     }
-  }, [messages, addChat]);
+  }, [messages, currentChatId, addChat, updateChat, getChat]);
 
   // Lade Chat aus der Historie
   const handleSelectChat = (chatId: string) => {
     const chat = getChat(chatId);
     if (chat) {
-      const messagesWithIds = chat.messages.map(msg => ({
-        ...msg,
-        id: uuidv4(),
-      }));
-      setMessages(messagesWithIds);
+      setCurrentChatId(chatId);
+      setMessages(chat.messages);
+      setIsHistoryOpen(false);
     }
   };
 
@@ -175,48 +190,62 @@ export default function ChatPanel() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!input.trim() || isLoading || isUploading) return;
 
-    const userMessage: Message = {
-      id: uuidv4(),
-      role: 'user',
-      content: input.trim(),
+    const newMessage: ChatMessage = {
+      id: Date.now().toString(),
+      text: input.trim(),
+      sender: 'user',
       timestamp: new Date().toISOString()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages(prev => [...prev, newMessage]);
     setInput('');
     setIsLoading(true);
 
     try {
-      const response = await chatService.sendMessage(input.trim(), selectedModel);
-      console.log('Received response:', response);
-      
-      if (response && response.trim()) {
-        const assistantMessage: Message = {
-          id: uuidv4(),
-          role: 'assistant',
-          content: response.trim(),
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, assistantMessage]);
-      } else {
-        throw new Error('Empty response received');
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      const errorMessage: Message = {
-        id: uuidv4(),
-        role: 'assistant',
-        content: 'Entschuldigung, es gab ein Problem bei der Verarbeitung deiner Nachricht. Bitte versuche es später erneut.',
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      await chatService.streamMessage(
+        input.trim(),
+        selectedModel,
+        (chunk: string) => {
+          setMessages(prev => {
+            const lastMessage = prev[prev.length - 1];
+            if (lastMessage.sender === 'assistant') {
+              return [
+                ...prev.slice(0, -1),
+                { ...lastMessage, text: lastMessage.text + chunk }
+              ];
+            }
+            return [
+              ...prev,
+              {
+                id: Date.now().toString(),
+                text: chunk,
+                sender: 'assistant',
+                timestamp: new Date().toISOString()
+              }
+            ];
+          });
+        },
+        (error: Error) => {
+          console.error('Chat error:', error);
+          setMessages(prev => [
+            ...prev,
+            {
+              id: Date.now().toString(),
+              text: `Entschuldigung, es gab ein Problem bei der Verarbeitung Ihrer Nachricht: ${error.message}`,
+              sender: 'assistant',
+              timestamp: new Date().toISOString()
+            }
+          ]);
+        }
+      );
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [input, isLoading, isUploading, selectedModel, chatService]);
 
   // Send a prompt to the stage
   const handleSendToStage = (prompt: AnalysisResult) => {
@@ -225,13 +254,15 @@ export default function ChatPanel() {
 
   // Reset chat to initial state
   const handleNewChat = () => {
+    const newChatId = uuidv4();
+    setCurrentChatId(newChatId);
     setMessages([
       {
-        id: uuidv4(),
-        role: 'assistant',
-        content: 'Willkommen! Ich bin dein KI-Schreibassistent. Wie kann ich dir heute helfen?',
-        timestamp: new Date().toISOString(),
-      },
+        id: 'welcome',
+        text: 'Hallo! Ich bin Ihr KI-Assistent. Wie kann ich Ihnen helfen?',
+        sender: 'assistant',
+        timestamp: new Date().toISOString()
+      }
     ]);
     setInput('');
   };
@@ -242,10 +273,10 @@ export default function ChatPanel() {
     setIsUploading(true);
     try {
       const content = await processFile(file);
-      const message: Message = {
+      const message: ChatMessage = {
         id: uuidv4(),
-        role: 'user',
-        content: content,
+        text: content,
+        sender: 'user',
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, message]);
@@ -257,170 +288,122 @@ export default function ChatPanel() {
   };
 
   return (
-    <div className="flex flex-col h-full w-1/2 bg-[#f0f0f0]">
+    <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0] relative">
+      {isHistoryOpen && (
+        <div className="absolute inset-0 z-50">
+          <ChatHistoryComponent
+            onSelectChat={handleSelectChat}
+            onClose={() => setIsHistoryOpen(false)}
+          />
+        </div>
+      )}
       {/* Header */}
-      <div className="p-6 border-b border-gray-100 bg-white/80 backdrop-blur-md">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-light text-gray-900 tracking-tight">Chat</h2>
-            <p className="text-sm text-gray-500 mt-1">Deine Konversation mit dem KI-Assistenten</p>
+      <div className="sticky top-[64px] z-40 h-[120px] p-6 border-b border-gray-100 bg-white/80 backdrop-blur-md">
+        <div className="flex justify-between items-start gap-4">
+          <div className="flex-1">
+            <h2 className="text-xl lg:text-2xl font-light text-gray-900 tracking-tight">Chat</h2>
+            <p className="text-xs lg:text-sm text-gray-500 mt-1 break-normal">Wählen Sie ein Modell und starten Sie die Konversation</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-              className="px-4 py-2 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-              </svg>
-            </button>
+          <div className="flex items-start space-x-3 shrink-0">
             <button
               onClick={handleNewChat}
-              className="px-4 py-2 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100"
+              className="p-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100 shrink-0"
+              title="Neuer Chat"
             >
-              Neuer Chat
+              <PlusIcon className="w-5 h-5" />
             </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto p-8 space-y-4">
-        <ChatMessages messages={messages} />
-      </div>
-
-      {/* Chat History Sidebar */}
-      {isHistoryOpen && (
-        <>
-          <div 
-            className="fixed inset-0 bg-transparent" 
-            onClick={() => setIsHistoryOpen(false)} 
-          />
-          <div className="fixed inset-y-0 right-0 w-96 bg-white/95 shadow-lg transform transition-transform duration-300 ease-in-out z-50">
-            <div className="h-full flex flex-col">
-              <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                <h3 className="text-lg font-medium text-gray-900">Chat-Verlauf</h3>
-                <button
-                  onClick={() => setIsHistoryOpen(false)}
-                  className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                <ChatHistoryComponent 
-                  onSelectChat={handleSelectChat} 
-                  onClose={() => setIsHistoryOpen(false)}
-                />
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Input Area */}
-      <div className="sticky bottom-0 bg-[#fafafa]">
-        <div className="p-6 border-t border-gray-100 bg-white/80 backdrop-blur-md">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Schreibe deine Nachricht hier..."
-                className="flex-1 p-3 border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900 placeholder-gray-400"
-                rows={3}
-                disabled={isLoading || isUploading}
-              />
-              <div className="flex items-center gap-2">
-                <label className="flex items-center justify-center rounded-full border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 cursor-pointer">
-                  <input
-                    type="file"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        setSelectedFile(file);
-                        handleFileUpload(file);
-                      }
-                    }}
-                    className="hidden"
-                    disabled={isLoading || isUploading}
-                  />
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd" />
-                  </svg>
-                </label>
-                <button
-                  onClick={handleSubmit}
-                  disabled={isLoading || isUploading || !input.trim()}
-                  className="flex items-center justify-center rounded-full bg-[#2c2c2c] px-4 py-2 text-sm font-medium text-white hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <svg
-                      className="h-5 w-5 animate-spin"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  )}
-                </button>
-                <button
-                  onClick={analyzeChat}
-                  disabled={messages.length < 2 || isLoading || isUploading}
-                  className="flex items-center justify-center rounded-full bg-[#2c2c2c] px-4 py-2 text-sm font-medium text-white hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Chat analysieren"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                    <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              className="p-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100 shrink-0"
+              title="Chatverlauf"
+            >
+              <ClockIcon className="w-5 h-5" />
+            </button>
+            <div className="w-48 lg:w-64 shrink-0">
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                className="flex-1 p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
-                disabled={isLoading || isUploading}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-sm bg-white text-gray-900 font-medium appearance-none bg-no-repeat bg-[right_1rem_center] bg-[length:1.5em_1.5em] bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%236B7280%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20d%3D%22M10%203a1%201%200%2001.707.293l3%203a1%201%200%2001-1.414%201.414L10%205.414%207.707%207.707a1%201%200%2001-1.414-1.414l3-3A1%201%200%200110%203zm-3.707%209.293a1%201%200%20011.414%200L10%2014.586l2.293-2.293a1%201%200%20011.414%201.414l-3%203a1%201%200%2001-1.414%200l-3-3a1%201%200%20010-1.414z%22%20clip-rule%3D%22evenodd%22%2F%3E%3C%2Fsvg%3E')]"
               >
                 {AVAILABLE_MODELS.map((model) => (
-                  <option key={model.id} value={model.id}>
+                  <option key={model.id} value={model.id} className="text-gray-900">
                     {model.name}
                   </option>
                 ))}
               </select>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto p-8 pb-36 space-y-6">
+        {/* Chat-Nachrichten */}
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 space-y-4">
+          <div className="space-y-4">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${
+                  message.sender === 'user' ? 'justify-end' : 'justify-start'
+                }`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-2xl p-4 ${
+                    message.sender === 'user'
+                      ? 'bg-[#2c2c2c] text-white'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap text-sm">{message.text}</p>
+                  <span className="text-xs opacity-70 mt-1 block">
+                    {new Date(message.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+      </div>
+
+      {/* Action Bar - Fixed */}
+      <div className="sticky bottom-0 z-40 bg-[#fafafa]">
+        <div className="p-6 border-t border-gray-100 bg-white/80 backdrop-blur-md">
+          <div className="flex gap-3">
+            <form onSubmit={handleSubmit} className="flex-1 flex items-center space-x-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Schreiben Sie Ihre Nachricht..."
+                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-sm text-gray-900"
+                disabled={isLoading}
+              />
+              <button
+                type="button"
+                className="p-2 text-gray-600 hover:text-gray-800 focus:outline-none"
+              >
+                <PaperClipIcon className="w-5 h-5" />
+              </button>
+              <button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                className="p-2.5 pr-4 text-[#2c2c2c] hover:text-[#1a1a1a] focus:outline-none disabled:opacity-50"
+              >
+                <PaperAirplaneIcon className="w-5 h-5" />
+              </button>
+            </form>
+            <button
+              onClick={analyzeChat}
+              className={`px-5 py-2.5 bg-gradient-to-r from-[#2c2c2c] to-[#1a1a1a] text-white rounded-full hover:from-[#1a1a1a] hover:to-[#2c2c2c] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium flex items-center space-x-2 ${
+                messages.length < 2 ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              disabled={messages.length < 2}
+            >
+              <SparklesIcon className="w-4 h-4" />
+              <span>Analysieren</span>
+            </button>
           </div>
         </div>
       </div>

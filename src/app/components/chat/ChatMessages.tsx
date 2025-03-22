@@ -1,6 +1,6 @@
 'use client';
 
-import { type Message } from '@/lib/store/chatHistoryStore';
+import { Message } from '@/lib/store/chatHistoryStore';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
@@ -8,31 +8,49 @@ interface ChatMessagesProps {
   messages: Message[];
 }
 
-export default function ChatMessages({ messages }: ChatMessagesProps) {
-  const formatTime = (date: Date) => {
-    return format(new Date(date), 'HH:mm', { locale: de });
-  };
+const formatTime = (date: string) => {
+  return format(new Date(date), 'HH:mm', { locale: de });
+};
 
+export default function ChatMessages({ messages }: ChatMessagesProps) {
   return (
-    <div className="space-y-4">
-      {messages.map((msg) => (
+    <div className="flex flex-col space-y-4">
+      {messages.map((message) => (
         <div
-          key={msg.id}
-          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          key={message.id}
+          className={`flex ${
+            message.role === 'user' ? 'justify-end' : 'justify-start'
+          }`}
         >
           <div
-            className={`max-w-[80%] rounded-2xl p-4 transition-all duration-200 ${
-              msg.role === 'user'
+            className={`max-w-[80%] rounded-2xl p-4 ${
+              message.role === 'user'
                 ? 'bg-[#2c2c2c] text-white'
-                : 'bg-white border border-gray-100 text-gray-700 shadow-sm hover:shadow-md'
+                : 'bg-white text-gray-900'
             }`}
           >
-            <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-            <p className={`text-xs mt-2 ${
-              msg.role === 'user' ? 'text-gray-300' : 'text-gray-400'
-            }`}>
-              {formatTime(new Date(msg.timestamp))}
-            </p>
+            {message.imageUrl ? (
+              <div className="space-y-2">
+                <img 
+                  src={message.imageUrl} 
+                  alt="Generiertes Bild"
+                  className="rounded-lg max-w-full h-auto"
+                  loading="lazy"
+                />
+                {message.content && (
+                  <p className="text-sm mt-2">{message.content}</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+            )}
+            <div
+              className={`text-xs mt-1 ${
+                message.role === 'user' ? 'text-gray-300' : 'text-gray-500'
+              }`}
+            >
+              {formatTime(message.timestamp)}
+            </div>
           </div>
         </div>
       ))}
