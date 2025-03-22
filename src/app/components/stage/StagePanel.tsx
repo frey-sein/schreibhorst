@@ -80,15 +80,17 @@ export default function StagePanel() {
   };
 
   return (
-    <div className="w-1/2 flex flex-col h-full bg-[#fafafa]">
+    <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0]">
       {/* Header */}
       <div className="p-6 border-b border-gray-100 bg-white/80 backdrop-blur-md">
-        <h2 className="text-2xl font-light text-gray-900 tracking-tight">Deine Entwürfe</h2>
-        <p className="text-sm text-gray-500">Wähle deine besten Entwürfe</p>
+        <div>
+          <h2 className="text-2xl font-light text-gray-900 tracking-tight">Deine Entwürfe</h2>
+          <p className="text-sm text-gray-500 mt-1">Wähle deine besten Entwürfe</p>
+        </div>
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-8 space-y-12">
+      <div className="flex-1 overflow-y-auto p-8 space-y-12 pb-24">
         {/* Text Drafts Section */}
         <div className="space-y-6">
           <div className="flex justify-between items-center">
@@ -162,18 +164,20 @@ export default function StagePanel() {
         </div>
       </div>
 
-      {/* Action Bar */}
-      <div className="p-6 border-t border-gray-100 bg-white/80 backdrop-blur-md">
-        <div className="flex gap-3">
-          <button className="px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100">
-            Bearbeiten
-          </button>
-          <button className="px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100">
-            Speichern
-          </button>
-          <button className="px-5 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium ml-auto">
-            Exportieren
-          </button>
+      {/* Action Bar - Fixed */}
+      <div className="sticky bottom-0 bg-[#fafafa]">
+        <div className="p-6 border-t border-gray-100 bg-white/80 backdrop-blur-md">
+          <div className="flex gap-3">
+            <button className="px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100">
+              Bearbeiten
+            </button>
+            <button className="px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100">
+              Speichern
+            </button>
+            <button className="px-5 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium ml-auto">
+              Exportieren
+            </button>
+          </div>
         </div>
       </div>
     </div>

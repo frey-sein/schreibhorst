@@ -96,8 +96,10 @@ export default function ChatPanel() {
     <div className="w-1/2 flex flex-col h-full bg-[#fafafa]">
       {/* Header */}
       <div className="p-6 border-b border-gray-100 bg-white/80 backdrop-blur-md">
-        <h2 className="text-2xl font-light text-gray-900 tracking-tight">Kreativ-Chat</h2>
-        <p className="text-sm text-gray-500 mt-1">Entwickle deine Ideen im Dialog</p>
+        <div>
+          <h2 className="text-2xl font-light text-gray-900 tracking-tight">Kreativ-Chat</h2>
+          <p className="text-sm text-gray-500 mt-1">Entwickle deine Ideen im Dialog</p>
+        </div>
       </div>
 
       {/* Messages Area */}
@@ -125,28 +127,30 @@ export default function ChatPanel() {
         ))}
       </div>
 
-      {/* Input Area */}
-      <form onSubmit={handleSubmit} className="p-6 border-t border-gray-100 bg-white/80 backdrop-blur-md">
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Schreibe deine Idee..."
-            className="flex-1 px-5 py-2.5 bg-white border border-gray-100 rounded-full text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm"
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            disabled={isLoading}
-            className={`px-5 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium ${
-              isLoading ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            {isLoading ? 'Sendet...' : 'Senden'}
-          </button>
-        </div>
-      </form>
+      {/* Input Area - Fixed */}
+      <div className="sticky bottom-0 bg-[#fafafa]">
+        <form onSubmit={handleSubmit} className="p-6 border-t border-gray-100 bg-white/80 backdrop-blur-md">
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Schreibe deine Idee..."
+              className="flex-1 px-5 py-2.5 bg-white border border-gray-100 rounded-full text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm"
+              disabled={isLoading}
+            />
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`px-5 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium ${
+                isLoading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {isLoading ? 'Sendet...' : 'Senden'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 } 
