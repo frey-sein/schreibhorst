@@ -1,11 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { usePromptStore } from '@/lib/store/promptStore';
+import { AnalysisResult } from '@/lib/services/analyzer/chatAnalyzer';
 
 interface TextDraft {
   id: number;
   content: string;
   isSelected: boolean;
+  title?: string;
+  contentType?: string;
+  tags?: string[];
+  sourceContext?: string;
 }
 
 interface ImageDraft {
@@ -13,6 +19,9 @@ interface ImageDraft {
   url: string;
   isSelected: boolean;
   title: string;
+  contentType?: string;
+  tags?: string[];
+  sourceContext?: string;
 }
 
 export default function StagePanel() {
@@ -20,17 +29,26 @@ export default function StagePanel() {
     {
       id: 1,
       content: "In einem fernen Land, wo die Berge den Himmel berührten und die Wälder voller Geheimnisse waren, lebte ein außergewöhnlicher Drache...",
-      isSelected: false
+      isSelected: false,
+      title: "Drachengeschichte",
+      contentType: "Geschichte",
+      tags: ["Drache", "Fantasy", "Abenteuer"]
     },
     {
       id: 2,
       content: "Der Drache, den alle nur Funkel nannten, war ein besonderes Wesen. Seine Schuppen glitzerten wie Diamanten im Sonnenlicht...",
-      isSelected: false
+      isSelected: false,
+      title: "Funkel der Drache",
+      contentType: "Kurzgeschichte",
+      tags: ["Drache", "Fantasy"]
     },
     {
       id: 3,
       content: "Tief in den Bergen, versteckt vor neugierigen Blicken, hatte sich ein junger Drache niedergelassen. Anders als seine Artgenossen...",
-      isSelected: false
+      isSelected: false,
+      title: "Der Bergdrache",
+      contentType: "Erzählung",
+      tags: ["Drache", "Berge", "Einsamkeit"]
     }
   ]);
 
@@ -39,21 +57,72 @@ export default function StagePanel() {
       id: 1,
       url: "https://images.unsplash.com/photo-1500964757637-c85e8a162699?w=800&auto=format&fit=crop&q=60",
       title: "Mystische Berglandschaft",
-      isSelected: false
+      isSelected: false,
+      contentType: "Landschaft",
+      tags: ["Berg", "Natur", "Mystisch"]
     },
     {
       id: 2,
       url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&auto=format&fit=crop&q=60",
       title: "Neblige Bergspitze",
-      isSelected: false
+      isSelected: false,
+      contentType: "Landschaft",
+      tags: ["Berg", "Nebel", "Natur"]
     },
     {
       id: 3,
       url: "https://images.unsplash.com/photo-1486870591958-9b9d0d1dda99?w=800&auto=format&fit=crop&q=60",
       title: "Sonnenaufgang in den Bergen",
-      isSelected: false
+      isSelected: false,
+      contentType: "Landschaft",
+      tags: ["Berg", "Sonnenaufgang", "Natur"]
     }
   ]);
+
+  // Get prompts from the store
+  const { textPrompts, imagePrompts } = usePromptStore();
+
+  // Listen for new prompts from the store
+  useEffect(() => {
+    if (textPrompts.length > 0) {
+      // Add new text prompts as drafts
+      const newTextDrafts = textPrompts.map((prompt, index) => ({
+        id: textDrafts.length + index + 1,
+        content: prompt.prompt,
+        isSelected: false,
+        title: prompt.contentType || "Neuer Entwurf",
+        contentType: prompt.contentType,
+        tags: prompt.tags,
+        sourceContext: prompt.sourceContext
+      }));
+      
+      setTextDrafts(prev => [...newTextDrafts, ...prev]);
+    }
+  }, [textPrompts]);
+
+  useEffect(() => {
+    if (imagePrompts.length > 0) {
+      // For image prompts, we'd typically generate images via an API
+      // For now, we'll just use placeholders
+      const placeholderImages = [
+        "https://images.unsplash.com/photo-1513477967668-2aaf11838bd6?w=800&auto=format&fit=crop&q=60",
+        "https://images.unsplash.com/photo-1498598457418-36ef20772c9b?w=800&auto=format&fit=crop&q=60",
+        "https://images.unsplash.com/photo-1505765050516-f72dcac9c60e?w=800&auto=format&fit=crop&q=60"
+      ];
+      
+      const newImageDrafts = imagePrompts.map((prompt, index) => ({
+        id: imageDrafts.length + index + 1,
+        url: placeholderImages[index % placeholderImages.length],
+        title: prompt.contentType || "Neues Bild",
+        isSelected: false,
+        contentType: prompt.contentType,
+        tags: prompt.tags,
+        sourceContext: prompt.sourceContext
+      }));
+      
+      setImageDrafts(prev => [...newImageDrafts, ...prev]);
+    }
+  }, [imagePrompts]);
 
   const handleTextSelect = (id: number) => {
     setTextDrafts(prev => prev.map(draft => ({
@@ -113,9 +182,44 @@ export default function StagePanel() {
                     : 'bg-white border border-gray-100 hover:border-gray-200 hover:shadow-md'
                 }`}
               >
+                {draft.contentType && (
+                  <div className="mb-2 flex justify-between items-center">
+                    <span className="text-xs font-medium text-gray-500">
+                      Typ: {draft.contentType}
+                    </span>
+                    {draft.sourceContext && (
+                      <span className="text-xs text-gray-400">
+                        Quelle: {draft.sourceContext}
+                      </span>
+                    )}
+                  </div>
+                )}
+                
                 <p className="text-gray-700 leading-relaxed">{draft.content}</p>
+                
+                {draft.tags && draft.tags.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {draft.tags.slice(0, 3).map((tag, index) => (
+                      <span key={index} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                        {tag}
+                      </span>
+                    ))}
+                    {draft.tags.length > 3 && (
+                      <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                        +{draft.tags.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
+                
                 {draft.isSelected && (
-                  <div className="mt-3 text-sm text-[#2c2c2c] font-medium">Ausgewählt</div>
+                  <div className="mt-3 flex justify-between items-center">
+                    <span className="text-sm text-[#2c2c2c] font-medium">Ausgewählt</span>
+                    <div className="flex items-center space-x-1 text-gray-500 text-xs">
+                      <span>{draft.title}</span>
+                      {draft.contentType && <span>• {draft.contentType}</span>}
+                    </div>
+                  </div>
                 )}
               </div>
             ))}
@@ -152,6 +256,7 @@ export default function StagePanel() {
                 />
                 <div className="absolute bottom-0 left-0 right-0 p-4 text-white transform translate-y-full group-hover:translate-y-0 transition-transform duration-200 z-20">
                   <h4 className="text-sm font-medium">{draft.title}</h4>
+                  {draft.contentType && <p className="text-xs mt-1 opacity-80">{draft.contentType}</p>}
                 </div>
                 {draft.isSelected && (
                   <div className="absolute top-3 right-3 bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-sm font-medium z-30">
