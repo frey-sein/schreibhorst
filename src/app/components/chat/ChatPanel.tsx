@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { ChatService } from '@/lib/services/chat';
 
 interface Message {
   id: number;
@@ -9,28 +10,87 @@ interface Message {
   timestamp: Date;
 }
 
+const formatTime = (date: Date) => {
+  return date.toLocaleTimeString('de-DE', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+};
+
 export default function ChatPanel() {
   const [message, setMessage] = useState('');
-  const [messages] = useState<Message[]>([
+  const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
       text: 'Willkommen! Ich bin dein KI-Schreibassistent. Wie kann ich dir heute helfen?',
       sender: 'ai',
       timestamp: new Date(),
     },
-    {
-      id: 2,
-      text: 'Ich möchte eine Geschichte über einen Drachen schreiben.',
+  ]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const chatService = new ChatService();
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim() || isLoading) return;
+
+    const newMessage: Message = {
+      id: messages.length + 1,
+      text: message,
       sender: 'user',
       timestamp: new Date(),
-    },
-    {
-      id: 3,
-      text: 'Das ist eine tolle Idee! Lass uns gemeinsam eine fesselnde Geschichte entwickeln. Möchtest du, dass der Drache eher freundlich oder gefährlich ist?',
-      sender: 'ai',
-      timestamp: new Date(),
-    },
-  ]);
+    };
+
+    setMessages(prev => [...prev, newMessage]);
+    setMessage('');
+    setIsLoading(true);
+
+    try {
+      let responseText = '';
+      
+      await chatService.streamMessage(
+        message,
+        messages.map(m => m.text),
+        (chunk) => {
+          responseText += chunk;
+          setMessages(prev => {
+            const lastMessage = prev[prev.length - 1];
+            if (lastMessage?.sender === 'ai') {
+              return [
+                ...prev.slice(0, -1),
+                { ...lastMessage, text: responseText },
+              ];
+            }
+            return [
+              ...prev,
+              {
+                id: prev.length + 1,
+                text: responseText,
+                sender: 'ai',
+                timestamp: new Date(),
+              },
+            ];
+          });
+        }
+      );
+    } catch (error) {
+      console.error('Chat error:', error);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: prev.length + 1,
+          text: 'Entschuldigung, es gab ein Problem bei der Verarbeitung deiner Nachricht.',
+          sender: 'ai',
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [message, messages, isLoading]);
 
   return (
     <div className="w-1/2 flex flex-col h-full bg-white border-r border-gray-200">
@@ -54,9 +114,9 @@ export default function ChatPanel() {
                   : 'bg-gray-100 text-gray-900'
               }`}
             >
-              <p>{msg.text}</p>
+              <p className="whitespace-pre-wrap">{msg.text}</p>
               <p className="text-xs mt-1 opacity-70">
-                {msg.timestamp.toLocaleTimeString()}
+                {formatTime(msg.timestamp)}
               </p>
             </div>
           </div>
@@ -64,7 +124,7 @@ export default function ChatPanel() {
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t border-gray-200 bg-white">
+      <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200 bg-white">
         <div className="flex gap-2">
           <input
             type="text"
@@ -72,12 +132,19 @@ export default function ChatPanel() {
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Schreibe deine Idee..."
             className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isLoading}
           />
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
-            Senden
+          <button
+            type="submit"
+            disabled={isLoading}
+            className={`px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+              isLoading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            {isLoading ? 'Sendet...' : 'Senden'}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 } 

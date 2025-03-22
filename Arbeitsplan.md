@@ -29,8 +29,8 @@ Users can research topics through natural conversation (utilizing MCP tools unde
 
 ## Development Todos
 
-- [ ] Set up Next.js project structure
-- [ ] Implement basic UI layout with chat panel and stage panel
+- [x] Set up Next.js project structure
+- [x] Implement basic UI layout with chat panel and stage panel
 - [ ] Create chat interface with input and completion display
 - [ ] Integrate with MCP tools for enhanced conversation capabilities
 - [ ] Implement model selection and algorithm integration
@@ -41,7 +41,7 @@ Users can research topics through natural conversation (utilizing MCP tools unde
 - [ ] Design and implement archiving system
 - [ ] Add authentication and user management
 - [ ] Create settings and preferences panel
-- [ ] Implement responsive design for various devices
+- [x] Implement responsive design for various devices
 - [ ] Add documentation and help resources
 - [ ] Set up testing infrastructure
 - [ ] Implement error handling and logging
