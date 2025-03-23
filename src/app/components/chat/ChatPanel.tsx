@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import { ChatService } from '@/lib/services/chat';
 import { AnalyzerService } from '@/lib/services/analyzer';
 import { usePromptStore } from '@/lib/store/promptStore';
 import { AnalysisResult } from '@/lib/services/analyzer/chatAnalyzer';
-import { useChatHistoryStore, type Message, type ChatHistory } from '@/lib/store/chatHistoryStore';
+import { useChatHistoryStore, type Message as HistoryMessage, type ChatHistory } from '@/lib/store/chatHistoryStore';
 import ChatHistoryComponent from './ChatHistory';
 import { v4 as uuidv4 } from 'uuid';
 import { DocumentService } from '@/lib/services/document/documentService';
@@ -16,6 +16,14 @@ import { Document, Paragraph } from 'docx';
 import { ChatAnalyzer } from '@/lib/services/analyzer/chatAnalyzer';
 import { ChatBubbleLeftIcon, PaperClipIcon, PaperAirplaneIcon, SparklesIcon, PlusIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { ChatMessage } from '@/types/chat';
+import ReactMarkdown from 'react-markdown';
+
+interface AnalyzerMessage {
+  id: number;
+  text: string;
+  sender: 'user' | 'ai';
+  timestamp: Date;
+}
 
 // Verfügbare OpenRouter Modelle
 const AVAILABLE_MODELS = [
@@ -97,6 +105,7 @@ export default function ChatPanel() {
   const [currentChatId, setCurrentChatId] = useState<string>(uuidv4());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<AnalysisResult[]>([]);
 
   // Get prompt store functions
   const { addPrompt } = usePromptStore();
@@ -132,11 +141,11 @@ export default function ChatPanel() {
     if (chat) {
       setCurrentChatId(chatId);
       // Konvertiere die Message-Objekte in das richtige Format
-      const convertedMessages = chat.messages.map(msg => ({
-        id: msg.id || Date.now().toString(),
-        text: msg.content || msg.text,
-        sender: msg.role === 'user' ? 'user' : 'assistant',
-        timestamp: msg.timestamp || new Date().toISOString()
+      const convertedMessages: ChatMessage[] = chat.messages.map(msg => ({
+        id: msg.id,
+        text: msg.content,
+        sender: msg.role,
+        timestamp: msg.timestamp
       }));
       setMessages(convertedMessages);
       setIsHistoryOpen(false);
@@ -153,10 +162,10 @@ export default function ChatPanel() {
       }
       
       // Konvertiere die Messages in das Format für die Historie
-      const convertedMessages = messages.map(msg => ({
+      const convertedMessages: HistoryMessage[] = messages.map(msg => ({
         id: msg.id,
         content: msg.text,
-        role: msg.sender === 'user' ? 'user' : 'assistant',
+        role: msg.sender,
         timestamp: msg.timestamp
       }));
       
@@ -179,24 +188,120 @@ export default function ChatPanel() {
   // Function to manually trigger chat analysis
   const analyzeChat = async () => {
     if (messages.length < 2) {
-      return; // Not enough messages to analyze
+      return;
     }
     
     try {
-      const results = await analyzerService.analyzeConversation(messages);
+      const analyzerMessages = messages.map(msg => ({
+        id: parseInt(msg.id),
+        text: msg.text,
+        sender: msg.sender === 'user' ? 'user' : 'ai' as const,
+        timestamp: new Date(msg.timestamp)
+      })) as AnalyzerMessage[];
+      
+      const results = await analyzerService.analyzeConversation(analyzerMessages);
       if (results.length > 0) {
-        // Füge die erste Analyse als Prompt hinzu
-        handleSendToStage(results[0]);
+        const analysisMessage: ChatMessage = {
+          id: Date.now().toString(),
+          text: `✨ Basierend auf unserer Konversation habe ich folgende Vorschläge für die Weiterarbeit:
+
+${results.map((result, index) => `
+### ${result.type === 'text' ? '📝' : '🎨'} Vorschlag ${index + 1}
+---
+
+**Typ:** ${result.type === 'text' ? 'Text' : 'Bild'}
+
+**Prompt:**
+${result.prompt}
+
+**Kontext:**
+${result.sourceContext}
+
+**Tags:**
+${result.tags.map(tag => `#${tag}`).join(' ')}
+
+[Auswählen](${index})
+
+---`).join('\n\n')}
+
+💡 Wähle die Vorschläge aus, die du auf die Stage übertragen möchtest.`,
+          sender: 'assistant',
+          timestamp: new Date().toISOString()
+        };
+
+        setMessages(prev => [...prev, analysisMessage]);
+        setSelectedSuggestions([]);
       }
     } catch (error) {
       console.error('Analysis error:', error);
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: '❌ Entschuldigung, bei der Analyse ist ein Fehler aufgetreten. Bitte versuche es später erneut.',
+        sender: 'assistant',
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
     }
+  };
+
+  // Funktion zum Verarbeiten von Klicks auf Links in Nachrichten
+  const handleMessageClick = (message: ChatMessage, linkText: string) => {
+    if (linkText.startsWith('Auswählen')) {
+      const index = parseInt(linkText.match(/\((\d+)\)/)?.[1] || '');
+      if (!isNaN(index)) {
+        const results = message.text
+          .split('\n\n')
+          .filter(line => line.match(/^\d+\./))
+          .map(line => {
+            const type = line.includes('Text') ? 'text' : 'image';
+            const prompt = line.split(': ')[1].split('\n')[0];
+            const sourceContext = line.split('Kontext: ')[1].split('\n')[0];
+            const tags = line.split('Tags: ')[1].split('\n')[0].split(', ');
+            return {
+              type,
+              prompt,
+              sourceContext,
+              tags,
+              confidence: 0.8 // Standardwert für die Konfidenz
+            } as AnalysisResult;
+          });
+
+        if (results[index]) {
+          const suggestion = results[index];
+          setSelectedSuggestions(prev => {
+            const isSelected = prev.some(s => s.prompt === suggestion.prompt);
+            if (isSelected) {
+              return prev.filter(s => s.prompt !== suggestion.prompt);
+            } else {
+              return [...prev, suggestion];
+            }
+          });
+        }
+      }
+    }
+  };
+
+  // Funktion zum Senden der ausgewählten Vorschläge
+  const handleSendSelectedSuggestions = () => {
+    selectedSuggestions.forEach(suggestion => {
+      handleSendToStage(suggestion);
+    });
+    
+    // Füge eine Bestätigungsnachricht hinzu
+    const confirmationMessage: ChatMessage = {
+      id: Date.now().toString(),
+      text: `✅ ${selectedSuggestions.length} Vorschläge wurden auf die Stage übertragen.`,
+      sender: 'assistant',
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, confirmationMessage]);
+    setSelectedSuggestions([]);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit();
+      handleSubmit(e);
     }
   };
 
@@ -348,7 +453,6 @@ export default function ChatPanel() {
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-8 pb-36 space-y-6">
-        {/* Chat-Nachrichten */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 space-y-4">
           <div className="space-y-4">
             {messages.map((message) => (
@@ -365,8 +469,51 @@ export default function ChatPanel() {
                       : 'bg-gray-100 text-gray-800'
                   }`}
                 >
-                  <p className="whitespace-pre-wrap text-sm">{message.text}</p>
-                  <span className="text-xs opacity-70 mt-1 block">
+                  <div 
+                    className="whitespace-pre-wrap text-sm prose prose-sm max-w-none"
+                    onClick={(e) => {
+                      const target = e.target as HTMLElement;
+                      if (target.tagName === 'A') {
+                        e.preventDefault();
+                        handleMessageClick(message, target.textContent || '');
+                      }
+                    }}
+                  >
+                    <ReactMarkdown
+                      components={{
+                        h3: ({ children }: { children: ReactNode }) => (
+                          <h3 className="text-xl font-semibold mb-4 bg-gray-50 p-4 rounded-lg">{children}</h3>
+                        ),
+                        p: ({ children }: { children: ReactNode }) => (
+                          <p className="mb-3 leading-relaxed">{children}</p>
+                        ),
+                        strong: ({ children }: { children: ReactNode }) => (
+                          <strong className="font-semibold text-gray-700">{children}</strong>
+                        ),
+                        a: ({ children, href, onClick }: { children: ReactNode; href?: string; onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void }) => (
+                          <a
+                            href={href}
+                            onClick={onClick}
+                            className={`inline-flex items-center px-5 py-2.5 rounded-full transition-colors text-sm font-medium ${
+                              selectedSuggestions.some(s => s.prompt === children?.toString().match(/\((\d+)\)/)?.[1])
+                                ? 'bg-[#2c2c2c] text-white hover:bg-[#1a1a1a]'
+                                : 'bg-[#2c2c2c] text-white hover:bg-[#1a1a1a]'
+                            } focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20`}
+                          >
+                            {selectedSuggestions.some(s => s.prompt === children?.toString().match(/\((\d+)\)/)?.[1])
+                              ? '✓ Ausgewählt'
+                              : '+ Auswählen'}
+                          </a>
+                        ),
+                        hr: () => (
+                          <hr className="my-4 border-gray-200" />
+                        )
+                      }}
+                    >
+                      {message.text}
+                    </ReactMarkdown>
+                  </div>
+                  <span className="text-xs opacity-70 mt-2 block">
                     {new Date(message.timestamp).toLocaleTimeString()}
                   </span>
                 </div>
@@ -406,7 +553,7 @@ export default function ChatPanel() {
             </form>
             <button
               onClick={analyzeChat}
-              className={`px-5 py-2.5 bg-gradient-to-r from-[#2c2c2c] to-[#1a1a1a] text-white rounded-full hover:from-[#1a1a1a] hover:to-[#2c2c2c] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium flex items-center space-x-2 ${
+              className={`px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100 flex items-center space-x-2 ${
                 messages.length < 2 ? 'opacity-50 cursor-not-allowed' : ''
               }`}
               disabled={messages.length < 2}
@@ -414,6 +561,15 @@ export default function ChatPanel() {
               <SparklesIcon className="w-4 h-4" />
               <span>Analysieren</span>
             </button>
+            {selectedSuggestions.length > 0 && (
+              <button
+                onClick={handleSendSelectedSuggestions}
+                className="px-5 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium flex items-center space-x-2"
+              >
+                <PaperAirplaneIcon className="w-4 h-4" />
+                <span>{selectedSuggestions.length} Vorschläge senden</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

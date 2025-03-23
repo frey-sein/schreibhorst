@@ -1,6 +1,7 @@
 import { AnalysisResult } from './analyzer/chatAnalyzer';
+import { ChatMessage } from '@/types/chat';
 
-interface Message {
+interface AnalyzerMessage {
   id: number;
   text: string;
   sender: 'user' | 'ai';
@@ -13,7 +14,7 @@ export class AnalyzerService {
    * @param messages The messages to analyze
    * @returns A list of sophisticated generation prompts for text and images
    */
-  async analyzeConversation(messages: Message[]): Promise<AnalysisResult[]> {
+  async analyzeConversation(messages: AnalyzerMessage[]): Promise<AnalysisResult[]> {
     try {
       // Format the messages for the API (stringify Date objects)
       const formattedMessages = messages.map(msg => ({

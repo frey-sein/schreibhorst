@@ -1,4 +1,4 @@
-import { Message } from '@/lib/store/chatHistoryStore';
+import { ChatMessage } from '@/types/chat';
 
 export interface AnalysisResult {
   type: 'text' | 'image';
@@ -9,11 +9,18 @@ export interface AnalysisResult {
   contentType?: string; // Specific type like "blog", "story", "product photo", etc.
 }
 
+interface AnalyzerMessage {
+  id: number;
+  text: string;
+  sender: 'user' | 'ai';
+  timestamp: Date;
+}
+
 interface NarrativeElements {
   characters: string[];
-  setting: string;
-  plot: string;
+  settings: string[];
   themes: string[];
+  plotPoints: string[];
 }
 
 interface VisualElements {
@@ -31,7 +38,7 @@ export class ChatAnalyzer {
    * @param messages Array of conversation messages to analyze
    * @returns Array of analysis results containing generation prompts
    */
-  analyzeConversation(messages: Message[]): AnalysisResult[] {
+  async analyzeConversation(messages: AnalyzerMessage[]): Promise<AnalysisResult[]> {
     // Skip if there's not enough conversation
     if (messages.length < 2) {
       return [];
@@ -55,134 +62,80 @@ export class ChatAnalyzer {
   /**
    * Extracts the full conversation text
    */
-  private getFullConversationText(messages: Message[]): string {
-    // Focus mainly on user messages as they contain the user's intent and interests
-    return messages.map(m => m.content).join("\n\n");
+  private getFullConversationText(messages: AnalyzerMessage[]): string {
+    return messages
+      .map(msg => `${msg.sender === 'user' ? 'Benutzer' : 'Assistent'}: ${msg.text}`)
+      .join('\n');
   }
 
   /**
    * Generates sophisticated text content prompts based on the conversation
    */
-  private generateTextContentPrompts(conversationText: string): AnalysisResult[] {
+  private generateTextContentPrompts(conversation: string): AnalysisResult[] {
     const results: AnalysisResult[] = [];
-    const mainTopics = this.extractMainTopics(conversationText);
     
-    // Generate blog post prompt
-    if (mainTopics.length > 0) {
-      const topicString = mainTopics.slice(0, 3).join(", ");
+    // Blog Post Analyse
+    if (conversation.includes('Blog') || conversation.includes('Artikel')) {
       results.push({
         type: 'text',
-        prompt: `Schreibe einen informativen Blogbeitrag über ${topicString}. Füge wichtige Fakten, Erkenntnisse und praktische Anwendungen ein.`,
-        confidence: 0.85,
-        sourceContext: "Hauptthemen aus der Konversation",
-        tags: mainTopics,
-        contentType: "blog"
-      });
-    }
-    
-    // Generate story prompt if the conversation has narrative elements
-    if (this.containsNarrativeElements(conversationText)) {
-      const narrativeElements = this.extractNarrativeElements(conversationText);
-      results.push({
-        type: 'text',
-        prompt: `Schreibe eine kurze Geschichte mit ${narrativeElements.characters.join(", ")} in einer ${narrativeElements.setting} Umgebung. Die Geschichte sollte ${narrativeElements.plot} beinhalten.`,
-        confidence: 0.75,
-        sourceContext: "Narrative Elemente aus der Konversation",
-        tags: [...narrativeElements.characters, narrativeElements.setting, ...narrativeElements.themes],
-        contentType: "story"
-      });
-    }
-    
-    // Generate article prompt with specific structure
-    if (mainTopics.length > 0) {
-      results.push({
-        type: 'text',
-        prompt: `Erstelle einen strukturierten Artikel über ${mainTopics[0]} mit einer Einleitung, 3-4 Hauptabschnitten und einem Fazit. Füge relevante Fakten und Beispiele ein.`,
+        prompt: `Erstelle einen Blog-Beitrag basierend auf dieser Konversation: ${conversation}`,
         confidence: 0.8,
-        sourceContext: "Hauptthema aus der Konversation",
-        tags: [mainTopics[0], "article", "structured"],
-        contentType: "article"
+        sourceContext: 'Blog-Beitrag basierend auf der Konversation',
+        tags: ['blog', 'artikel', 'text'],
+        contentType: 'blog'
       });
     }
-    
-    // Generate social media post
-    const socialTags = this.extractSocialMediaRelevantTopics(conversationText);
-    if (socialTags.length > 0) {
+
+    // Story Analyse
+    if (conversation.includes('Geschichte') || conversation.includes('Story')) {
       results.push({
         type: 'text',
-        prompt: `Schreibe einen ansprechenden Social-Media-Beitrag über ${socialTags.slice(0, 2).join(" und ")}. Mache ihn prägnant, ansprechend und teilbar.`,
+        prompt: `Erstelle eine Geschichte basierend auf dieser Konversation: ${conversation}`,
         confidence: 0.7,
-        sourceContext: "Social Media relevante Themen",
-        tags: [...socialTags, "social media"],
-        contentType: "social post"
+        sourceContext: 'Geschichte basierend auf der Konversation',
+        tags: ['geschichte', 'story', 'text'],
+        contentType: 'story'
       });
     }
-    
+
     return results;
   }
 
   /**
    * Generates sophisticated image prompts based on the conversation
    */
-  private generateImagePrompts(conversationText: string): AnalysisResult[] {
+  private generateImagePrompts(conversation: string): AnalysisResult[] {
     const results: AnalysisResult[] = [];
     
-    // Extract visual elements from the conversation
-    const visualElements = this.extractVisualElements(conversationText);
-    const mainTopics = this.extractMainTopics(conversationText);
+    // Extrahiere visuelle Konzepte
+    const visualConcepts = this.extractVisualConcepts(conversation);
     
-    // Generate a detailed scene prompt
-    if (visualElements.scenes.length > 0) {
-      const mainScene = visualElements.scenes[0];
+    if (visualConcepts.length > 0) {
       results.push({
         type: 'image',
-        prompt: `${mainScene} mit ${visualElements.objects.slice(0, 2).join(" und ")}. ${visualElements.style} Stil, detailliert, hochwertig.`,
-        confidence: 0.9,
-        sourceContext: "Visuelle Szene aus der Konversation",
-        tags: [mainScene, ...visualElements.objects, visualElements.style],
-        contentType: "scene"
+        prompt: `Erstelle ein Bild basierend auf diesen Konzepten: ${visualConcepts.join(', ')}`,
+        confidence: 0.6,
+        sourceContext: 'Bild basierend auf visuellen Konzepten aus der Konversation',
+        tags: ['bild', 'visualisierung', 'image'],
+        contentType: 'illustration'
       });
     }
-    
-    // Generate concept illustration
-    if (mainTopics.length > 0) {
-      results.push({
-        type: 'image',
-        prompt: `Konzeptuelle Illustration von ${mainTopics[0]}. Modernes, klares Design mit symbolischen Elementen. ${visualElements.style || "Minimalistischer"} Stil.`,
-        confidence: 0.8,
-        sourceContext: "Hauptkonzept aus der Konversation",
-        tags: [mainTopics[0], "conceptual", "illustration"],
-        contentType: "concept"
-      });
-    }
-    
-    // Generate portrait/character prompt if people were discussed
-    if (visualElements.people.length > 0) {
-      const person = visualElements.people[0];
-      results.push({
-        type: 'image',
-        prompt: `Porträt von ${person} in einer ${visualElements.settings[0] || "professionellen"} Umgebung. ${visualElements.style || "Realistischer"} Stil, hohe Detailgenauigkeit.`,
-        confidence: 0.75,
-        sourceContext: "Person aus der Konversation",
-        tags: [person, "portrait", visualElements.style || "realistic"],
-        contentType: "portrait"
-      });
-    }
-    
-    // Generate landscape/setting prompt
-    if (visualElements.settings.length > 0) {
-      const setting = visualElements.settings[0];
-      results.push({
-        type: 'image',
-        prompt: `${setting} Landschaft mit ${visualElements.atmosphere || "natürlicher Beleuchtung"}. ${visualElements.style || "Fotorealistischer"} Stil, Panoramaansicht.`,
-        confidence: 0.85,
-        sourceContext: "Schauplatz aus der Konversation",
-        tags: [setting, "landscape", visualElements.atmosphere || "natural"],
-        contentType: "landscape"
-      });
-    }
-    
+
     return results;
+  }
+
+  private extractVisualConcepts(conversation: string): string[] {
+    const concepts: string[] = [];
+    const visualKeywords = ['sehen', 'bild', 'foto', 'fotografie', 'illustration', 'design', 'farbe', 'stil'];
+    
+    const sentences = conversation.split(/[.!?]+/);
+    sentences.forEach(sentence => {
+      if (visualKeywords.some(keyword => sentence.toLowerCase().includes(keyword))) {
+        concepts.push(sentence.trim());
+      }
+    });
+
+    return concepts;
   }
 
   /**
@@ -254,9 +207,9 @@ export class ChatAnalyzer {
     // Default values if we can't extract specific elements
     return {
       characters: ['Hauptfigur'],
-      setting: 'moderne',
-      plot: 'eine interessante Entwicklung',
-      themes: ['Wachstum', 'Veränderung']
+      settings: ['moderne'],
+      themes: ['Wachstum', 'Veränderung'],
+      plotPoints: ['eine interessante Entwicklung']
     };
   }
 
