@@ -46,9 +46,44 @@ export function updateFile(id: string, updates: Partial<FileItem>): FileItem | n
 }
 
 export function deleteFile(id: string): boolean {
-  const initialLength = files.length;
-  files = files.filter(f => f.id !== id);
-  return initialLength > files.length;
+  console.log('Lösche Datenspeicher-Element mit ID:', id);
+  
+  // Lösche rekursiv alle untergeordneten Elemente
+  const findChildren = (parentId: string) => {
+    return files.filter(file => file.parentId === parentId);
+  };
+  
+  const deleteRecursively = (itemId: string) => {
+    // Finde zuerst alle untergeordneten Elemente
+    const children = findChildren(itemId);
+    console.log(`Gefundene Unterelemente für ${itemId}:`, children.length);
+    
+    // Lösche rekursiv jedes untergeordnete Element
+    for (const child of children) {
+      deleteRecursively(child.id);
+    }
+    
+    // Dann lösche das Element selbst
+    const initialLength = files.length;
+    files = files.filter(f => f.id !== itemId);
+    console.log(`Element ${itemId} gelöscht:`, initialLength > files.length);
+  };
+  
+  // Prüfe, ob das Element existiert
+  const elementExists = files.some(f => f.id === id);
+  if (!elementExists) {
+    console.log('Element nicht gefunden:', id);
+    return false;
+  }
+  
+  // Führe das rekursive Löschen durch
+  deleteRecursively(id);
+  
+  // Prüfe, ob das Löschen erfolgreich war
+  const success = !files.some(f => f.id === id);
+  console.log('Löschvorgang abgeschlossen, Erfolg:', success);
+  
+  return success;
 }
 
 // Funktion zum Speichern der Daten in localStorage im Client

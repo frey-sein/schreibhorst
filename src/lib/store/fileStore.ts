@@ -134,21 +134,60 @@ export const useFileStore = create<FileStore>((set, get) => ({
     }
   },
   
-  replaceFile: async (id, file) => {
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+  replaceFile: async (fileId: string, newFile: File) => {
+    const { files } = get();
+    
+    // Finde die zu ersetzende Datei
+    const fileToReplace = files.find(f => f.id === fileId);
+    if (!fileToReplace) {
+      throw new Error('Datei zum Ersetzen nicht gefunden');
+    }
 
-      const response = await fetch(`/api/files/${id}/replace`, {
+    // Extrahiere Dateiname und -typ
+    const originalName = fileToReplace.name;
+    const originalExtension = originalName.split('.').pop()?.toLowerCase() || '';
+    const newFileName = newFile.name;
+    const newExtension = newFileName.split('.').pop()?.toLowerCase() || '';
+
+    // Prüfe, ob die Dateierweiterung übereinstimmt
+    if (newExtension !== originalExtension) {
+      throw new Error(`Dateityp muss ${originalExtension} sein. Hochgeladene Datei ist ${newExtension}`);
+    }
+
+    try {
+      // Erstelle FormData für den Upload
+      const formData = new FormData();
+      formData.append('file', newFile);
+      formData.append('fileId', fileId);
+      formData.append('originalName', originalName); // Behalte den originalen Dateinamen
+
+      // Sende die Datei an den Server
+      const response = await fetch('/api/files/replace', {
         method: 'POST',
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error('Fehler beim Ersetzen der Datei');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Fehler beim Ersetzen der Datei');
       }
 
-      await get().loadFiles();
+      // Lade die aktualisierte Datei
+      const updatedFile = await response.json();
+      
+      // Aktualisiere im Store
+      const updatedFiles = files.map(file => 
+        file.id === fileId ? { ...file, ...updatedFile, name: originalName } : file
+      );
+      
+      set({ files: updatedFiles });
+      
+      // Speichere in localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('filemanager_files', JSON.stringify(updatedFiles));
+      }
+      
+      return updatedFile;
     } catch (error) {
       console.error('Fehler beim Ersetzen der Datei:', error);
       throw error;
@@ -333,26 +372,81 @@ export const useFileStore = create<FileStore>((set, get) => ({
   deleteItem: async (id) => {
     const { files } = get();
     try {
+      console.log('Löschvorgang für Element mit ID:', id);
+      
+      // Prüfe, ob es sich um einen Ordner handelt mit Unterordnern oder Dateien
+      if (!id.startsWith('file-')) {
+        const children = files.filter(file => file.parentId === id);
+        if (children.length > 0) {
+          console.log('Ordner enthält Unterelemente:', children.length);
+          // Lösche alle Unterelemente rekursiv
+          for (const child of children) {
+            try {
+              await get().deleteItem(child.id);
+            } catch (childError) {
+              console.error('Fehler beim Löschen eines Unterelements:', childError);
+              // Wir setzen den Löschvorgang fort, auch wenn ein Unterelement nicht gelöscht werden konnte
+            }
+          }
+        }
+      }
+      
       // API-Aufruf zum Löschen des Elements
       const response = await fetch(`/api/files/${id}`, {
         method: 'DELETE',
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Fehler beim Löschen des Elements');
+      let success = false;
+      let responseData;
+      
+      try {
+        responseData = await response.json();
+      } catch (jsonError) {
+        console.error('Fehler beim Parsen der API-Antwort:', jsonError);
+        responseData = { success: false, error: 'Fehler beim Parsen der Antwort' };
+      }
+      
+      if (!response.ok && !responseData.localCleanupNeeded) {
+        console.error('API-Fehler beim Löschen:', responseData);
+        throw new Error(responseData.error || responseData.message || 'Fehler beim Löschen des Elements');
       }
 
-      // Aktualisiere die Dateien im State (entferne das gelöschte Element)
-      const updatedFiles = files.filter(file => file.id !== id);
-      set({ files: updatedFiles });
+      // Wenn der Server eine lokale Bereinigung anfordert oder erfolgreich gelöscht hat,
+      // entfernen wir das Element aus dem lokalen Speicher
+      if (responseData.success || responseData.localCleanupNeeded) {
+        console.log('Element wurde vom Server gelöscht oder lokale Bereinigung angefordert');
+        success = true;
+      } else {
+        console.error('Element konnte nicht gelöscht werden:', responseData);
+        throw new Error(responseData.error || responseData.message || 'Fehler beim Löschen des Elements');
+      }
       
-      // Speichere in localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('filemanager_files', JSON.stringify(updatedFiles));
+      if (success) {
+        // Aktualisiere die Dateien im State (entferne das gelöschte Element)
+        const updatedFiles = files.filter(file => file.id !== id);
+        set({ files: updatedFiles });
+        
+        // Speichere in localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('filemanager_files', JSON.stringify(updatedFiles));
+        }
+        
+        console.log('Element erfolgreich aus dem lokalen Store entfernt');
       }
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
+      
+      // Bei kritischen Fehlern versuchen wir trotzdem, das Element lokal zu entfernen
+      if (error instanceof Error && error.message.includes('not found')) {
+        console.warn('Element nicht auf dem Server gefunden, entferne es aus dem lokalen Speicher');
+        const updatedFiles = files.filter(file => file.id !== id);
+        set({ files: updatedFiles });
+        
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('filemanager_files', JSON.stringify(updatedFiles));
+        }
+      }
+      
       throw error;
     }
   },

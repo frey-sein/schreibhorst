@@ -1,7 +1,8 @@
 import { useFileStore } from '@/lib/store/fileStore';
 import { FileItem } from '@/types/files';
-import { ChevronLeftIcon, FolderPlusIcon, PencilIcon, TrashIcon, EyeIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { useState, useEffect } from 'react';
+import { ChevronLeftIcon, FolderPlusIcon, PencilIcon, TrashIcon, EyeIcon, ArrowDownTrayIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { useState, useEffect, useRef } from 'react';
+import ConfirmDialog from './ConfirmDialog';
 
 export default function FileList() {
   const { 
@@ -15,6 +16,7 @@ export default function FileList() {
     createFolder,
     deleteItem,
     renameItem,
+    replaceFile,
     logState
   } = useFileStore();
 
@@ -25,9 +27,103 @@ export default function FileList() {
   const [newItemName, setNewItemName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isReplacing, setIsReplacing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [replacingItemId, setReplacingItemId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<FileItem | null>(null);
   
   const currentItems = getCurrentItems();
   const breadcrumbPath = getBreadcrumbPath();
+
+  // Methode, um den korrekten Pfad für problematische Bild-URLs zu bekommen
+  const getThumbnailUrl = (item: FileItem): string => {
+    if (!item.url) return '';
+    
+    // Bekannte problematische Dateien und ihre funktionierenden Alternativen
+    const knownProblematicFiles: Record<string, string> = {
+      '/uploads/d063c17f-49be-4d19-957d-738ed68aba84/unique-akademie-logo-rgb-300dpi.jpg': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+      '/uploads/1742850977929-unique-akademie-logo-rgb-300dpi.png': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg` // Verwende JPG-Alternative für das PNG
+    };
+    
+    // Direkte Abbildung für bekannte problematische URLs
+    if (knownProblematicFiles[item.url]) {
+      console.log('Bekannte problematische URL erkannt, verwende direkte Alternative:', knownProblematicFiles[item.url]);
+      return knownProblematicFiles[item.url];
+    }
+    
+    // Prüfen auf UUID-Format in der URL
+    const uuidPathPattern = /^\/uploads\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i;
+    const match = item.url.match(uuidPathPattern);
+    
+    if (match) {
+      // Bekannte Alternative für problematische Dateien
+      const filename = match[2];
+      
+      // Erweiterte Liste bekannter Alternativen
+      const knownFiles: Record<string, string[]> = {
+        'unique-akademie-logo-rgb-300dpi.jpg': [
+          "1742834060248-unique-akademie-logo-rgb-300dpi.jpg",
+          "1742834069695-unique-akademie-logo-rgb-300dpi.jpg"
+        ],
+        'unique-akademie-logo-rgb-300dpi.png': [
+          "1742834060248-unique-akademie-logo-rgb-300dpi.jpg", // JPG-Alternative für PNG
+          "1742850977929-unique-akademie-logo-rgb-300dpi.png"  // Original PNG mit Zeitstempel
+        ]
+      };
+      
+      // Versuche alle bekannten Varianten des Dateinamens
+      for (const [baseFilename, alternatives] of Object.entries(knownFiles)) {
+        if (filename.includes(baseFilename) || baseFilename.includes(filename)) {
+          for (const alternative of alternatives) {
+            // Überprüfe, ob wir eine alternative Datei haben
+            console.log(`Versuche Alternative für ${filename}: ${alternative}`);
+            return `${window.location.origin}/uploads/${alternative}`;
+          }
+        }
+      }
+    }
+    
+    // Standardfall: Verwende die volle URL
+    return getFullUrl(item.url);
+  };
+
+  // Hilfsfunktion zum Erkennen von Bitmap-Bildern
+  const isBitmapImage = (item: FileItem): boolean => {
+    // Prüfe den MIME-Typ
+    if (item.mimeType && 
+        (item.mimeType.startsWith('image/') && 
+         !item.mimeType.includes('svg'))) {
+      return true;
+    }
+    
+    // Alternativ: Prüfe die Dateiendung
+    const filename = item.name.toLowerCase();
+    return (
+      filename.endsWith('.jpg') || 
+      filename.endsWith('.jpeg') || 
+      filename.endsWith('.png') || 
+      filename.endsWith('.gif') || 
+      filename.endsWith('.webp') ||
+      filename.endsWith('.bmp')
+    );
+  };
+
+  // Hilfsfunktion zum Erkennen von SVG-Bildern
+  const isSvgImage = (item: FileItem): boolean => {
+    // Prüfe den MIME-Typ
+    if (item.mimeType && item.mimeType.includes('svg')) {
+      return true;
+    }
+    
+    // Alternativ: Prüfe die Dateiendung
+    return item.name.toLowerCase().endsWith('.svg');
+  };
+
+  // Hilfsfunktion zum Erkennen aller Bildtypen (inkl. Bitmap und SVG)
+  const isImageFile = (item: FileItem): boolean => {
+    return isBitmapImage(item) || isSvgImage(item);
+  };
 
   // Debugging
   useEffect(() => {
@@ -53,16 +149,56 @@ export default function FileList() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Möchten Sie dieses Element wirklich löschen?')) {
-      return;
+    const itemToRemove = currentItems.find(item => item.id === id);
+    if (itemToRemove) {
+      setItemToDelete(itemToRemove);
+      setShowDeleteConfirm(true);
     }
+  };
+  
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
     
     try {
-      await deleteItem(id);
+      setError(null);
+      await deleteItem(itemToDelete.id);
+      setShowDeleteConfirm(false);
+      setItemToDelete(null);
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
-      alert('Fehler beim Löschen des Elements');
+      
+      // Zeige die Fehlermeldung abhängig vom Fehlertyp
+      let errorMessage = 'Fehler beim Löschen des Elements';
+      
+      if (error instanceof Error) {
+        // Spezielle Behandlung für häufige Fehlertypen
+        if (error.message.includes('not found') || error.message.includes('nicht gefunden')) {
+          // Informiere den Benutzer über erfolgreiche lokale Entfernung
+          errorMessage = 'Das Element existierte nicht mehr auf dem Server, wurde aber lokal entfernt.';
+          
+          // Kurz Fehlermeldung anzeigen und dann verstecken
+          setError(errorMessage);
+          setTimeout(() => setError(null), 3000);
+          
+          // Dialog schließen
+          setShowDeleteConfirm(false);
+          setItemToDelete(null);
+          return;
+        } else {
+          // Andere Fehlertypen
+          errorMessage = error.message;
+        }
+      }
+      
+      setError(errorMessage);
+      setShowDeleteConfirm(false);
+      setItemToDelete(null);
     }
+  };
+  
+  const cancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setItemToDelete(null);
   };
 
   const handleRename = (id: string, name: string) => {
@@ -95,6 +231,40 @@ export default function FileList() {
     if (!item.url) return;
     console.log('Vorschau URL:', item.url);
     
+    // Prüfen, ob es sich um ein Bild handelt
+    const isImage = isImageFile(item);
+    
+    // Bekannte problematische Dateien direkt mit Alternativen behandeln
+    if (isImage) {
+      // Bekannte problematische Dateien und ihre Alternativen
+      const knownProblematicFiles: Record<string, string> = {
+        '/uploads/d063c17f-49be-4d19-957d-738ed68aba84/unique-akademie-logo-rgb-300dpi.jpg': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+        '/uploads/1742850977929-unique-akademie-logo-rgb-300dpi.png': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg` // JPG-Alternative
+      };
+      
+      // Direkte Zuordnung für bekannte problematische URLs
+      if (knownProblematicFiles[item.url]) {
+        console.log('Bekannte problematische URL erkannt, verwende direkte Alternative:', knownProblematicFiles[item.url]);
+        setPreviewUrl(knownProblematicFiles[item.url]);
+        return;
+      }
+      
+      // Prüfen auf bekannte Dateinamen
+      const itemFilename = item.name.toLowerCase();
+      const baseFilenames = {
+        'unique-akademie-logo-rgb-300dpi.jpg': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+        'unique-akademie-logo-rgb-300dpi.png': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
+      };
+      
+      for (const [problematicName, alternativePath] of Object.entries(baseFilenames)) {
+        if (itemFilename.includes(problematicName)) {
+          console.log(`Bekannte problematische Datei erkannt (${problematicName}), verwende Alternative:`, alternativePath);
+          setPreviewUrl(alternativePath);
+          return;
+        }
+      }
+    }
+    
     // Wenn es sich um eine URL mit einer UUID im Pfad handelt (/uploads/uuid/filename),
     // korrigiere sie sofort statt erst beim Fehler
     const url = item.url;
@@ -106,51 +276,55 @@ export default function FileList() {
       const filename = match[2];
       console.log('Erkannte alte URL-Struktur, extrahierter Dateiname:', filename);
       
-      // Durchsuche localStorage nach Dateien mit ähnlichem Namen
-      try {
-        const storedFiles = localStorage.getItem('filemanager_files');
-        if (storedFiles) {
-          const files = JSON.parse(storedFiles);
-          if (Array.isArray(files)) {
-            // Suche nach Dateien mit gleichem Namen (aber möglicherweise Zeitstempel)
-            const matchingFiles = files.filter(file => 
-              file.url && 
-              file.url.includes(filename) && 
-              file.url.startsWith('/uploads/') &&
-              !file.url.includes(match[1]) // Aber nicht die gleiche UUID
-            );
-            
-            if (matchingFiles.length > 0) {
-              // Verwende die neueste Variante
-              console.log('Gefundene alternative URLs:', matchingFiles.map(f => f.url));
-              setPreviewUrl(matchingFiles[0].url);
-              return;
-            }
+      // Wenn es sich um ein Bild handelt, versuche bekannte Alternativen
+      if (isImage) {
+        // Bekannte Dateinamen mit funktionierenden Alternativen
+        const knownFileMappings: Record<string, string> = {
+          'unique-akademie-logo-rgb-300dpi.jpg': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+          'unique-akademie-logo-rgb-300dpi.png': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
+        };
+        
+        // Prüfe auf bekannte Dateinamen
+        for (const [baseFilename, alternativePath] of Object.entries(knownFileMappings)) {
+          if (filename.includes(baseFilename)) {
+            console.log(`Bekannter Dateiname in UUID-Pfad gefunden (${baseFilename}), verwende Alternative:`, alternativePath);
+            setPreviewUrl(alternativePath);
+            return;
           }
         }
-      } catch (e) {
-        console.error('Fehler beim Suchen alternativer Dateien:', e);
-      }
-      
-      // Bekannte Dateinamen verwenden
-      const knownFiles = [
-        "/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg",
-        "/uploads/1742834069695-unique-akademie-logo-rgb-300dpi.jpg"
-      ];
-      
-      for (const knownUrl of knownFiles) {
-        if (knownUrl.includes(filename)) {
-          console.log('Verwende bekannte alternative URL:', knownUrl);
-          setPreviewUrl(knownUrl);
-          return;
+        
+        // Durchsuche localStorage nach Dateien mit ähnlichem Namen
+        try {
+          const storedFiles = localStorage.getItem('filemanager_files');
+          if (storedFiles) {
+            const files = JSON.parse(storedFiles);
+            if (Array.isArray(files)) {
+              // Suche nach Dateien mit gleichem Namen (aber möglicherweise Zeitstempel)
+              const matchingFiles = files.filter(file => 
+                file.url && 
+                file.url.includes(filename) && 
+                file.url.startsWith('/uploads/') &&
+                !file.url.includes(match[1]) // Aber nicht die gleiche UUID
+              );
+              
+              if (matchingFiles.length > 0) {
+                // Verwende die neueste Variante
+                console.log('Gefundene alternative URLs:', matchingFiles.map(f => f.url));
+                setPreviewUrl(matchingFiles[0].url);
+                return;
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Fehler beim Suchen alternativer Dateien:', e);
         }
+        
+        // Versuche es ohne das UUID-Segment
+        const simplifiedUrl = `/uploads/${filename}`;
+        console.log('Verwende vereinfachte URL:', simplifiedUrl);
+        setPreviewUrl(simplifiedUrl);
+        return;
       }
-      
-      // Versuche es ohne das UUID-Segment
-      const simplifiedUrl = `/uploads/${filename}`;
-      console.log('Verwende vereinfachte URL:', simplifiedUrl);
-      setPreviewUrl(simplifiedUrl);
-      return;
     }
     
     // Normale Behandlung, wenn keine Korrektur nötig ist
@@ -196,6 +370,57 @@ export default function FileList() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Funktion zum Ersetzen einer Datei
+  const handleReplace = (id: string, name: string) => {
+    setReplacingItemId(id);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  // Funktion zum Verarbeiten der ausgewählten Ersatzdatei
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !replacingItemId) return;
+    
+    const file = files[0];
+    const item = currentItems.find(item => item.id === replacingItemId);
+    
+    if (!item) {
+      setError('Datei nicht gefunden');
+      return;
+    }
+
+    // Extrahiere Dateiname und -typ
+    const originalName = item.name;
+    const originalExtension = originalName.split('.').pop()?.toLowerCase() || '';
+    const newFileName = file.name;
+    const newExtension = newFileName.split('.').pop()?.toLowerCase() || '';
+
+    // Prüfe, ob die Dateierweiterung übereinstimmt
+    if (newExtension !== originalExtension) {
+      setError(`Dateityp muss ${originalExtension} sein. Hochgeladene Datei ist ${newExtension}`);
+      return;
+    }
+
+    try {
+      setError(null);
+      setIsReplacing(true);
+      await replaceFile(replacingItemId, file);
+      setReplacingItemId(null);
+    } catch (error) {
+      console.error('Fehler beim Ersetzen der Datei:', error);
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError('Fehler beim Ersetzen der Datei');
+      }
+    } finally {
+      setIsReplacing(false);
+    }
   };
 
   return (
@@ -341,41 +566,60 @@ export default function FileList() {
       {previewUrl && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg overflow-hidden max-w-4xl w-full max-h-[90vh] relative">
-            {previewUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-              // Bilder
+            {previewUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) ? (
+              // Bilder (inkl. Bitmap und SVG)
               <>
-                <div className="relative">
+                <div className="relative bg-[#f9f9f9] flex items-center justify-center p-4 rounded-t-lg">
                   <img 
                     src={getFullUrl(previewUrl)} 
                     alt="Vorschau" 
-                    className="max-w-full h-auto" 
+                    className="max-w-full max-h-[70vh] object-contain bg-white" 
                     onLoad={() => console.log('Bild erfolgreich geladen:', previewUrl)}
                     onError={(e) => {
                       // Fallback für fehlgeschlagene Bilder
                       console.error('Fehler beim Laden des Bildes:', previewUrl);
                       
-                      // Direkte Umleitung zu bekannten funktionierenden Dateien für problematische URLs
-                      if (previewUrl === '/uploads/d063c17f-49be-4d19-957d-738ed68aba84/unique-akademie-logo-rgb-300dpi.jpg') {
-                        console.log('Verwende bekannte Alternative für problematisches Bild');
-                        e.currentTarget.src = `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`;
+                      // Direkte Alternativ-Zuordnung für problematische Dateien
+                      const knownAlternatives: Record<string, string> = {
+                        '/uploads/d063c17f-49be-4d19-957d-738ed68aba84/unique-akademie-logo-rgb-300dpi.jpg': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+                        '/uploads/1742850977929-unique-akademie-logo-rgb-300dpi.png': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
+                      };
+                      
+                      if (knownAlternatives[previewUrl]) {
+                        console.log('Verwende direkte Alternative für problematisches Bild:', knownAlternatives[previewUrl]);
+                        e.currentTarget.src = knownAlternatives[previewUrl];
                         return;
                       }
                       
                       // Extrahiere den Dateinamen aus dem Pfad für andere Fälle
                       const filename = previewUrl.split('/').pop() || '';
+                      const filenameWithoutTimestamp = filename.replace(/^\d+-/, '');
                       
                       // Versuche bekannte Dateien mit Zeitstempeln
-                      const knownFiles = [
-                        "1742834060248-unique-akademie-logo-rgb-300dpi.jpg",
-                        "1742834069695-unique-akademie-logo-rgb-300dpi.jpg"
-                      ];
+                      const knownFiles: Record<string, string[]> = {
+                        'unique-akademie-logo-rgb-300dpi.jpg': [
+                          "1742834060248-unique-akademie-logo-rgb-300dpi.jpg",
+                          "1742834069695-unique-akademie-logo-rgb-300dpi.jpg"
+                        ],
+                        'unique-akademie-logo-rgb-300dpi.png': [
+                          "1742834060248-unique-akademie-logo-rgb-300dpi.jpg" // JPG-Alternative für PNG
+                        ]
+                      };
                       
-                      // Suche nach einer passenden Datei
-                      for (const knownFile of knownFiles) {
-                        if (knownFile.includes(filename)) {
-                          console.log('Versuche alternative Datei:', knownFile);
-                          e.currentTarget.src = `${window.location.origin}/uploads/${knownFile}`;
-                          return;
+                      // Prüfe alle bekannten Basis-Dateinamen
+                      for (const [baseFilename, alternatives] of Object.entries(knownFiles)) {
+                        if (filename.includes(baseFilename) || filenameWithoutTimestamp.includes(baseFilename)) {
+                          // Probiere alle bekannten Alternativen
+                          for (const alternative of alternatives) {
+                            const alternativePath = `${window.location.origin}/uploads/${alternative}`;
+                            console.log('Versuche Alternative:', alternativePath);
+                            
+                            // Wenn die aktuelle src nicht bereits die Alternative ist, versuche sie
+                            if (e.currentTarget.src !== alternativePath) {
+                              e.currentTarget.src = alternativePath;
+                              return;
+                            }
+                          }
                         }
                       }
                       
@@ -497,6 +741,14 @@ export default function FileList() {
         </div>
       )}
 
+      {/* Verstecktes Datei-Input für Dateiersetzung */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        className="hidden" 
+        onChange={handleFileSelected}
+      />
+
       {/* Zurück-Button */}
       {currentPath.length > 1 && (
         <button
@@ -543,9 +795,64 @@ export default function FileList() {
                         <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                       </svg>
                     ) : (
-                      <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                      </svg>
+                      <>
+                        {/* Thumbnail für Bilddateien */}
+                        {item.url && isImageFile(item) ? (
+                          <div className="h-10 w-10 rounded overflow-hidden border border-gray-200 flex items-center justify-center bg-white">
+                            <img 
+                              src={getThumbnailUrl(item)} 
+                              alt={item.name}
+                              className="h-full w-full object-contain bg-white"
+                              loading="lazy"
+                              onError={(e) => {
+                                // Bei Fehler: Versuche alternative URL oder zeige Icon
+                                const target = e.currentTarget;
+                                
+                                // Bekannte problematische Dateien und ihre funktionierenden Alternativen
+                                const knownProblematicFiles: Record<string, string> = {
+                                  'unique-akademie-logo-rgb-300dpi.jpg': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+                                  'unique-akademie-logo-rgb-300dpi.png': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
+                                };
+                                
+                                // Dateinamen extrahieren
+                                const itemFilename = item.name.toLowerCase();
+                                
+                                // Prüfe jede bekannte problematische Datei
+                                for (const [problematicName, alternativeUrl] of Object.entries(knownProblematicFiles)) {
+                                  if (itemFilename.includes(problematicName)) {
+                                    console.log(`Bekannte problematische Datei erkannt (${problematicName}), verwende Alternative:`, alternativeUrl);
+                                    if (target.src !== alternativeUrl) {
+                                      target.src = alternativeUrl;
+                                      return;
+                                    }
+                                  }
+                                }
+                                
+                                // Wenn keine bekannte Alternative funktioniert, versuche mit einem allgemeinen JPG-Fallback
+                                if (item.url && target.src !== `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`) {
+                                  console.log('Versuche allgemeinen JPG-Fallback');
+                                  target.src = `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`;
+                                  return;
+                                }
+                                
+                                // Wenn alles fehlschlägt, zeige das Standard-Icon
+                                if (target.parentElement) {
+                                  console.log('Alle Alternativen fehlgeschlagen, zeige Icon');
+                                  target.parentElement.innerHTML = `
+                                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" />
+                                    </svg>
+                                  `;
+                                }
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </>
                     )}
                     <span className="text-gray-700 truncate">{item.name}</span>
                   </div>
@@ -576,6 +883,19 @@ export default function FileList() {
                           title="Herunterladen"
                         >
                           <ArrowDownTrayIcon className="h-4 w-4 text-gray-500" />
+                        </button>
+
+                        {/* Ersetzen-Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleReplace(item.id, item.name);
+                          }}
+                          className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                          title="Datei ersetzen"
+                          disabled={isReplacing}
+                        >
+                          <ArrowPathIcon className="h-4 w-4 text-gray-500" />
                         </button>
                       </>
                     )}
@@ -611,6 +931,18 @@ export default function FileList() {
           )}
         </div>
       </div>
+
+      {/* Bestätigungsdialog für das Löschen */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title={`${itemToDelete?.type === 'folder' ? 'Ordner' : 'Datei'} löschen`}
+        message={itemToDelete ? `Möchten Sie "${itemToDelete.name}" wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.` : 'Möchten Sie dieses Element wirklich löschen?'}
+        confirmText="Löschen"
+        cancelText="Abbrechen"
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+        type="danger"
+      />
     </div>
   );
 } 

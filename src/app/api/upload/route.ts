@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { writeFile } from 'fs/promises';
 import path from 'path';
+import { getMimeType } from '../files/route';
 
 export async function POST(request: Request) {
   try {
@@ -26,6 +27,9 @@ export async function POST(request: Request) {
 
     // Bestimme den übergeordneten Ordner basierend auf der parentId
     let finalParentId = parentId || 'root';
+    
+    // Bestimme den MIME-Typ
+    const mimeType = getMimeType(file.name);
 
     return NextResponse.json({
       id: `file-${filename}`,
@@ -33,7 +37,7 @@ export async function POST(request: Request) {
       type: 'file',
       parentId: finalParentId,
       url: `/uploads/${filename}`,
-      mimeType: file.type,
+      mimeType: mimeType,
       size: file.size,
       lastModified: new Date()
     });

@@ -65,13 +65,16 @@ function readDirRecursively(dir: string, baseDir: string): FileItem[] {
         }
       }
 
+      // Ermittle MIME-Typ
+      const mimeType = getMimeType(file);
+
       items.push({
         id: `file-${relativePath.replace(/\\/g, '/')}`,
         name: removeTimestampPrefix(file), // Hier entfernen wir den Zeitstempel
         type: 'file',
         parentId,
         url: `/uploads/${relativePath.replace(/\\/g, '/')}`,
-        mimeType: getMimeType(file),
+        mimeType: mimeType,
         lastModified: stats.mtime
       });
     }
@@ -117,8 +120,10 @@ export async function GET() {
   return NextResponse.json(files);
 }
 
-function getMimeType(fileName: string): string {
+// Exportiere die getMimeType-Funktion für die Verwendung in anderen Modulen
+export function getMimeType(fileName: string): string {
   const ext = path.extname(fileName).toLowerCase();
+  
   const mimeTypes: { [key: string]: string } = {
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
@@ -129,9 +134,18 @@ function getMimeType(fileName: string): string {
     '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     '.xls': 'application/vnd.ms-excel',
     '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     '.txt': 'text/plain',
     '.eps': 'application/postscript',
-    '.svg': 'image/svg+xml'
+    '.svg': 'image/svg+xml',
+    '.mp4': 'video/mp4',
+    '.avi': 'video/x-msvideo',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.zip': 'application/zip',
+    '.rar': 'application/vnd.rar'
   };
+  
   return mimeTypes[ext] || 'application/octet-stream';
 } 
