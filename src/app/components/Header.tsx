@@ -2,11 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useUserStore } from '@/lib/store/userStore';
 
 export default function Header() {
   const pathname = usePathname();
   const isDateimanager = pathname === '/dateimanager';
   const isWissen = pathname === '/wissen';
+  const isProfile = pathname === '/profil';
+  
+  const { profile } = useUserStore();
+  const initials = profile.name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-[#f4f4f4]/80 backdrop-blur-md border-b border-gray-100 shadow-md">
@@ -37,12 +47,25 @@ export default function Header() {
             </svg>
             <span className="text-gray-700">Wissen</span>
           </Link>
-          <button className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-100 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm">
-            <div className="w-6 h-6 rounded-full bg-[#2c2c2c] flex items-center justify-center text-white text-xs font-medium">
-              CF
-            </div>
-            <span className="text-gray-700">Carsten</span>
-          </button>
+          <Link 
+            href="/profil"
+            className={`flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-100 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
+              isProfile ? 'border-[#2c2c2c] bg-gray-50' : ''
+            }`}
+          >
+            {profile.imageUrl ? (
+              <img
+                src={profile.imageUrl}
+                alt={profile.name}
+                className="w-6 h-6 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-[#2c2c2c] flex items-center justify-center text-white text-xs font-medium">
+                {initials}
+              </div>
+            )}
+            <span className="text-gray-700">{profile.name}</span>
+          </Link>
         </div>
       </div>
     </header>
