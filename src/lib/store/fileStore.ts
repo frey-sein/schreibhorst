@@ -20,10 +20,11 @@ interface FileStore {
   getBreadcrumbPath: () => Array<{ id: string; name: string; }>;
   initializePath: () => void;
   getCurrentFolder: () => string;
-  createFolder: (name: string) => Promise<void>;
+  createFolder: (name: string, id?: string, parentId?: string) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
   renameItem: (id: string, newName: string) => Promise<void>;
   uploadFile: (file: File) => Promise<void>;
+  addFilesToFileSystem: (files: FileItem[]) => Promise<void>;
   logState: () => void;
   validatePath: (path: string[]) => boolean;
   ensureUrlProperties: (file: any) => any;
@@ -526,44 +527,54 @@ export const useFileStore = create<FileStore>((set, get) => ({
     return currentPath[currentPath.length - 1];
   },
 
-  createFolder: async (name: string) => {
-    const { files, currentPath } = get();
-    const currentFolder = currentPath[currentPath.length - 1];
-
+  createFolder: async (name: string, id?: string, parentId?: string) => {
     try {
-      const response = await fetch('/api/files/folder', {
+      // Generiere eine eindeutige ID, wenn keine angegeben wurde
+      const folderId = id || `folder-${Date.now()}`;
+      
+      // Bestimme die Parent-ID
+      const currentFolderId = parentId || get().getCurrentFolderId();
+      
+      // Erstelle ein Ordner-Objekt
+      const newFolder: FileItem = {
+        id: folderId,
+        name,
+        type: 'folder',
+        parentId: currentFolderId,
+        path: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Füge den Ordner zu den Dateien hinzu
+      set(state => {
+        const updatedFiles = [...state.files, newFolder];
+        
+        // Speichere die Dateien im localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('filemanager_files', JSON.stringify(updatedFiles));
+        }
+        
+        return { files: updatedFiles };
+      });
+      
+      // Sende die Anfrage an den Server
+      const response = await fetch('/api/folders', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          name,
-          parentId: currentFolder
-        }),
+        body: JSON.stringify({ name, parentId: currentFolderId })
       });
-
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Fehler beim Erstellen des Ordners');
-      }
-
-      const newFolder = await response.json();
-      
-      // Duplikate vermeiden
-      const updatedFiles = [...files];
-      const existingIndex = updatedFiles.findIndex(f => f.id === newFolder.id);
-      if (existingIndex >= 0) {
-        updatedFiles[existingIndex] = newFolder;
-      } else {
-        updatedFiles.push(newFolder);
+        throw new Error('Fehler beim Erstellen des Ordners');
       }
       
-      set({ files: updatedFiles });
+      console.log(`Ordner "${name}" wurde erfolgreich erstellt`);
       
-      // Speichere in localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('filemanager_files', JSON.stringify(updatedFiles));
-      }
+      // Neues Laden der Dateien vom Server wurde entfernt, da wir die Dateien bereits lokal aktualisiert haben
+      
     } catch (error) {
       console.error('Fehler beim Erstellen des Ordners:', error);
       throw error;
@@ -745,20 +756,69 @@ export const useFileStore = create<FileStore>((set, get) => ({
     });
   },
 
-  // Funktion, die sicherstellt, dass ein Dateiobjekt sowohl url als auch path Eigenschaften hat
+  // Stellt sicher, dass Datei-Objekte die erforderlichen URL-Eigenschaften haben
   ensureUrlProperties: (file: any) => {
-    // Wenn es bereits eine url und path hat, belassen wir es so
-    if (file.url && file.path) return file;
+    if (!file) return file;
     
-    // Wenn nur eine der Eigenschaften vorhanden ist, setzen wir die andere gleich
-    if (file.url && !file.path) {
-      return { ...file, path: file.url };
-    }
-    if (!file.url && file.path) {
-      return { ...file, url: file.path };
+    // Erstelle eine Kopie des Objekts
+    const updatedFile = { ...file };
+    
+    // Stelle sicher, dass es eine URL-Eigenschaft gibt
+    if (!updatedFile.url && updatedFile.path) {
+      updatedFile.url = updatedFile.path;
     }
     
-    // Wenn keine der Eigenschaften vorhanden ist, behalten wir das Objekt unverändert
-    return file;
-  }
+    // Stelle sicher, dass es eine Path-Eigenschaft gibt
+    if (!updatedFile.path && updatedFile.url) {
+      updatedFile.path = updatedFile.url;
+    }
+    
+    // Wenn weder URL noch Pfad vorhanden sind und es sich um eine Datei handelt
+    if (!updatedFile.url && !updatedFile.path && updatedFile.type === 'file' && updatedFile.name) {
+      // Generiere eine pseudo-URL basierend auf der ID
+      const pseudoUrl = `/api/files/${updatedFile.id || Math.random().toString(36).substring(2, 15)}`;
+      updatedFile.url = pseudoUrl;
+      updatedFile.path = pseudoUrl;
+      
+      console.log(`Warnung: Datei "${updatedFile.name}" hat keine URL. Eine temporäre URL wurde generiert.`);
+    }
+    
+    return updatedFile;
+  },
+
+  // Methode zum Hinzufügen mehrerer Dateien zum Dateisystem
+  addFilesToFileSystem: async (files: FileItem[]) => {
+    try {
+      // Aktuelle Dateien abrufen
+      const currentFiles = get().files;
+      
+      // Stelle sicher, dass alle Dateien URL-Eigenschaften haben
+      const ensureUrlProperties = get().ensureUrlProperties;
+      const updatedFiles = files.map(file => ensureUrlProperties(file));
+      
+      // Neue Dateien hinzufügen
+      const allFiles = [...currentFiles, ...updatedFiles];
+      
+      // Dateien setzen
+      set({ files: allFiles });
+      
+      // Dateien im localStorage speichern
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('filemanager_files', JSON.stringify(allFiles));
+      }
+      
+      // Versuche, die Dateien auch auf dem Server zu speichern
+      try {
+        // Hier könnten wir eine Server-API aufrufen, um die Dateien zu speichern
+        console.log('Dateien wurden erfolgreich zum Dateisystem hinzugefügt');
+      } catch (error) {
+        console.error('Fehler beim Speichern der Dateien auf dem Server:', error);
+      }
+      
+      return Promise.resolve();
+    } catch (error) {
+      console.error('Fehler beim Hinzufügen der Dateien zum Dateisystem:', error);
+      return Promise.reject(error);
+    }
+  },
 })); 

@@ -5,6 +5,7 @@ export interface FileItem {
   size?: number;
   mimeType?: string;
   path: string;
+  url?: string;
   parentId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -19,7 +20,6 @@ export interface FileItem {
   originalFileId?: string;
   replacedBy?: string;
   timestamp?: string;
-  url?: string;
   lastModified?: Date;
   content?: string;
 }

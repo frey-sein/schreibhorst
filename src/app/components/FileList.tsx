@@ -1,8 +1,21 @@
 import { useFileStore } from '@/lib/store/fileStore';
 import { FileItem } from '@/types/files';
-import { ChevronLeftIcon, FolderPlusIcon, PencilIcon, TrashIcon, EyeIcon, ArrowDownTrayIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, FolderPlusIcon, PencilIcon, TrashIcon, EyeIcon, ArrowDownTrayIcon, ArrowPathIcon, ChatBubbleLeftIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 import { useState, useEffect, useRef } from 'react';
 import ConfirmDialog from './ConfirmDialog';
+
+// Definition eines benutzerdefinierten Event-Typs für die Dateifreigabe
+interface ShareToChatEventDetail {
+  file: {
+    id: string;
+    name: string;
+    type: 'file' | 'folder';
+    mimeType?: string;
+    size?: number;
+    path?: string;
+    url?: string;
+  }
+}
 
 export default function FileList() {
   const { 
@@ -37,9 +50,110 @@ export default function FileList() {
   const [itemToDelete, setItemToDelete] = useState<FileItem | null>(null);
   const [showActionDialog, setShowActionDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<FileItem | null>(null);
+  const [showTempFileUploadDialog, setShowTempFileUploadDialog] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const tempFileInputRef = useRef<HTMLInputElement>(null);
   
   const currentItems = getCurrentItems();
   const breadcrumbPath = getBreadcrumbPath();
+
+  // Ereignis für die Kommunikation mit dem Chat
+  const dispatchFileShareEvent = (file: FileItem) => {
+    // Erstelle ein benutzerdefiniertes Ereignis mit den Dateiinformationen
+    const event = new CustomEvent<ShareToChatEventDetail>('shareToChat', { 
+      detail: { 
+        file: {
+          id: file.id,
+          name: file.name,
+          type: file.type,
+          mimeType: file.mimeType,
+          size: file.size,
+          path: file.path,
+          url: file.url
+        } 
+      }
+    });
+    
+    // Löse das Ereignis auf dem Fenster aus, damit andere Komponenten es abfangen können
+    window.dispatchEvent(event);
+    
+    // Bestätigung anzeigen
+    setSuccessMessage(`${file.name} wurde im Chat geteilt`);
+    setTimeout(() => setSuccessMessage(null), 3000);
+  };
+  
+  // Funktion zum Teilen einer Datei oder eines Ordners im Chat
+  const handleShareInChat = (item: FileItem) => {
+    dispatchFileShareEvent(item);
+    setShowActionDialog(false);
+  };
+
+  // Funktion zum Teilen einer temporären Datei im Chat
+  const handleShareTempFile = () => {
+    if (tempFileInputRef.current) {
+      tempFileInputRef.current.click();
+    }
+  };
+
+  // Funktion zum Verarbeiten der ausgewählten temporären Datei
+  const handleTempFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    setIsUploading(true);
+    setUploadProgress(0);
+    
+    try {
+      // Simuliere den Upload-Fortschritt
+      const interval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(interval);
+            return prev;
+          }
+          return prev + 10;
+        });
+      }, 200);
+      
+      // Erstelle eine temporäre FileItem, die wir im ChatEvent verwenden können
+      const tempFileItem: FileItem = {
+        id: `temp-${Date.now()}`,
+        name: file.name,
+        type: 'file',
+        path: URL.createObjectURL(file),
+        parentId: currentPath[currentPath.length - 1] || 'root',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        mimeType: file.type,
+        size: file.size,
+        url: URL.createObjectURL(file)
+      };
+      
+      // Setze den Fortschritt auf 100% und beende
+      setTimeout(() => {
+        setUploadProgress(100);
+        clearInterval(interval);
+        
+        // Sende die temporäre Datei zum Chat
+        dispatchFileShareEvent(tempFileItem);
+        
+        // Schließe den Dialog nach kurzer Verzögerung
+        setTimeout(() => {
+          setIsUploading(false);
+          setUploadProgress(0);
+          setShowTempFileUploadDialog(false);
+        }, 500);
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Fehler beim Hochladen der temporären Datei:', error);
+      setError('Fehler beim Hochladen der temporären Datei');
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
 
   // Beim Laden der Komponente: Stelle sicher, dass Dateien und Pfad geladen sind
   useEffect(() => {
@@ -702,7 +816,7 @@ export default function FileList() {
                     navigateToPathIndex(index);
                   }
                 }}
-                className="hover:text-gray-700"
+                className="hover:text-gray-700 font-medium"
                 key={`breadcrumb-button-${folder.id}-${index}`}
               >
                 {folder.name}
@@ -711,17 +825,29 @@ export default function FileList() {
           ))}
         </div>
 
-        {/* Neuer Ordner Button */}
-        <button
-          onClick={() => {
-            setError(null);
-            setShowNewFolderDialog(true);
-          }}
-          className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium flex items-center gap-2"
-        >
-          <FolderPlusIcon className="h-5 w-5" />
-          Neuer Ordner
-        </button>
+        {/* Buttons Bereich */}
+        <div className="flex space-x-2">
+          {/* Temporäre Datei hochladen Button */}
+          <button
+            onClick={() => setShowTempFileUploadDialog(true)}
+            className="px-4 py-2 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-200 flex items-center gap-2"
+          >
+            <ArrowUpTrayIcon className="h-5 w-5" />
+            Datei teilen
+          </button>
+          
+          {/* Neuer Ordner Button */}
+          <button
+            onClick={() => {
+              setError(null);
+              setShowNewFolderDialog(true);
+            }}
+            className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium flex items-center gap-2"
+          >
+            <FolderPlusIcon className="h-5 w-5" />
+            Neuer Ordner
+          </button>
+        </div>
       </div>
 
       {/* Neuer Ordner Dialog */}
@@ -819,15 +945,27 @@ export default function FileList() {
 
       {/* Fehleranzeige */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">
+        <div className="fixed bottom-4 right-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-lg z-50">
           {error}
+          <button 
+            onClick={() => setError(null)}
+            className="ml-2 text-red-700 hover:text-red-900 font-bold"
+          >
+            ×
+          </button>
         </div>
       )}
 
       {/* Erfolgsmeldung */}
       {successMessage && (
-        <div className="mb-4 p-3 bg-green-50 text-green-600 rounded-lg text-sm border border-green-100">
+        <div className="fixed bottom-4 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-lg z-50">
           {successMessage}
+          <button 
+            onClick={() => setSuccessMessage(null)}
+            className="ml-2 text-green-700 hover:text-green-900 font-bold"
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -1201,98 +1339,92 @@ export default function FileList() {
       </div>
 
       {/* Aktionsdialog für Dateien */}
-      {showActionDialog && selectedItem && selectedItem.type === 'file' && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg overflow-hidden max-w-md w-full max-h-[90vh] relative p-6">
-            <h3 className="text-xl font-semibold mb-2 text-gray-800">
-              Aktionen für "{selectedItem.name}"
-            </h3>
-            
-            <div className="space-y-4 mt-4">
-              {/* Vorschau */}
-              <button 
+      {showActionDialog && selectedItem && (
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-4 max-w-md w-full shadow-xl">
+            <h3 className="text-xl font-medium mb-4">{selectedItem.name}</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {/* Vorschau Button */}
+              <button
                 onClick={() => {
                   handlePreview(selectedItem);
                   setShowActionDialog(false);
                 }}
-                className="w-full flex items-center gap-3 p-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors text-left"
+                className="flex flex-col items-center p-4 rounded-xl bg-white border border-gray-200 hover:bg-gray-50"
               >
-                <EyeIcon className="h-5 w-5 text-gray-600" />
-                <div>
-                  <p className="font-medium text-gray-800">Vorschau</p>
-                  <p className="text-sm text-gray-500">Dateivorschau anzeigen (wenn verfügbar)</p>
-                </div>
+                <EyeIcon className="h-6 w-6 text-gray-700" />
+                <span className="mt-2 text-sm font-medium">Vorschau</span>
               </button>
               
-              {/* Herunterladen */}
-              <button 
+              {/* Download Button */}
+              <button
                 onClick={() => {
                   handleDownload(selectedItem);
-                  // Dialog nicht sofort schließen, um den Download zu ermöglichen
-                  setTimeout(() => {
-                    setShowActionDialog(false);
-                  }, 300);
-                }}
-                className="w-full flex items-center gap-3 p-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors text-left"
-              >
-                <ArrowDownTrayIcon className="h-5 w-5 text-gray-600" />
-                <div>
-                  <p className="font-medium text-gray-800">Herunterladen</p>
-                  <p className="text-sm text-gray-500">Datei auf Ihren Computer speichern</p>
-                </div>
-              </button>
-              
-              {/* Ersetzen */}
-              <button 
-                onClick={() => {
-                  handleReplace(selectedItem.id, selectedItem.name);
                   setShowActionDialog(false);
                 }}
-                className="w-full flex items-center gap-3 p-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors text-left"
-                disabled={isReplacing}
+                className="flex flex-col items-center p-4 rounded-xl bg-white border border-gray-200 hover:bg-gray-50"
               >
-                <ArrowPathIcon className="h-5 w-5 text-gray-600" />
-                <div>
-                  <p className="font-medium text-gray-800">Ersetzen</p>
-                  <p className="text-sm text-gray-500">Datei durch eine neue Version ersetzen</p>
-                </div>
+                <ArrowDownTrayIcon className="h-6 w-6 text-gray-700" />
+                <span className="mt-2 text-sm font-medium">Download</span>
               </button>
               
-              {/* Löschen */}
-              <button 
+              {/* Umbenennen Button */}
+              <button
+                onClick={() => {
+                  handleRename(selectedItem.id, selectedItem.name);
+                  setShowActionDialog(false);
+                }}
+                className="flex flex-col items-center p-4 rounded-xl bg-white border border-gray-200 hover:bg-gray-50"
+              >
+                <PencilIcon className="h-6 w-6 text-gray-700" />
+                <span className="mt-2 text-sm font-medium">Umbenennen</span>
+              </button>
+              
+              {/* Ersetzen Button (nur für Dateien) */}
+              {selectedItem.type === 'file' && (
+                <button
+                  onClick={() => {
+                    handleReplace(selectedItem.id, selectedItem.name);
+                    setShowActionDialog(false);
+                  }}
+                  className="flex flex-col items-center p-4 rounded-xl bg-white border border-gray-200 hover:bg-gray-50"
+                >
+                  <ArrowPathIcon className="h-6 w-6 text-gray-700" />
+                  <span className="mt-2 text-sm font-medium">Ersetzen</span>
+                </button>
+              )}
+              
+              {/* Im Chat teilen Button */}
+              <button
+                onClick={() => {
+                  handleShareInChat(selectedItem);
+                }}
+                className="flex flex-col items-center p-4 rounded-xl bg-white border border-gray-200 hover:bg-gray-50"
+              >
+                <ChatBubbleLeftIcon className="h-6 w-6 text-gray-700" />
+                <span className="mt-2 text-sm font-medium">{selectedItem.type === 'folder' ? 'Ordner im Chat teilen' : 'Datei im Chat teilen'}</span>
+              </button>
+              
+              {/* Löschen Button */}
+              <button
                 onClick={() => {
                   handleDelete(selectedItem.id);
                   setShowActionDialog(false);
                 }}
-                className="w-full flex items-center gap-3 p-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors text-left"
+                className="flex flex-col items-center p-4 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 text-red-600"
               >
-                <TrashIcon className="h-5 w-5 text-gray-600" />
-                <div>
-                  <p className="font-medium text-gray-800">Löschen</p>
-                  <p className="text-sm text-gray-500">Datei unwiderruflich entfernen</p>
-                </div>
+                <TrashIcon className="h-6 w-6" />
+                <span className="mt-2 text-sm font-medium">Löschen</span>
               </button>
             </div>
-            
-            {/* Schließen-Button */}
             <div className="mt-6 flex justify-end">
-              <button 
+              <button
                 onClick={() => setShowActionDialog(false)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors font-medium"
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium"
               >
-                Schließen
+                Abbrechen
               </button>
             </div>
-            
-            {/* X-Button in der Ecke */}
-            <button 
-              className="absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 rounded-full p-2 text-gray-700 transition-colors"
-              onClick={() => setShowActionDialog(false)}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
           </div>
         </div>
       )}
@@ -1308,6 +1440,72 @@ export default function FileList() {
         onCancel={cancelDelete}
         type="danger"
       />
+
+      {/* Temporäre Datei Upload Dialog */}
+      {showTempFileUploadDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center sm:items-center">
+          <div className="bg-white rounded-t-xl sm:rounded-xl w-full max-w-md max-h-[90vh] overflow-hidden slide-up-animation">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-medium">Temporäre Datei teilen</h3>
+              <button 
+                onClick={() => setShowTempFileUploadDialog(false)}
+                className="p-2 text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {isUploading ? (
+              <div className="p-6">
+                <div className="flex flex-col">
+                  <div className="flex justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Datei wird hochgeladen...</span>
+                    <span className="text-sm text-gray-500">{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                    <div 
+                      className="bg-[#2c2c2c] h-2.5 rounded-full transition-all duration-300 ease-in-out" 
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-6">
+                <p className="text-sm text-gray-600 mb-6">
+                  Wählen Sie eine Datei aus, die Sie direkt im Chat teilen möchten, ohne sie in den Dateimanager hochzuladen. Diese Datei wird temporär gespeichert und ist nur für die aktuelle Sitzung verfügbar.
+                </p>
+                
+                {/* Verstecktes Datei-Input-Element */}
+                <input
+                  type="file"
+                  ref={tempFileInputRef}
+                  onChange={handleTempFileSelected}
+                  className="hidden"
+                  accept=".txt,.md,.csv,.json,.js,.ts,.html,.css,.xlsx,.xls,.docx,.pdf,.jpg,.jpeg,.png,.gif"
+                />
+                
+                <div className="flex flex-col space-y-3">
+                  <button
+                    onClick={handleShareTempFile}
+                    className="w-full flex items-center justify-center px-4 py-3 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
+                  >
+                    <ArrowUpTrayIcon className="h-5 w-5 mr-2" />
+                    Datei auswählen
+                  </button>
+                  
+                  <button
+                    onClick={() => setShowTempFileUploadDialog(false)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
