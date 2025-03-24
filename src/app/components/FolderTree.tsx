@@ -12,7 +12,12 @@ export default function FolderTree() {
   };
 
   const isActive = (folderId: string) => {
-    return currentPath.includes(folderId);
+    return currentPath[currentPath.length - 1] === folderId;
+  };
+
+  const isInPath = (folderId: string) => {
+    // Prüft, ob der Ordner tatsächlich im aktuellen Navigationspfad liegt
+    return currentPath.includes(folderId) && !isActive(folderId);
   };
 
   const toggleFolder = (folderId: string) => {
@@ -27,17 +32,36 @@ export default function FolderTree() {
     });
   };
 
+  // Stellt sicher, dass alle Ordner im Pfad aufgeklappt sind
+  const ensurePathFoldersExpanded = () => {
+    currentPath.forEach(folderId => {
+      if (!expandedFolders.has(folderId)) {
+        setExpandedFolders(prev => new Set([...prev, folderId]));
+      }
+    });
+  };
+
+  // Beim Rendern sicherstellen, dass alle Ordner im Pfad aufgeklappt sind
+  ensurePathFoldersExpanded();
+
   const renderFolder = (folder: FileItem, level: number = 0) => {
     const children = getFoldersByParentId(folder.id);
     const isExpanded = expandedFolders.has(folder.id);
     const active = isActive(folder.id);
+    const inPath = isInPath(folder.id);
 
     return (
       <div key={folder.id} className="w-full">
         <div
-          className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-gray-100 ${
-            active ? 'bg-gray-100' : ''
-          }`}
+          className={`
+            flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer 
+            ${active 
+              ? 'bg-[#2c2c2c]/10 font-medium text-[#2c2c2c]' 
+              : inPath 
+                ? 'bg-gray-50 text-gray-800' 
+                : 'bg-white text-gray-700 hover:bg-gray-50/50'
+            }
+          `}
           style={{ paddingLeft: `${(level * 12) + 8}px` }}
           onClick={() => navigateToFolder(folder.id)}
         >
@@ -47,18 +71,21 @@ export default function FolderTree() {
                 e.stopPropagation();
                 toggleFolder(folder.id);
               }}
-              className="p-1 hover:bg-gray-200 rounded flex-shrink-0"
+              className={`
+                p-1 rounded flex-shrink-0 
+                ${active ? 'text-[#2c2c2c]' : 'text-gray-500 hover:bg-gray-100'}
+              `}
             >
               <ChevronRightIcon
-                className={`h-4 w-4 text-gray-600 transform transition-transform ${
+                className={`h-4 w-4 transform transition-transform ${
                   isExpanded ? 'rotate-90' : ''
                 }`}
               />
             </button>
           )}
           {children.length === 0 && <div className="w-6"></div>}
-          <FolderIcon className="h-4 w-4 text-gray-600 flex-shrink-0" />
-          <span className="text-sm text-gray-900 truncate">{folder.name}</span>
+          <FolderIcon className={`h-4 w-4 flex-shrink-0 ${active ? 'text-[#2c2c2c]' : 'text-gray-500'}`} />
+          <span className="text-sm truncate">{folder.name}</span>
         </div>
         
         {isExpanded && children.length > 0 && (
@@ -81,7 +108,9 @@ export default function FolderTree() {
     updatedAt: new Date().toISOString()
   };
 
-  // Nur den Root-Ordner rendern, seine Kinder werden automatisch in renderFolder gerendert,
-  // wenn er expandiert ist (was standardmäßig der Fall ist, da 'root' in expandedFolders ist)
-  return <div className="w-full space-y-1">{renderFolder(rootFolder)}</div>;
+  return (
+    <div className="w-full space-y-1">
+      {renderFolder(rootFolder)}
+    </div>
+  );
 } 

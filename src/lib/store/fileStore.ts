@@ -156,40 +156,93 @@ export const useFileStore = create<FileStore>((set, get) => ({
   },
 
   navigateToFolder: (folderId) => {
-    const { currentPath } = get();
+    const { files, currentPath } = get();
     
     // Wenn wir zum Root-Ordner navigieren, setzen wir den Pfad zurück
     if (folderId === 'root') {
       set({ currentPath: ['root'] });
-      return;
+    } else {
+      // Der Ordner muss real existieren
+      const targetFolder = files.find(file => file.id === folderId && file.type === 'folder');
+      if (!targetFolder) {
+        console.error('Ordner nicht gefunden:', folderId);
+        return;
+      }
+      
+      // Baue den korrekten Pfad zum Ziel-Ordner auf
+      const newPath = ['root'];
+      
+      // Funktion, um den Pfad zum Ordner rekursiv zu finden
+      const findPathToFolder = (folder: string): boolean => {
+        if (folder === 'root') return true;
+        
+        const folderItem = files.find(file => file.id === folder);
+        if (!folderItem) return false;
+        
+        const parentId = folderItem.parentId;
+        if (!parentId) return false;
+        
+        // Rekursiver Aufruf für den Elternordner
+        if (findPathToFolder(parentId)) {
+          // Wenn wir den Pfad zum Elternordner gefunden haben, fügen wir den aktuellen Ordner hinzu
+          if (parentId !== 'root') { // Vermeidet Duplizierung von 'root'
+            newPath.push(parentId);
+          }
+          return true;
+        }
+        
+        return false;
+      };
+      
+      // Finde den Pfad zum Ziel-Ordner
+      if (findPathToFolder(folderId)) {
+        // Füge den Ziel-Ordner selbst hinzu
+        newPath.push(folderId);
+        set({ currentPath: newPath });
+      } else {
+        console.error('Konnte keinen Pfad zum Ordner finden:', folderId);
+      }
     }
     
-    // Wenn der Ordner bereits im Pfad ist, navigieren wir zu diesem Punkt
-    const existingIndex = currentPath.indexOf(folderId);
-    if (existingIndex >= 0) {
-      set({ currentPath: currentPath.slice(0, existingIndex + 1) });
-      return;
+    // Aktuellen Pfad im localStorage speichern
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('currentPath', JSON.stringify(get().currentPath));
     }
-    
-    // Sonst fügen wir den Ordner zum Pfad hinzu
-    set({ currentPath: [...currentPath, folderId] });
   },
 
   navigateBack: () => {
     const { currentPath } = get();
     if (currentPath.length > 1) {
-      set({ currentPath: currentPath.slice(0, -1) });
+      const newPath = currentPath.slice(0, -1);
+      set({ currentPath: newPath });
+      
+      // Aktuellen Pfad im localStorage speichern
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('currentPath', JSON.stringify(newPath));
+      }
     }
   },
 
   navigateToRoot: () => {
-    set({ currentPath: ['root'] });
+    const rootPath = ['root'];
+    set({ currentPath: rootPath });
+    
+    // Aktuellen Pfad im localStorage speichern
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('currentPath', JSON.stringify(rootPath));
+    }
   },
 
   navigateToPathIndex: (index) => {
     const { currentPath } = get();
     if (index >= 0 && index < currentPath.length) {
-      set({ currentPath: currentPath.slice(0, index + 1) });
+      const newPath = currentPath.slice(0, index + 1);
+      set({ currentPath: newPath });
+      
+      // Aktuellen Pfad im localStorage speichern
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('currentPath', JSON.stringify(newPath));
+      }
     }
   },
 
