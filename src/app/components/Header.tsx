@@ -3,20 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUserStore } from '@/lib/store/userStore';
+import { UsersIcon } from '@heroicons/react/24/outline';
 
 export default function Header() {
   const pathname = usePathname();
   const isDateimanager = pathname === '/dateimanager';
   const isWissen = pathname === '/wissen';
   const isProfile = pathname === '/profil';
+  const isUsers = pathname === '/benutzer';
   
-  const { profile } = useUserStore();
-  const initials = profile.name
+  const { getCurrentUser } = useUserStore();
+  const currentUser = getCurrentUser();
+  
+  const initials = currentUser?.name
     .split(' ')
-    .map(n => n[0])
+    .map((n: string) => n[0])
     .join('')
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || 'U';
+
+  if (!currentUser) return null;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-[#f4f4f4]/80 backdrop-blur-md border-b border-gray-100 shadow-md">
@@ -47,16 +53,27 @@ export default function Header() {
             </svg>
             <span className="text-gray-700">Wissen</span>
           </Link>
+          {currentUser.role === 'admin' && (
+            <Link 
+              href="/benutzer"
+              className={`flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-100 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
+                isUsers ? 'border-[#2c2c2c] bg-gray-50' : ''
+              }`}
+            >
+              <UsersIcon className="h-5 w-5 text-gray-600" />
+              <span className="text-gray-700">Benutzer</span>
+            </Link>
+          )}
           <Link 
             href="/profil"
             className={`flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-100 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
               isProfile ? 'border-[#2c2c2c] bg-gray-50' : ''
             }`}
           >
-            {profile.imageUrl ? (
+            {currentUser.imageUrl ? (
               <img
-                src={profile.imageUrl}
-                alt={profile.name}
+                src={currentUser.imageUrl}
+                alt={currentUser.name}
                 className="w-6 h-6 rounded-full object-cover"
               />
             ) : (
@@ -64,7 +81,7 @@ export default function Header() {
                 {initials}
               </div>
             )}
-            <span className="text-gray-700">{profile.name}</span>
+            <span className="text-gray-700">{currentUser.name}</span>
           </Link>
         </div>
       </div>
