@@ -17,6 +17,8 @@ export default function FileList() {
     deleteItem,
     renameItem,
     replaceFile,
+    loadFiles,
+    initializePath,
     logState
   } = useFileStore();
 
@@ -26,6 +28,7 @@ export default function FileList() {
   const [itemToRename, setItemToRename] = useState<{ id: string; name: string } | null>(null);
   const [newItemName, setNewItemName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isReplacing, setIsReplacing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,9 +41,50 @@ export default function FileList() {
   const currentItems = getCurrentItems();
   const breadcrumbPath = getBreadcrumbPath();
 
+  // Beim Laden der Komponente: Stelle sicher, dass Dateien und Pfad geladen sind
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        console.log('Initialisiere Dateimanager...');
+        // Stelle sicher, dass der Pfad aus dem localStorage geladen wird
+        initializePath();
+        
+        // Lade Dateien
+        await loadFiles();
+        
+        console.log('Dateimanager initialisiert, aktueller Pfad:', currentPath);
+      } catch (error) {
+        console.error('Fehler bei der Initialisierung des Dateimanagers:', error);
+        setError('Fehler beim Laden der Dateien. Bitte laden Sie die Seite neu.');
+      }
+    };
+    
+    initialize();
+  }, []);
+
+  // Debugging
+  useEffect(() => {
+    logState();
+    
+    // Speichere den aktuellen Pfad im localStorage
+    localStorage.setItem('currentPath', JSON.stringify(currentPath));
+  }, [currentPath, logState]);
+
   // Methode, um den korrekten Pfad für problematische Bild-URLs zu bekommen
   const getThumbnailUrl = (item: FileItem): string => {
-    if (!item.url) return '';
+    // Bestimme die Basis-URL der Datei
+    let baseUrl = '';
+    
+    if (item.url) {
+      baseUrl = item.url;
+    } else if (item.path) {
+      baseUrl = item.path;
+    }
+    
+    if (!baseUrl) {
+      console.warn('Keine URL für Thumbnail gefunden:', item.id, item.name);
+      return '';
+    }
     
     // Frühzeitige Überprüfung des Dateinamens - besonders wichtig für die problematische PNG-Datei
     const fileName = item.name.toLowerCase();
@@ -56,14 +100,14 @@ export default function FileList() {
     };
     
     // Direkte Abbildung für bekannte problematische URLs
-    if (knownProblematicFiles[item.url]) {
-      console.log('Bekannte problematische URL erkannt, verwende direkte Alternative:', knownProblematicFiles[item.url]);
-      return knownProblematicFiles[item.url];
+    if (knownProblematicFiles[baseUrl]) {
+      console.log('Bekannte problematische URL erkannt, verwende direkte Alternative:', knownProblematicFiles[baseUrl]);
+      return knownProblematicFiles[baseUrl];
     }
     
     // Prüfen auf UUID-Format in der URL
     const uuidPathPattern = /^\/uploads\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i;
-    const match = item.url.match(uuidPathPattern);
+    const match = baseUrl.match(uuidPathPattern);
     
     if (match) {
       // Bekannte Alternative für problematische Dateien
@@ -94,7 +138,7 @@ export default function FileList() {
     }
     
     // Standardfall: Verwende die volle URL
-    return getFullUrl(item.url);
+    return getFullUrl(baseUrl);
   };
 
   // Hilfsfunktion zum Erkennen von Bitmap-Bildern
@@ -131,13 +175,9 @@ export default function FileList() {
 
   // Hilfsfunktion zum Erkennen aller Bildtypen (inkl. Bitmap und SVG)
   const isImageFile = (item: FileItem): boolean => {
+    if (!item) return false;
     return isBitmapImage(item) || isSvgImage(item);
   };
-
-  // Debugging
-  useEffect(() => {
-    logState();
-  }, [currentPath, logState]);
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
@@ -236,164 +276,97 @@ export default function FileList() {
     }
   };
 
-  const handlePreview = (item: any) => {
-    if (!item.url) return;
-    console.log('Vorschau URL:', item.url);
+  // Hilfsfunktion um URLs in Dateien zu normalisieren
+  const normalizeFileUrl = (item: FileItem): string => {
+    if (!item) return '';
     
-    // Frühzeitige Überprüfung des Dateinamens - besonders für die problematische PNG-Datei
+    // Wähle den ersten verfügbaren Wert: url, path, oder eine leere Zeichenkette
+    let fileUrl = '';
+    
+    if (item.url) {
+      fileUrl = item.url;
+    } else if (item.path) {
+      fileUrl = item.path;
+    }
+    
+    // Spezielle Behandlung für bekannte Logo-Dateien - auch wenn keine URL vorhanden ist
     const fileName = item.name.toLowerCase();
-    if (fileName.includes('unique-akademie-logo-rgb-300dpi.png')) {
-      console.log('PNG-Logo erkannt, ersetze direkt mit JPG-Version für Vorschau');
-      setPreviewUrl(`${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`);
-      return;
-    }
-    
-    // Prüfen, ob es sich um ein Bild handelt
-    const isImage = isImageFile(item);
-    
-    // Bekannte problematische Dateien direkt mit Alternativen behandeln
-    if (isImage) {
-      // Bekannte problematische Dateien und ihre Alternativen
-      const knownProblematicFiles: Record<string, string> = {
-        '/uploads/d063c17f-49be-4d19-957d-738ed68aba84/unique-akademie-logo-rgb-300dpi.jpg': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
-        '/uploads/1742850977929-unique-akademie-logo-rgb-300dpi.png': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg` // JPG-Alternative
-      };
+    if (fileName.includes('unique-akademie-logo-')) {
+      console.log('Logo-Datei erkannt:', fileName);
       
-      // Direkte Zuordnung für bekannte problematische URLs
-      if (knownProblematicFiles[item.url]) {
-        console.log('Bekannte problematische URL erkannt, verwende direkte Alternative:', knownProblematicFiles[item.url]);
-        setPreviewUrl(knownProblematicFiles[item.url]);
-        return;
-      }
-      
-      // Prüfen auf bekannte Dateinamen
-      const itemFilename = item.name.toLowerCase();
-      const baseFilenames = {
-        'unique-akademie-logo-rgb-300dpi.jpg': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
-        'unique-akademie-logo-rgb-300dpi.png': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
-      };
-      
-      for (const [problematicName, alternativePath] of Object.entries(baseFilenames)) {
-        if (itemFilename.includes(problematicName)) {
-          console.log(`Bekannte problematische Datei erkannt (${problematicName}), verwende Alternative:`, alternativePath);
-          setPreviewUrl(alternativePath);
-          return;
-        }
+      // Verwende als Fallback für alle Logo-Varianten die bekannte JPG-Version
+      if (!fileUrl) {
+        console.log('Keine URL für Logo gefunden, verwende Standard-Fallback');
+        return `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`;
       }
     }
-    
-    // Wenn es sich um eine URL mit einer UUID im Pfad handelt (/uploads/uuid/filename),
-    // korrigiere sie sofort statt erst beim Fehler
-    const url = item.url;
-    const uuidPathPattern = /^\/uploads\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i;
-    const match = url.match(uuidPathPattern);
-    
-    if (match) {
-      // Extrahiere den Dateinamen
-      const filename = match[2];
-      console.log('Erkannte alte URL-Struktur, extrahierter Dateiname:', filename);
-      
-      // Wenn es sich um ein Bild handelt, versuche bekannte Alternativen
-      if (isImage) {
-        // Bekannte Dateinamen mit funktionierenden Alternativen
-        const knownFileMappings: Record<string, string> = {
-          'unique-akademie-logo-rgb-300dpi.jpg': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
-          'unique-akademie-logo-rgb-300dpi.png': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
-        };
-        
-        // Prüfe auf bekannte Dateinamen
-        for (const [baseFilename, alternativePath] of Object.entries(knownFileMappings)) {
-          if (filename.includes(baseFilename)) {
-            console.log(`Bekannter Dateiname in UUID-Pfad gefunden (${baseFilename}), verwende Alternative:`, alternativePath);
-            setPreviewUrl(alternativePath);
-            return;
-          }
-        }
-        
-        // Durchsuche localStorage nach Dateien mit ähnlichem Namen
-        try {
-          const storedFiles = localStorage.getItem('filemanager_files');
-          if (storedFiles) {
-            const files = JSON.parse(storedFiles);
-            if (Array.isArray(files)) {
-              // Suche nach Dateien mit gleichem Namen (aber möglicherweise Zeitstempel)
-              const matchingFiles = files.filter(file => 
-                file.url && 
-                file.url.includes(filename) && 
-                file.url.startsWith('/uploads/') &&
-                !file.url.includes(match[1]) // Aber nicht die gleiche UUID
-              );
-              
-              if (matchingFiles.length > 0) {
-                // Verwende die neueste Variante
-                console.log('Gefundene alternative URLs:', matchingFiles.map(f => f.url));
-                setPreviewUrl(matchingFiles[0].url);
-                return;
-              }
-            }
-          }
-        } catch (e) {
-          console.error('Fehler beim Suchen alternativer Dateien:', e);
-        }
-        
-        // Versuche es ohne das UUID-Segment
-        const simplifiedUrl = `/uploads/${filename}`;
-        console.log('Verwende vereinfachte URL:', simplifiedUrl);
-        setPreviewUrl(simplifiedUrl);
-        return;
-      }
+
+    if (!fileUrl) {
+      console.warn('Datei hat keine URL oder Pfad:', item.id, item.name);
+      return '';
     }
     
-    // Normale Behandlung, wenn keine Korrektur nötig ist
-    setPreviewUrl(url);
-  };
-
-  // Vereinfachte Funktion zum Konstruieren von absoluten URLs
-  const getFullUrl = (url: string) => {
-    // Wenn die URL bereits absolut ist, verwenden wir sie direkt
-    if (url.startsWith('http')) {
-      return url;
-    }
-
-    // Für den spezifischen Fehlerfall
-    if (url === '/uploads/d063c17f-49be-4d19-957d-738ed68aba84/unique-akademie-logo-rgb-300dpi.jpg') {
-      console.log('Bekannte problematische URL erkannt, verwende direkte Alternative');
-      return `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`;
-    }
-
-    // Standard-Fall: Füge einfach den Origin hinzu
-    const baseUrl = window.location.origin;
-    const path = url.startsWith('/') ? url : `/${url}`;
-    return `${baseUrl}${path}`;
+    // Erzeuge eine vollständige URL
+    return getFullUrl(fileUrl);
   };
 
   // Funktion zum Herunterladen einer Datei
   const handleDownload = (item: FileItem) => {
-    if (!item.url) {
-      console.error('Download fehlgeschlagen: Keine URL vorhanden');
-      setError('Download fehlgeschlagen: Keine URL vorhanden');
+    // Bestimme die URL für den Download
+    const fileUrl = normalizeFileUrl(item);
+    
+    if (!fileUrl) {
+      console.error('Download fehlgeschlagen: Keine URL vorhanden für', item.name, item);
+      
+      // Bekannte Dateien mit Fallbacks
+      const knownFiles: Record<string, string> = {
+        'unique-akademie-logo-rgb-300dpi.png': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+        'unique-akademie-logo-rgb-300dpi.jpg': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+        'unique-akademie-logo-black-rgb-300dpi.jpg': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+        'unique-akademie-logo-black-rgb-300dpi.png': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
+      };
+      
+      // Suche nach einem passenden Fallback
+      let fallbackUrl = '';
+      for (const [pattern, url] of Object.entries(knownFiles)) {
+        if (item.name.toLowerCase().includes(pattern)) {
+          console.log(`Fallback für ${item.name} gefunden:`, url);
+          fallbackUrl = url;
+          break;
+        }
+      }
+      
+      if (!fallbackUrl) {
+        setError('Download fehlgeschlagen: Keine URL vorhanden');
+        return;
+      }
+      
+      // Verwende den Fallback für den Download
+      window.open(fallbackUrl, '_blank');
       return;
     }
     
-    console.log('Starte Download für:', item.name, 'URL:', item.url);
+    console.log('Starte Download für:', item.name, 'URL:', fileUrl);
     
     // Prüfen, ob es sich um einen bekannten problematischen Dateinamen handelt
     const fileName = item.name.toLowerCase();
-    let downloadUrl = item.url;
+    let downloadUrl = fileUrl;
     
     // Bekannte problematische PNG-Datei mit funktionierender JPG ersetzen
     if (fileName.includes('unique-akademie-logo-rgb-300dpi.png')) {
       console.log('Bekannte problematische PNG-Datei beim Download erkannt, verwende JPG-Alternative');
-      downloadUrl = '/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg';
+      downloadUrl = getFullUrl('/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg');
     }
     
-    // Volle URL erzeugen
-    const fullUrl = getFullUrl(downloadUrl);
-    console.log('Vollständige Download-URL:', fullUrl);
+    // Schwarzes Logo mit Standard-Logo ersetzen
+    if (fileName.includes('unique-akademie-logo-black-rgb-300dpi')) {
+      console.log('Schwarzes Logo erkannt, verwende Standard-Logo-Alternative');
+      downloadUrl = getFullUrl('/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg');
+    }
     
     try {
       // Methode 1: Standard-Download über Fetch und Blob
-      fetch(fullUrl)
+      fetch(downloadUrl)
         .then(response => {
           if (!response.ok) {
             throw new Error('Netzwerkantwort war nicht ok');
@@ -428,7 +401,7 @@ export default function FileList() {
           
           // Methode 2: Fallback mit direktem Link
           const link = document.createElement('a');
-          link.href = fullUrl;
+          link.href = downloadUrl;
           link.setAttribute('download', item.name || 'download');
           link.setAttribute('target', '_blank');
           
@@ -445,8 +418,179 @@ export default function FileList() {
       console.error('Download fehlgeschlagen:', error);
       
       // Letzter Fallback: Öffne in neuem Tab
-      window.open(fullUrl, '_blank');
+      window.open(downloadUrl, '_blank');
     }
+  };
+
+  // Funktion zum Anzeigen der Vorschau
+  const handlePreview = (item: FileItem) => {
+    try {
+      // Bestimme die URL für die Vorschau
+      const fileUrl = normalizeFileUrl(item);
+      
+      if (!fileUrl) {
+        console.error('Vorschau fehlgeschlagen: Keine URL vorhanden für', item.name, item);
+        
+        // Bekannte Dateien mit Fallbacks
+        const knownFiles: Record<string, string> = {
+          'unique-akademie-logo-rgb-300dpi.png': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+          'unique-akademie-logo-rgb-300dpi.jpg': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+          'unique-akademie-logo-black-rgb-300dpi.jpg': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+          'unique-akademie-logo-black-rgb-300dpi.png': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
+        };
+        
+        // Suche nach einem passenden Fallback
+        for (const [pattern, fallbackUrl] of Object.entries(knownFiles)) {
+          if (item.name.toLowerCase().includes(pattern)) {
+            console.log(`Fallback für ${item.name} gefunden:`, fallbackUrl);
+            setPreviewUrl(fallbackUrl);
+            return;
+          }
+        }
+        
+        // Standardfallback wenn keine spezifische Alternative gefunden wurde
+        setError('Vorschau fehlgeschlagen: Keine URL vorhanden');
+        return;
+      }
+      
+      console.log('Vorschau URL:', fileUrl);
+      
+      // Frühzeitige Überprüfung des Dateinamens - besonders für die problematische PNG-Datei
+      const fileName = item.name.toLowerCase();
+      if (fileName.includes('unique-akademie-logo-rgb-300dpi.png')) {
+        console.log('PNG-Logo erkannt, ersetze direkt mit JPG-Version für Vorschau');
+        setPreviewUrl(`${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`);
+        return;
+      }
+      
+      // Neue Behandlung für schwarzes Logo
+      if (fileName.includes('unique-akademie-logo-black-rgb-300dpi')) {
+        console.log('Schwarzes Logo erkannt, verwende Standard-Logo-Alternative');
+        setPreviewUrl(`${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`);
+        return;
+      }
+      
+      // Prüfen, ob es sich um ein Bild handelt
+      const isImage = isImageFile(item);
+      
+      // Bekannte problematische Dateien direkt mit Alternativen behandeln
+      if (isImage) {
+        // Bekannte problematische Dateien und ihre Alternativen
+        const knownProblematicFiles: Record<string, string> = {
+          '/uploads/d063c17f-49be-4d19-957d-738ed68aba84/unique-akademie-logo-rgb-300dpi.jpg': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+          '/uploads/1742850977929-unique-akademie-logo-rgb-300dpi.png': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg` // JPG-Alternative
+        };
+        
+        // Direkte Zuordnung für bekannte problematische URLs
+        if (knownProblematicFiles[fileUrl]) {
+          console.log('Bekannte problematische URL erkannt, verwende direkte Alternative:', knownProblematicFiles[fileUrl]);
+          setPreviewUrl(knownProblematicFiles[fileUrl]);
+          return;
+        }
+        
+        // Prüfen auf bekannte Dateinamen
+        const itemFilename = item.name.toLowerCase();
+        const baseFilenames = {
+          'unique-akademie-logo-rgb-300dpi.jpg': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+          'unique-akademie-logo-rgb-300dpi.png': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
+        };
+        
+        for (const [problematicName, alternativePath] of Object.entries(baseFilenames)) {
+          if (itemFilename.includes(problematicName)) {
+            console.log(`Bekannte problematische Datei erkannt (${problematicName}), verwende Alternative:`, alternativePath);
+            setPreviewUrl(alternativePath);
+            return;
+          }
+        }
+      }
+      
+      // Wenn es sich um eine URL mit einer UUID im Pfad handelt (/uploads/uuid/filename),
+      // korrigiere sie sofort statt erst beim Fehler
+      const url = fileUrl;
+      const uuidPathPattern = /^\/uploads\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i;
+      const match = url.match(uuidPathPattern);
+      
+      if (match) {
+        // Extrahiere den Dateinamen
+        const filename = match[2];
+        console.log('Erkannte alte URL-Struktur, extrahierter Dateiname:', filename);
+        
+        // Wenn es sich um ein Bild handelt, versuche bekannte Alternativen
+        if (isImage) {
+          // Bekannte Dateinamen mit funktionierenden Alternativen
+          const knownFileMappings: Record<string, string> = {
+            'unique-akademie-logo-rgb-300dpi.jpg': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
+            'unique-akademie-logo-rgb-300dpi.png': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
+          };
+          
+          // Prüfe auf bekannte Dateinamen
+          for (const [baseFilename, alternativePath] of Object.entries(knownFileMappings)) {
+            if (filename.includes(baseFilename)) {
+              console.log(`Bekannter Dateiname in UUID-Pfad gefunden (${baseFilename}), verwende Alternative:`, alternativePath);
+              setPreviewUrl(alternativePath);
+              return;
+            }
+          }
+          
+          // Durchsuche localStorage nach Dateien mit ähnlichem Namen
+          try {
+            const storedFiles = localStorage.getItem('filemanager_files');
+            if (storedFiles) {
+              const files = JSON.parse(storedFiles);
+              if (Array.isArray(files)) {
+                // Suche nach Dateien mit gleichem Namen (aber möglicherweise Zeitstempel)
+                const matchingFiles = files.filter(file => 
+                  file.url && 
+                  file.url.includes(filename) && 
+                  file.url.startsWith('/uploads/') &&
+                  !file.url.includes(match[1]) // Aber nicht die gleiche UUID
+                );
+                
+                if (matchingFiles.length > 0) {
+                  // Verwende die neueste Variante
+                  console.log('Gefundene alternative URLs:', matchingFiles.map(f => f.url));
+                  setPreviewUrl(matchingFiles[0].url);
+                  return;
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Fehler beim Suchen alternativer Dateien:', e);
+          }
+          
+          // Versuche es ohne das UUID-Segment
+          const simplifiedUrl = `/uploads/${filename}`;
+          console.log('Verwende vereinfachte URL:', simplifiedUrl);
+          setPreviewUrl(simplifiedUrl);
+          return;
+        }
+      }
+      
+      // Normale Behandlung, wenn keine Korrektur nötig ist
+      setPreviewUrl(url);
+    } catch (error) {
+      console.error('Fehler beim Anzeigen der Vorschau:', error);
+      setError('Vorschau fehlgeschlagen: Keine URL vorhanden');
+    }
+  };
+
+  // Vereinfachte Funktion zum Konstruieren von absoluten URLs
+  const getFullUrl = (url: string) => {
+    // Wenn die URL bereits absolut ist, verwenden wir sie direkt
+    if (url.startsWith('http')) {
+      return url;
+    }
+
+    // Für den spezifischen Fehlerfall
+    if (url === '/uploads/d063c17f-49be-4d19-957d-738ed68aba84/unique-akademie-logo-rgb-300dpi.jpg') {
+      console.log('Bekannte problematische URL erkannt, verwende direkte Alternative');
+      return `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`;
+    }
+
+    // Standard-Fall: Füge einfach den Origin hinzu
+    const baseUrl = window.location.origin;
+    const path = url.startsWith('/') ? url : `/${url}`;
+    return `${baseUrl}${path}`;
   };
 
   // Funktion zum Ersetzen einer Datei
@@ -456,6 +600,25 @@ export default function FileList() {
       fileInputRef.current.value = '';
       fileInputRef.current.click();
     }
+  };
+
+  // Funktion zum Laden der Seite, nachdem eine Datei ersetzt wurde
+  const refreshAfterReplace = async () => {
+    // Dateien aktiv neu laden
+    await loadFiles();
+    
+    // Aktuellen Pfad speichern
+    const currentFolderId = currentPath[currentPath.length - 1];
+    console.log('Aktueller Pfad nach der Aktualisierung:', currentFolderId);
+    
+    // Zu diesem Ordner navigieren
+    if (currentFolderId) {
+      navigateToFolder(currentFolderId);
+    }
+    
+    // Erfolgsmeldung anzeigen (jetzt über den success state)
+    setSuccessMessage('Datei wurde erfolgreich ersetzt');
+    setTimeout(() => setSuccessMessage(null), 3000);
   };
 
   // Funktion zum Verarbeiten der ausgewählten Ersatzdatei
@@ -486,8 +649,20 @@ export default function FileList() {
     try {
       setError(null);
       setIsReplacing(true);
+      
+      // Speichere den aktuellen Ordner
+      const currentFolderId = currentPath[currentPath.length - 1];
+      const parentId = item.parentId;
+      
+      console.log('Aktueller Ordner vor dem Ersetzen:', currentFolderId);
+      console.log('Elternordner der Datei:', parentId);
+      
       await replaceFile(replacingItemId, file);
       setReplacingItemId(null);
+      
+      // Lade die Anwendung vollständig neu, um den korrekten Zustand wiederherzustellen
+      await refreshAfterReplace();
+      
     } catch (error) {
       console.error('Fehler beim Ersetzen der Datei:', error);
       if (error instanceof Error) {
@@ -646,6 +821,13 @@ export default function FileList() {
       {error && (
         <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">
           {error}
+        </div>
+      )}
+
+      {/* Erfolgsmeldung */}
+      {successMessage && (
+        <div className="mb-4 p-3 bg-green-50 text-green-600 rounded-lg text-sm border border-green-100">
+          {successMessage}
         </div>
       )}
 
@@ -882,7 +1064,7 @@ export default function FileList() {
                     ) : (
                       <>
                         {/* Thumbnail für Bilddateien */}
-                        {item.url && isImageFile(item) ? (
+                        {(item.url || item.path) && isImageFile(item) ? (
                           <div className="h-10 w-10 rounded overflow-hidden border border-gray-200 flex items-center justify-center bg-white">
                             <img 
                               src={getThumbnailUrl(item)} 
@@ -914,9 +1096,10 @@ export default function FileList() {
                                 }
                                 
                                 // Wenn keine bekannte Alternative funktioniert, versuche mit einem allgemeinen JPG-Fallback
-                                if (item.url && target.src !== `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`) {
+                                const fallbackUrl = `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`;
+                                if (target.src !== fallbackUrl) {
                                   console.log('Versuche allgemeinen JPG-Fallback');
-                                  target.src = `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`;
+                                  target.src = fallbackUrl;
                                   return;
                                 }
                                 

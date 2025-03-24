@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { FileItem } from '@/types/files';
+import type { FileItem } from '@/types/files';
 
 interface FileStore {
   files: FileItem[];
@@ -25,6 +25,8 @@ interface FileStore {
   renameItem: (id: string, newName: string) => Promise<void>;
   uploadFile: (file: File) => Promise<void>;
   logState: () => void;
+  validatePath: (path: string[]) => boolean;
+  ensureUrlProperties: (file: any) => any;
 }
 
 export const useFileStore = create<FileStore>((set, get) => ({
@@ -49,43 +51,152 @@ export const useFileStore = create<FileStore>((set, get) => ({
   setCurrentPath: (path) => set({ currentPath: path }),
   
   loadFiles: async () => {
-    // Versuche zuerst Daten aus localStorage zu laden
-    if (typeof window !== 'undefined') {
-      const storedFiles = localStorage.getItem('filemanager_files');
-      if (storedFiles) {
-        try {
-          const files = JSON.parse(storedFiles);
-          console.log('Dateien aus localStorage geladen:', files);
-          get().setFiles(files);
-          // Wenn wir Daten aus localStorage haben, beenden wir hier
-          return;
-        } catch (e) {
-          console.error('Fehler beim Parsen der gespeicherten Dateien:', e);
+    try {
+      // Versuche zuerst lokale Daten zu laden
+      let localFiles = [];
+      let loadedFromCache = false;
+      
+      if (typeof window !== 'undefined') {
+        const storedFiles = localStorage.getItem('filemanager_files');
+        if (storedFiles) {
+          try {
+            const parsedFiles = JSON.parse(storedFiles);
+            if (Array.isArray(parsedFiles) && parsedFiles.length > 0) {
+              console.log('Lokale Dateien gefunden:', parsedFiles.length);
+              // Stelle sicher, dass alle Dateien URL-Eigenschaften haben
+              localFiles = parsedFiles.map(file => get().ensureUrlProperties(file));
+              loadedFromCache = true;
+              
+              // Setze sofort die Dateien aus dem Cache, damit die UI schnell reagiert
+              set({ files: localFiles });
+            }
+          } catch (e) {
+            console.error('Fehler beim Parsen der lokalen Dateien:', e);
+          }
         }
       }
-    }
-    
-    // Nur wenn keine lokalen Daten vorhanden sind, laden wir vom Server
-    try {
+      
+      // Datenbankabfrage immer durchführen, auch wenn lokale Daten vorhanden sind
+      console.log('Lade Dateien vom Server...');
       const response = await fetch('/api/files');
-      if (!response.ok) throw new Error('Fehler beim Laden der Dateien');
       
-      const data = await response.json();
-      console.log('Geladene Dateien vom Server:', data);
-      
-      // Stelle sicher, dass wir ein Array haben
-      const files = Array.isArray(data) ? data : [];
-      
-      // Setze die Dateien im Store
-      get().setFiles(files);
-      
-      // In localStorage speichern
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('filemanager_files', JSON.stringify(files));
+      if (!response.ok) {
+        console.error('Server-Antwort fehlgeschlagen:', response.status);
+        throw new Error('Fehler beim Laden der Dateien vom Server');
       }
+      
+      const serverData = await response.json();
+      console.log('Dateien vom Server geladen:', serverData.length);
+      
+      // Stelle sicher, dass alle Server-Dateien URL-Eigenschaften haben
+      const processedServerData = serverData.map((file: any) => get().ensureUrlProperties(file));
+      
+      if (processedServerData.length === 0 && loadedFromCache) {
+        console.warn('Server lieferte keine Dateien, verwende Cache-Daten');
+        // Behalte die lokalen Daten bei
+        return localFiles;
+      }
+      
+      // Synchronisiere IDs mit dem StorageService
+      try {
+        const storageService = await import('@/lib/services/storage').then(mod => mod.StorageService.getInstance());
+        console.log('StorageService geladen');
+        
+        // Nur für Debug-Zwecke: Vergleiche die IDs
+        const storageItems = storageService.getItems();
+        console.log('StorageService enthält', storageItems.length, 'Elemente');
+        
+        // Finde Dateien, die in serverData aber nicht im StorageService sind
+        const missingInStorage = processedServerData.filter((file: any) => 
+          !storageItems.some(item => item.id === file.id)
+        );
+        
+        if (missingInStorage.length > 0) {
+          console.log('Fehlende Dateien im StorageService:', missingInStorage.length);
+          
+          // Füge fehlende Dateien zum StorageService hinzu
+          missingInStorage.forEach((file: any) => {
+            const storageItem = {
+              id: file.id,
+              name: file.name,
+              type: 'file' as 'file' | 'folder',
+              parentId: file.parentId || file.folderId || 'root', // Unterstütze beide Varianten
+              lastModified: new Date(file.updatedAt || file.createdAt),
+              fileSize: file.size,
+              fileType: file.mimeType,
+              url: file.url || file.path // Immer sicherstellen, dass eine URL-Eigenschaft vorhanden ist
+            };
+            storageService.addItem(storageItem);
+          });
+          
+          console.log('Fehlende Dateien zum StorageService hinzugefügt');
+        }
+        
+        // Auch umgekehrt: Finde Dateien, die im StorageService aber nicht in processedServerData sind
+        const missingInServer = storageItems.filter(item => 
+          item.id !== 'root' && !processedServerData.some((file: any) => file.id === item.id)
+        );
+        
+        if (missingInServer.length > 0) {
+          console.log('Im Server fehlende Dateien aus StorageService:', missingInServer.length);
+          
+          // Füge diese Dateien zu processedServerData hinzu (für die Anzeige)
+          const additionalFiles = missingInServer.map(item => {
+            // Stelle sicher, dass jede Datei eine URL hat
+            const url = item.url || '';
+            return {
+              id: item.id,
+              name: item.name,
+              type: item.type,
+              parentId: item.parentId,
+              size: item.fileSize,
+              mimeType: item.fileType,
+              updatedAt: item.lastModified,
+              createdAt: item.lastModified,
+              url: url,
+              path: url
+            };
+          });
+          
+          processedServerData.push(...additionalFiles);
+          console.log('Dateien aus StorageService zu serverData hinzugefügt');
+        }
+      } catch (error) {
+        console.error('Fehler bei der Synchronisation mit StorageService:', error);
+      }
+      
+      // Aktualisiere Files im Store
+      set({ files: processedServerData });
+      
+      // Speichere in localStorage für schnelleren Zugriff beim nächsten Mal
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('filemanager_files', JSON.stringify(processedServerData));
+      }
+      
+      return processedServerData;
     } catch (error) {
       console.error('Fehler beim Laden der Dateien:', error);
-      get().setFiles([]);
+      
+      // Wenn der Server nicht erreichbar ist, versuche lokale Daten zu verwenden
+      if (typeof window !== 'undefined') {
+        const storedFiles = localStorage.getItem('filemanager_files');
+        if (storedFiles) {
+          try {
+            const parsedFiles = JSON.parse(storedFiles);
+            if (Array.isArray(parsedFiles) && parsedFiles.length > 0) {
+              console.log('Verwende lokale Dateien als Fallback:', parsedFiles.length);
+              // Stelle sicher, dass alle Dateien URL-Eigenschaften haben
+              const processedFiles = parsedFiles.map(file => get().ensureUrlProperties(file));
+              set({ files: processedFiles });
+              return processedFiles;
+            }
+          } catch (e) {
+            console.error('Fehler beim Parsen der lokalen Dateien:', e);
+          }
+        }
+      }
+      
+      return [];
     }
   },
   
@@ -137,11 +248,19 @@ export const useFileStore = create<FileStore>((set, get) => ({
   replaceFile: async (fileId: string, newFile: File) => {
     const { files } = get();
     
+    console.log('replaceFile aufgerufen mit ID:', fileId);
+    console.log('Dateiliste enthält', files.length, 'Dateien');
+    
     // Finde die zu ersetzende Datei
     const fileToReplace = files.find(f => f.id === fileId);
+    
     if (!fileToReplace) {
+      console.error('Datei nicht gefunden mit ID:', fileId);
+      console.error('Vorhandene Dateien:', files.map(f => ({ id: f.id, name: f.name })));
       throw new Error('Datei zum Ersetzen nicht gefunden');
     }
+
+    console.log('Zu ersetzende Datei gefunden:', fileToReplace.name, 'mit URL:', fileToReplace.url);
 
     // Extrahiere Dateiname und -typ
     const originalName = fileToReplace.name;
@@ -161,24 +280,47 @@ export const useFileStore = create<FileStore>((set, get) => ({
       formData.append('fileId', fileId);
       formData.append('originalName', originalName); // Behalte den originalen Dateinamen
 
+      console.log('Sende Anfrage zum Ersetzen der Datei:', { fileId, originalName });
+
       // Sende die Datei an den Server
       const response = await fetch('/api/files/replace', {
         method: 'POST',
         body: formData,
       });
 
+      console.log('Server-Antwort Status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('Server-Fehler:', errorData);
         throw new Error(errorData.error || 'Fehler beim Ersetzen der Datei');
       }
 
       // Lade die aktualisierte Datei
       const updatedFile = await response.json();
+      console.log('Ersetzte Datei vom Server erhalten:', updatedFile);
+      
+      // Stelle sicher, dass die wichtigen Eigenschaften vorhanden sind
+      const parentId = updatedFile.parentId || fileToReplace.parentId;
+      const url = updatedFile.url || updatedFile.path || fileToReplace.url || fileToReplace.path;
+      
+      console.log('Verwendete parentId:', parentId, 'Original:', fileToReplace.parentId);
+      console.log('Verwendete URL:', url, 'Original:', fileToReplace.url || fileToReplace.path);
       
       // Aktualisiere im Store
       const updatedFiles = files.map(file => 
-        file.id === fileId ? { ...file, ...updatedFile, name: originalName } : file
+        file.id === fileId ? { 
+          ...file, 
+          ...updatedFile,
+          name: originalName,
+          parentId: parentId, // Stelle sicher, dass parentId erhalten bleibt
+          url: url, // Stelle sicher, dass URL erhalten bleibt
+          path: url // Stelle sicher, dass path aktualisiert wird
+        } : file
       );
+      
+      const updatedFileInStore = updatedFiles.find(f => f.id === fileId);
+      console.log('Aktualisierte Datei im Store:', updatedFileInStore);
       
       set({ files: updatedFiles });
       
@@ -310,14 +452,73 @@ export const useFileStore = create<FileStore>((set, get) => ({
       const savedPath = localStorage.getItem('currentPath');
       if (savedPath) {
         const path = JSON.parse(savedPath);
-        if (Array.isArray(path)) {
-          set({ currentPath: path });
+        
+        if (Array.isArray(path) && path.length > 0) {
+          console.log('Gespeicherter Pfad gefunden:', path);
+          
+          // Prüfe, ob der Pfad gültig ist
+          const isValid = get().validatePath(path);
+          
+          if (isValid) {
+            console.log('Pfad ist gültig, setze ihn');
+            set({ currentPath: path });
+          } else {
+            console.warn('Gespeicherter Pfad ist ungültig, setze auf Wurzelordner');
+            set({ currentPath: ['root'] });
+          }
+          
+          return;
         }
       }
+      
+      // Standardmäßig: setze auf Wurzelordner
+      console.log('Kein gültiger gespeicherter Pfad gefunden, setze auf Wurzelordner');
+      set({ currentPath: ['root'] });
     } catch (error) {
       console.error('Fehler beim Laden des gespeicherten Pfads:', error);
       set({ currentPath: ['root'] });
     }
+  },
+  
+  // Prüft, ob ein Pfad gültig ist (alle Ordner existieren)
+  validatePath: (path: string[]): boolean => {
+    if (!path || path.length === 0) return false;
+    
+    // Wurzelordner ist immer gültig
+    if (path.length === 1 && path[0] === 'root') return true;
+    
+    const { files } = get();
+    
+    // Prüfe, ob alle Ordner im Pfad existieren
+    for (let i = 1; i < path.length; i++) {
+      const folderId = path[i];
+      
+      // Prüfe, ob der Ordner existiert
+      const folderExists = files.some(file => 
+        file.id === folderId && file.type === 'folder'
+      );
+      
+      if (!folderExists) {
+        console.warn(`Ordner mit ID ${folderId} existiert nicht im Pfad`);
+        return false;
+      }
+      
+      // Prüfe, ob der Ordner im korrekten Elternordner ist
+      if (i > 1) {
+        const parentId = path[i-1];
+        const hasCorrectParent = files.some(file => 
+          file.id === folderId && 
+          (file.parentId === parentId || file.parentId === path[i-2])
+        );
+        
+        if (!hasCorrectParent) {
+          console.warn(`Ordner mit ID ${folderId} ist nicht im erwarteten Elternordner ${parentId}`);
+          return false;
+        }
+      }
+    }
+    
+    return true;
   },
 
   getCurrentFolder: () => {
@@ -542,5 +743,22 @@ export const useFileStore = create<FileStore>((set, get) => ({
       currentItems: state.getCurrentItems(),
       breadcrumbPath: state.getBreadcrumbPath()
     });
+  },
+
+  // Funktion, die sicherstellt, dass ein Dateiobjekt sowohl url als auch path Eigenschaften hat
+  ensureUrlProperties: (file: any) => {
+    // Wenn es bereits eine url und path hat, belassen wir es so
+    if (file.url && file.path) return file;
+    
+    // Wenn nur eine der Eigenschaften vorhanden ist, setzen wir die andere gleich
+    if (file.url && !file.path) {
+      return { ...file, path: file.url };
+    }
+    if (!file.url && file.path) {
+      return { ...file, url: file.path };
+    }
+    
+    // Wenn keine der Eigenschaften vorhanden ist, behalten wir das Objekt unverändert
+    return file;
   }
 })); 
