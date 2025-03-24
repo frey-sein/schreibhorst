@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUserStore } from '@/lib/store/userStore';
@@ -9,37 +10,47 @@ import Image from 'next/image';
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
+  const { getCurrentUser, setCurrentUser } = useUserStore();
+  const [currentUser, setCurrentUserState] = useState(getCurrentUser());
+
+  useEffect(() => {
+    setMounted(true);
+    setCurrentUserState(getCurrentUser());
+  }, [getCurrentUser]);
+
   const isDateimanager = pathname === '/dateimanager';
   const isWissen = pathname === '/wissen';
   const isProfile = pathname === '/profil';
   const isUsers = pathname === '/benutzer';
   
-  const { getCurrentUser, setCurrentUser } = useUserStore();
-  const currentUser = getCurrentUser();
-  
   const initials = currentUser?.name
-    .split(' ')
-    .map((n: string) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2) || 'U';
+    ? currentUser.name
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    : 'U';
 
   const handleLogout = () => {
     setCurrentUser(null);
+    // Lösche den Cookie
+    document.cookie = 'user-id=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
     router.push('/login');
   };
 
+  // Render nichts während des ersten Mounts
+  if (!mounted) return null;
+
+  // Render nichts wenn kein User
   if (!currentUser) return null;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-[#f4f4f4]/80 backdrop-blur-md border-b border-gray-100 shadow-md">
       <div className="max-w-[2000px] mx-auto px-6 py-4 flex justify-between items-center">
         <Link href="/" className="hover:opacity-80 transition-opacity">
-          <img 
-            src="/logo-nuetzlich.svg" 
-            alt="Nützlich Logo" 
-            className="h-8 w-auto"
-          />
+          <img src="/logo-nuetzlich.svg" alt="Nützlich Logo" className="h-8" />
         </Link>
         <div className="flex items-center gap-3">
           <Link 

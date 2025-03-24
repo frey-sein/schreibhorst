@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  // Hole den aktuellen Benutzer aus dem localStorage
-  const currentUser = request.cookies.get('user-storage');
-  const isLoggedIn = currentUser && JSON.parse(currentUser.value).state.currentUser;
+  // Hole den User-ID Cookie
+  const userIdCookie = request.cookies.get('user-id');
+  const isLoggedIn = !!userIdCookie;
 
   // Pfade, die ohne Login zugänglich sind
   const publicPaths = ['/login', '/logo-nuetzlich.svg'];
