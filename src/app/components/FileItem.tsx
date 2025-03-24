@@ -97,12 +97,14 @@ export default function FileItem({ item, onDelete, onRename, onReplace, onPrevie
   };
 
   return (
-    <div className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg hover:border-gray-200 transition-colors group">
+    <div className="flex items-center justify-between p-3 bg-[#f9f9f9] border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all group">
       <div 
         className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
         onClick={handleNameClick}
       >
-        {getFileIcon()}
+        <div className="w-6 h-6 flex items-center justify-center text-gray-500">
+          {getFileIcon()}
+        </div>
         
         <div className="min-w-0 flex-1">
           {isEditing ? (
@@ -117,14 +119,14 @@ export default function FileItem({ item, onDelete, onRename, onReplace, onPrevie
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className="text-gray-700 hover:text-gray-900">
+            <span className="text-gray-700 hover:text-gray-900 font-medium">
               {item.name}
             </span>
           )}
         </div>
       </div>
 
-      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {item.type === 'file' && (
           <>
             <button
@@ -132,14 +134,14 @@ export default function FileItem({ item, onDelete, onRename, onReplace, onPrevie
                 e.stopPropagation();
                 onPreview(item.url || '');
               }}
-              className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+              className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
               title="Vorschau"
             >
               <EyeIcon className="h-4 w-4 text-gray-500" />
             </button>
             <button
               onClick={handleReplaceClick}
-              className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+              className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
               title="Datei ersetzen"
             >
               <ArrowPathIcon className="h-4 w-4 text-gray-500" />
@@ -150,7 +152,7 @@ export default function FileItem({ item, onDelete, onRename, onReplace, onPrevie
                   e.stopPropagation();
                   onShowHistory(item.id);
                 }}
-                className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
                 title="Versionshistorie"
               >
                 <ClockIcon className="h-4 w-4 text-gray-500" />
@@ -160,14 +162,14 @@ export default function FileItem({ item, onDelete, onRename, onReplace, onPrevie
         )}
         <button
           onClick={handleEditClick}
-          className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+          className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
           title="Umbenennen"
         >
           <PencilIcon className="h-4 w-4 text-gray-500" />
         </button>
         <button
           onClick={handleDeleteClick}
-          className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+          className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
           title={`${item.type === 'folder' ? 'Ordner' : 'Datei'} löschen`}
         >
           <TrashIcon className="h-4 w-4 text-gray-500" />

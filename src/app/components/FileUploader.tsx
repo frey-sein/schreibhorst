@@ -43,14 +43,14 @@ export default function FileUploader({ onUpload, maxSize = 10485760, isUploading
   return (
     <div 
       {...getRootProps()} 
-      className={`relative p-8 border-2 border-dashed rounded-xl transition-all ${
+      className={`relative p-8 border-2 border-dashed rounded-xl transition-all shadow-sm ${
         uploading ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'
-      } ${isDragging ? 'border-[#2c2c2c] bg-[#2c2c2c]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+      } ${isDragging ? 'border-[#2c2c2c] bg-[#2c2c2c]/5' : 'border-gray-300 hover:border-gray-400 bg-white hover:bg-gray-50'}`}
     >
       <input {...getInputProps()} disabled={uploading} />
       <div className="flex flex-col items-center justify-center text-center">
-        <CloudArrowUpIcon className={`w-12 h-12 mb-4 ${isDragging ? 'text-[#2c2c2c]' : 'text-gray-400'}`} />
-        <p className="text-sm text-gray-600 mb-1">
+        <CloudArrowUpIcon className={`w-12 h-12 mb-4 ${isDragging ? 'text-[#2c2c2c]' : 'text-gray-500'}`} />
+        <p className="text-sm font-medium text-gray-700 mb-2">
           {isDragActive
             ? 'Dateien hier ablegen...'
             : uploading

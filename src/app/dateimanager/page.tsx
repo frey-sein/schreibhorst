@@ -49,7 +49,7 @@ export default function DateimanagerPage() {
       <Header />
       <div className="min-h-screen bg-[#f4f4f4] pt-24">
         <div className="max-w-[2000px] mx-auto px-6 py-8">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h1 className="text-2xl font-light text-gray-900 tracking-tight mb-2">Dateimanager</h1>
@@ -59,31 +59,33 @@ export default function DateimanagerPage() {
             
             <div className="grid grid-cols-12 gap-8">
               {/* Linke Spalte: Ordnerstruktur */}
-              <div className="col-span-3 bg-white rounded-lg border border-gray-100 p-4">
+              <div className="col-span-3 bg-[#f4f4f4] rounded-lg border border-gray-200 shadow-sm p-4">
                 <h2 className="text-lg font-light text-gray-900 tracking-tight mb-4">Struktur</h2>
-                <div className="bg-white">
+                <div className="bg-white rounded-md border border-gray-100 p-2">
                   <FolderTree />
                 </div>
               </div>
 
               {/* Rechte Spalte: Dateien und Upload */}
               <div className="col-span-9 space-y-6">
-                <div className="bg-white rounded-lg border border-gray-100 p-6">
+                <div className="bg-[#f4f4f4] rounded-lg border border-gray-200 shadow-sm p-6">
                   <FileList />
                 </div>
 
-                <div className="bg-white rounded-lg border border-gray-100 p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Datei hochladen</h2>
+                <div className="bg-[#f4f4f4] rounded-lg border border-gray-200 shadow-sm p-6">
+                  <h2 className="text-lg font-light text-gray-900 tracking-tight mb-4">Datei hochladen</h2>
                   {uploadError && (
-                    <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+                    <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">
                       {uploadError}
                     </div>
                   )}
-                  <FileUploader
-                    onUpload={handleUpload}
-                    maxSize={10 * 1024 * 1024} // 10MB
-                    isUploading={isUploading}
-                  />
+                  <div className="bg-white rounded-lg border border-gray-100 p-4">
+                    <FileUploader
+                      onUpload={handleUpload}
+                      maxSize={10 * 1024 * 1024} // 10MB
+                      isUploading={isUploading}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

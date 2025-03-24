@@ -1,6 +1,6 @@
 import { useFileStore } from '@/lib/store/fileStore';
 import { FileItem } from '@/types/files';
-import { ChevronLeftIcon, FolderPlusIcon, PencilIcon, TrashIcon, EyeIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, FolderPlusIcon, PencilIcon, TrashIcon, EyeIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { useState, useEffect } from 'react';
 
 export default function FileList() {
@@ -176,10 +176,32 @@ export default function FileList() {
     return `${baseUrl}${path}`;
   };
 
+  // Funktion zum Herunterladen einer Datei
+  const handleDownload = (item: FileItem) => {
+    if (!item.url) return;
+    
+    // Volle URL erzeugen
+    const fullUrl = getFullUrl(item.url);
+    
+    // Dateinamen aus URL extrahieren oder Standardname verwenden
+    const fileName = item.name || item.url.split('/').pop() || 'download';
+    
+    // Link-Element erstellen
+    const link = document.createElement('a');
+    link.href = fullUrl;
+    link.download = fileName;
+    link.target = '_blank';
+    
+    // Link klicken und entfernen
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-4">
       {/* Header mit Breadcrumb und Neuer Ordner Button */}
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-start mb-4 bg-white p-4 rounded-lg border border-gray-200">
         {/* Breadcrumb */}
         <div className="flex items-center space-x-2 text-sm text-gray-500">
           {breadcrumbPath.map((folder, index) => (
@@ -217,7 +239,7 @@ export default function FileList() {
 
       {/* Neuer Ordner Dialog */}
       {showNewFolderDialog && (
-        <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-4">
               <input
@@ -263,7 +285,7 @@ export default function FileList() {
 
       {/* Umbenennen Dialog */}
       {showRenameDialog && (
-        <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-4">
               <input
@@ -308,16 +330,17 @@ export default function FileList() {
         </div>
       )}
 
-      {/* Vorschau-Modal */}
+      {/* Fehleranzeige */}
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">
+          {error}
+        </div>
+      )}
+
+      {/* Vorschau Modal */}
       {previewUrl && (
-        <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" 
-          onClick={() => setPreviewUrl(null)}
-        >
-          <div 
-            className="bg-white p-4 rounded-lg max-w-4xl max-h-[90vh] overflow-auto" 
-            onClick={e => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg overflow-hidden max-w-4xl w-full max-h-[90vh] relative">
             {previewUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
               // Bilder
               <>
@@ -478,7 +501,7 @@ export default function FileList() {
       {currentPath.length > 1 && (
         <button
           onClick={navigateBack}
-          className="w-full px-4 py-3 flex items-center gap-2 text-left hover:bg-gray-50 transition-colors rounded-lg border border-gray-100"
+          className="w-full px-4 py-3 flex items-center gap-2 text-left bg-white hover:bg-gray-50 transition-colors rounded-lg border border-gray-200 shadow-sm"
         >
           <ChevronLeftIcon className="h-5 w-5 text-gray-500" />
           <span className="text-gray-700">Zurück</span>
@@ -486,91 +509,107 @@ export default function FileList() {
       )}
 
       {/* Datei- und Ordnerliste */}
-      <div className="space-y-2">
-        {currentItems.length === 0 ? (
-          <div className="text-center p-8 text-gray-500">
-            Dieser Ordner ist leer.
-          </div>
-        ) : (
-          currentItems
-            .sort((a, b) => {
-              // Ordner vor Dateien
-              if (a.type !== b.type) {
-                return a.type === 'folder' ? -1 : 1;
-              }
-              // Alphabetisch innerhalb des gleichen Typs
-              return a.name.localeCompare(b.name);
-            })
-            .map(item => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg hover:border-gray-200 transition-colors group"
-              >
-                <div 
-                  className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
-                  onClick={() => {
-                    if (item.type === 'folder') {
-                      navigateToFolder(item.id);
-                    }
-                  }}
+      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+        <div className="space-y-2">
+          {currentItems.length === 0 ? (
+            <div className="text-center p-8 text-gray-500">
+              Dieser Ordner ist leer.
+            </div>
+          ) : (
+            currentItems
+              .sort((a, b) => {
+                // Ordner vor Dateien
+                if (a.type !== b.type) {
+                  return a.type === 'folder' ? -1 : 1;
+                }
+                // Alphabetisch innerhalb des gleichen Typs
+                return a.name.localeCompare(b.name);
+              })
+              .map(item => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-3 bg-[#f9f9f9] border border-gray-200 rounded-lg hover:border-gray-300 transition-colors group"
                 >
-                  {item.type === 'folder' ? (
-                    <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                    </svg>
-                  ) : (
-                    <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                  <span className="text-gray-700 truncate">{item.name}</span>
-                </div>
-                
-                {/* Aktionen */}
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {/* Vorschau-Button nur für Dateien */}
-                  {item.type === 'file' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePreview(item);
-                      }}
-                      className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
-                      title="Vorschau"
-                    >
-                      <EyeIcon className="h-4 w-4 text-gray-500" />
-                    </button>
-                  )}
-                  
-                  {/* Umbenennen-Button nur für Ordner */}
-                  {item.type === 'folder' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRename(item.id, item.name);
-                      }}
-                      className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
-                      title="Umbenennen"
-                    >
-                      <PencilIcon className="h-4 w-4 text-gray-500" />
-                    </button>
-                  )}
-                  
-                  {/* Löschen-Button für beide Typen */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(item.id);
+                  <div 
+                    className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+                    onClick={() => {
+                      if (item.type === 'folder') {
+                        navigateToFolder(item.id);
+                      }
                     }}
-                    className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
-                    title="Löschen"
                   >
-                    <TrashIcon className="h-4 w-4 text-gray-500" />
-                  </button>
+                    {item.type === 'folder' ? (
+                      <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                      </svg>
+                    ) : (
+                      <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                    <span className="text-gray-700 truncate">{item.name}</span>
+                  </div>
+                  
+                  {/* Aktionen */}
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Vorschau-Button nur für Dateien */}
+                    {item.type === 'file' && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePreview(item);
+                          }}
+                          className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                          title="Vorschau"
+                        >
+                          <EyeIcon className="h-4 w-4 text-gray-500" />
+                        </button>
+
+                        {/* Download-Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownload(item);
+                          }}
+                          className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                          title="Herunterladen"
+                        >
+                          <ArrowDownTrayIcon className="h-4 w-4 text-gray-500" />
+                        </button>
+                      </>
+                    )}
+                    
+                    {/* Umbenennen-Button nur für Ordner */}
+                    {item.type === 'folder' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRename(item.id, item.name);
+                        }}
+                        className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                        title="Umbenennen"
+                      >
+                        <PencilIcon className="h-4 w-4 text-gray-500" />
+                      </button>
+                    )}
+                    
+                    {/* Löschen-Button für beide Typen */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(item.id);
+                      }}
+                      className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                      title="Löschen"
+                    >
+                      <TrashIcon className="h-4 w-4 text-gray-500" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))
-        )}
+              ))
+          )}
+        </div>
       </div>
     </div>
   );

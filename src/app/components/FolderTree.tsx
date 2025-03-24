@@ -54,12 +54,12 @@ export default function FolderTree() {
       <div key={folder.id} className="w-full">
         <div
           className={`
-            flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer 
+            flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer border 
             ${active 
-              ? 'bg-[#2c2c2c]/10 font-medium text-[#2c2c2c]' 
+              ? 'bg-[#2c2c2c]/10 font-medium text-[#2c2c2c] border-gray-300' 
               : inPath 
-                ? 'bg-gray-50 text-gray-800' 
-                : 'bg-white text-gray-700 hover:bg-gray-50/50'
+                ? 'bg-gray-50 text-gray-800 border-gray-200' 
+                : 'bg-white text-gray-700 hover:bg-gray-50/50 border-transparent'
             }
           `}
           style={{ paddingLeft: `${(level * 12) + 8}px` }}
@@ -84,12 +84,12 @@ export default function FolderTree() {
             </button>
           )}
           {children.length === 0 && <div className="w-6"></div>}
-          <FolderIcon className={`h-4 w-4 flex-shrink-0 ${active ? 'text-[#2c2c2c]' : 'text-gray-500'}`} />
+          <FolderIcon className={`h-4.5 w-4.5 flex-shrink-0 ${active ? 'text-[#2c2c2c]' : 'text-gray-500'}`} />
           <span className="text-sm truncate">{folder.name}</span>
         </div>
         
         {isExpanded && children.length > 0 && (
-          <div className="w-full">
+          <div className="w-full pl-2 mt-1 space-y-1">
             {children.map(child => renderFolder(child, level + 1))}
           </div>
         )}
@@ -109,7 +109,7 @@ export default function FolderTree() {
   };
 
   return (
-    <div className="w-full space-y-1">
+    <div className="w-full space-y-1.5">
       {renderFolder(rootFolder)}
     </div>
   );
