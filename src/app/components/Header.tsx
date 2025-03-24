@@ -1,18 +1,20 @@
 'use client';
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useUserStore } from '@/lib/store/userStore';
-import { UsersIcon } from '@heroicons/react/24/outline';
+import { UsersIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
+import Image from 'next/image';
 
 export default function Header() {
+  const router = useRouter();
   const pathname = usePathname();
   const isDateimanager = pathname === '/dateimanager';
   const isWissen = pathname === '/wissen';
   const isProfile = pathname === '/profil';
   const isUsers = pathname === '/benutzer';
   
-  const { getCurrentUser } = useUserStore();
+  const { getCurrentUser, setCurrentUser } = useUserStore();
   const currentUser = getCurrentUser();
   
   const initials = currentUser?.name
@@ -22,13 +24,22 @@ export default function Header() {
     .toUpperCase()
     .slice(0, 2) || 'U';
 
+  const handleLogout = () => {
+    setCurrentUser(null);
+    router.push('/login');
+  };
+
   if (!currentUser) return null;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-[#f4f4f4]/80 backdrop-blur-md border-b border-gray-100 shadow-md">
       <div className="max-w-[2000px] mx-auto px-6 py-4 flex justify-between items-center">
         <Link href="/" className="hover:opacity-80 transition-opacity">
-          <img src="/Logo-nuetzlich-gruen.svg" alt="Nützlich Logo" className="h-8" />
+          <img 
+            src="/logo-nuetzlich.svg" 
+            alt="Nützlich Logo" 
+            className="h-8 w-auto"
+          />
         </Link>
         <div className="flex items-center gap-3">
           <Link 
@@ -83,6 +94,13 @@ export default function Header() {
             )}
             <span className="text-gray-700">{currentUser.name}</span>
           </Link>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-100 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm"
+          >
+            <ArrowRightOnRectangleIcon className="h-5 w-5 text-gray-600" />
+            <span className="text-gray-700">Abmelden</span>
+          </button>
         </div>
       </div>
     </header>
