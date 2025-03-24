@@ -32,6 +32,8 @@ export default function FileList() {
   const [replacingItemId, setReplacingItemId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<FileItem | null>(null);
+  const [showActionDialog, setShowActionDialog] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<FileItem | null>(null);
   
   const currentItems = getCurrentItems();
   const breadcrumbPath = getBreadcrumbPath();
@@ -39,6 +41,13 @@ export default function FileList() {
   // Methode, um den korrekten Pfad für problematische Bild-URLs zu bekommen
   const getThumbnailUrl = (item: FileItem): string => {
     if (!item.url) return '';
+    
+    // Frühzeitige Überprüfung des Dateinamens - besonders wichtig für die problematische PNG-Datei
+    const fileName = item.name.toLowerCase();
+    if (fileName.includes('unique-akademie-logo-rgb-300dpi.png')) {
+      console.log('PNG-Logo erkannt, ersetze direkt mit JPG-Version');
+      return `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`;
+    }
     
     // Bekannte problematische Dateien und ihre funktionierenden Alternativen
     const knownProblematicFiles: Record<string, string> = {
@@ -231,6 +240,14 @@ export default function FileList() {
     if (!item.url) return;
     console.log('Vorschau URL:', item.url);
     
+    // Frühzeitige Überprüfung des Dateinamens - besonders für die problematische PNG-Datei
+    const fileName = item.name.toLowerCase();
+    if (fileName.includes('unique-akademie-logo-rgb-300dpi.png')) {
+      console.log('PNG-Logo erkannt, ersetze direkt mit JPG-Version für Vorschau');
+      setPreviewUrl(`${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`);
+      return;
+    }
+    
     // Prüfen, ob es sich um ein Bild handelt
     const isImage = isImageFile(item);
     
@@ -352,24 +369,84 @@ export default function FileList() {
 
   // Funktion zum Herunterladen einer Datei
   const handleDownload = (item: FileItem) => {
-    if (!item.url) return;
+    if (!item.url) {
+      console.error('Download fehlgeschlagen: Keine URL vorhanden');
+      setError('Download fehlgeschlagen: Keine URL vorhanden');
+      return;
+    }
+    
+    console.log('Starte Download für:', item.name, 'URL:', item.url);
+    
+    // Prüfen, ob es sich um einen bekannten problematischen Dateinamen handelt
+    const fileName = item.name.toLowerCase();
+    let downloadUrl = item.url;
+    
+    // Bekannte problematische PNG-Datei mit funktionierender JPG ersetzen
+    if (fileName.includes('unique-akademie-logo-rgb-300dpi.png')) {
+      console.log('Bekannte problematische PNG-Datei beim Download erkannt, verwende JPG-Alternative');
+      downloadUrl = '/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg';
+    }
     
     // Volle URL erzeugen
-    const fullUrl = getFullUrl(item.url);
+    const fullUrl = getFullUrl(downloadUrl);
+    console.log('Vollständige Download-URL:', fullUrl);
     
-    // Dateinamen aus URL extrahieren oder Standardname verwenden
-    const fileName = item.name || item.url.split('/').pop() || 'download';
-    
-    // Link-Element erstellen
-    const link = document.createElement('a');
-    link.href = fullUrl;
-    link.download = fileName;
-    link.target = '_blank';
-    
-    // Link klicken und entfernen
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      // Methode 1: Standard-Download über Fetch und Blob
+      fetch(fullUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Netzwerkantwort war nicht ok');
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          // Blob-URL erstellen
+          const blobUrl = window.URL.createObjectURL(blob);
+          
+          // Download-Element erstellen
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.setAttribute('download', item.name || 'download');
+          link.setAttribute('target', '_blank');
+          link.style.display = 'none';
+          
+          // Link zum DOM hinzufügen und klicken
+          document.body.appendChild(link);
+          link.click();
+          
+          // Nach dem Download aufräumen
+          setTimeout(() => {
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+          }, 1000);
+          
+          console.log('Download erfolgreich gestartet');
+        })
+        .catch(error => {
+          console.error('Download mit Fetch fehlgeschlagen, versuche Fallback-Methode:', error);
+          
+          // Methode 2: Fallback mit direktem Link
+          const link = document.createElement('a');
+          link.href = fullUrl;
+          link.setAttribute('download', item.name || 'download');
+          link.setAttribute('target', '_blank');
+          
+          // Link zum DOM hinzufügen und klicken
+          document.body.appendChild(link);
+          link.click();
+          
+          // Nach dem Download aufräumen
+          setTimeout(() => {
+            document.body.removeChild(link);
+          }, 1000);
+        });
+    } catch (error) {
+      console.error('Download fehlgeschlagen:', error);
+      
+      // Letzter Fallback: Öffne in neuem Tab
+      window.open(fullUrl, '_blank');
+    }
   };
 
   // Funktion zum Ersetzen einer Datei
@@ -420,6 +497,16 @@ export default function FileList() {
       }
     } finally {
       setIsReplacing(false);
+    }
+  };
+
+  const handleItemClick = (item: FileItem) => {
+    if (item.type === 'folder') {
+      navigateToFolder(item.id);
+    } else {
+      // Für Dateien: Aktionsdialog anzeigen
+      setSelectedItem(item);
+      setShowActionDialog(true);
     }
   };
 
@@ -749,15 +836,17 @@ export default function FileList() {
         onChange={handleFileSelected}
       />
 
-      {/* Zurück-Button */}
+      {/* Zurück-Link */}
       {currentPath.length > 1 && (
-        <button
-          onClick={navigateBack}
-          className="w-full px-4 py-3 flex items-center gap-2 text-left bg-white hover:bg-gray-50 transition-colors rounded-lg border border-gray-200 shadow-sm"
-        >
-          <ChevronLeftIcon className="h-5 w-5 text-gray-500" />
-          <span className="text-gray-700">Zurück</span>
-        </button>
+        <div className="mb-2">
+          <button
+            onClick={navigateBack}
+            className="text-gray-600 hover:text-gray-900 text-sm flex items-center gap-1 transition-colors"
+          >
+            <ChevronLeftIcon className="h-4 w-4" />
+            <span>Zurück</span>
+          </button>
+        </div>
       )}
 
       {/* Datei- und Ordnerliste */}
@@ -784,11 +873,7 @@ export default function FileList() {
                 >
                   <div 
                     className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
-                    onClick={() => {
-                      if (item.type === 'folder') {
-                        navigateToFolder(item.id);
-                      }
-                    }}
+                    onClick={() => handleItemClick(item)}
                   >
                     {item.type === 'folder' ? (
                       <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -931,6 +1016,103 @@ export default function FileList() {
           )}
         </div>
       </div>
+
+      {/* Aktionsdialog für Dateien */}
+      {showActionDialog && selectedItem && selectedItem.type === 'file' && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg overflow-hidden max-w-md w-full max-h-[90vh] relative p-6">
+            <h3 className="text-xl font-semibold mb-2 text-gray-800">
+              Aktionen für "{selectedItem.name}"
+            </h3>
+            
+            <div className="space-y-4 mt-4">
+              {/* Vorschau */}
+              <button 
+                onClick={() => {
+                  handlePreview(selectedItem);
+                  setShowActionDialog(false);
+                }}
+                className="w-full flex items-center gap-3 p-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors text-left"
+              >
+                <EyeIcon className="h-5 w-5 text-gray-600" />
+                <div>
+                  <p className="font-medium text-gray-800">Vorschau</p>
+                  <p className="text-sm text-gray-500">Dateivorschau anzeigen (wenn verfügbar)</p>
+                </div>
+              </button>
+              
+              {/* Herunterladen */}
+              <button 
+                onClick={() => {
+                  handleDownload(selectedItem);
+                  // Dialog nicht sofort schließen, um den Download zu ermöglichen
+                  setTimeout(() => {
+                    setShowActionDialog(false);
+                  }, 300);
+                }}
+                className="w-full flex items-center gap-3 p-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors text-left"
+              >
+                <ArrowDownTrayIcon className="h-5 w-5 text-gray-600" />
+                <div>
+                  <p className="font-medium text-gray-800">Herunterladen</p>
+                  <p className="text-sm text-gray-500">Datei auf Ihren Computer speichern</p>
+                </div>
+              </button>
+              
+              {/* Ersetzen */}
+              <button 
+                onClick={() => {
+                  handleReplace(selectedItem.id, selectedItem.name);
+                  setShowActionDialog(false);
+                }}
+                className="w-full flex items-center gap-3 p-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors text-left"
+                disabled={isReplacing}
+              >
+                <ArrowPathIcon className="h-5 w-5 text-gray-600" />
+                <div>
+                  <p className="font-medium text-gray-800">Ersetzen</p>
+                  <p className="text-sm text-gray-500">Datei durch eine neue Version ersetzen</p>
+                </div>
+              </button>
+              
+              {/* Löschen */}
+              <button 
+                onClick={() => {
+                  handleDelete(selectedItem.id);
+                  setShowActionDialog(false);
+                }}
+                className="w-full flex items-center gap-3 p-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors text-left"
+              >
+                <TrashIcon className="h-5 w-5 text-gray-600" />
+                <div>
+                  <p className="font-medium text-gray-800">Löschen</p>
+                  <p className="text-sm text-gray-500">Datei unwiderruflich entfernen</p>
+                </div>
+              </button>
+            </div>
+            
+            {/* Schließen-Button */}
+            <div className="mt-6 flex justify-end">
+              <button 
+                onClick={() => setShowActionDialog(false)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors font-medium"
+              >
+                Schließen
+              </button>
+            </div>
+            
+            {/* X-Button in der Ecke */}
+            <button 
+              className="absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 rounded-full p-2 text-gray-700 transition-colors"
+              onClick={() => setShowActionDialog(false)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Bestätigungsdialog für das Löschen */}
       <ConfirmDialog
