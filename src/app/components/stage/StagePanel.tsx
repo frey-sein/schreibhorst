@@ -2,27 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { usePromptStore } from '@/lib/store/promptStore';
-import { AnalysisResult } from '@/lib/services/analyzer/chatAnalyzer';
-
-interface TextDraft {
-  id: number;
-  content: string;
-  isSelected: boolean;
-  title?: string;
-  contentType?: string;
-  tags?: string[];
-  sourceContext?: string;
-}
-
-interface ImageDraft {
-  id: number;
-  url: string;
-  isSelected: boolean;
-  title: string;
-  contentType?: string;
-  tags?: string[];
-  sourceContext?: string;
-}
+import { useStageHistoryStore } from '@/lib/store/stageHistoryStore';
+import { TextDraft, ImageDraft } from '@/types/stage';
+import { ClockIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
+import { createPortal } from 'react-dom';
 
 export default function StagePanel() {
   const [textDrafts, setTextDrafts] = useState<TextDraft[]>([
@@ -78,6 +63,9 @@ export default function StagePanel() {
       tags: ["Berg", "Sonnenaufgang", "Natur"]
     }
   ]);
+
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const { addSnapshot, getSnapshots, restoreSnapshot, clearSnapshots } = useStageHistoryStore();
 
   // Get prompts from the store
   const { textPrompts, imagePrompts } = usePromptStore();
@@ -146,6 +134,20 @@ export default function StagePanel() {
   const handleRegenerateImages = () => {
     // TODO: Implementiere die Logik zum Neu Generieren der Bilder
     console.log("Bilder neu generieren...");
+  };
+
+  const handleSave = () => {
+    addSnapshot(textDrafts, imageDrafts);
+    setIsHistoryOpen(false); // Schließe das Verlaufsmenü nach dem Speichern
+  };
+
+  const handleRestoreSnapshot = (snapshotId: string) => {
+    const snapshot = restoreSnapshot(snapshotId);
+    if (snapshot) {
+      setTextDrafts(snapshot.textDrafts);
+      setImageDrafts(snapshot.imageDrafts);
+      setIsHistoryOpen(false);
+    }
   };
 
   return (
@@ -267,18 +269,19 @@ export default function StagePanel() {
                     : 'hover:ring-2 hover:ring-gray-200 hover:shadow-md'
                 }`}
               >
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ zIndex: 1 }} />
                 <img
                   src={draft.url}
                   alt={draft.title}
                   className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-200"
+                  style={{ zIndex: 0 }}
                 />
-                <div className="absolute bottom-0 left-0 right-0 p-4 text-white transform translate-y-full group-hover:translate-y-0 transition-transform duration-200 z-20">
+                <div className="absolute bottom-0 left-0 right-0 p-4 text-white transform translate-y-full group-hover:translate-y-0 transition-transform duration-200" style={{ zIndex: 2 }}>
                   <h4 className="text-sm font-medium">{draft.title}</h4>
                   {draft.contentType && <p className="text-xs mt-1 opacity-80">{draft.contentType}</p>}
                 </div>
                 {draft.isSelected && (
-                  <div className="absolute top-3 right-3 bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-sm font-medium z-30">
+                  <div className="absolute top-3 right-3 bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-sm font-medium" style={{ zIndex: 2 }}>
                     Ausgewählt
                   </div>
                 )}
@@ -292,16 +295,96 @@ export default function StagePanel() {
       <div className="sticky bottom-0 bg-[#fafafa]">
         <div className="p-6 border-t border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="flex gap-3">
-            <button className="px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100">
-              Bearbeiten
-            </button>
-            <button className="px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100">
+            <button
+              onClick={handleSave}
+              className="px-5 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
+            >
               Speichern
             </button>
-            <button className="px-5 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium ml-auto">
+            <button
+              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              className="p-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all border border-gray-100"
+              title="Verlauf"
+            >
+              <ClockIcon className="w-5 h-5" />
+            </button>
+            <button className="px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100 ml-auto">
               Exportieren
             </button>
           </div>
+
+          {/* Verlaufsmenü */}
+          {isHistoryOpen && createPortal(
+            <div className="fixed bottom-[80px] w-[calc(50%-48px)] right-6 ml-6 bg-white rounded-xl border border-gray-200 shadow-lg p-6" style={{ zIndex: 999999 }}>
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-medium text-gray-900">Verlauf</h3>
+                  {getSnapshots().length > 0 && (
+                    <button 
+                      onClick={() => {
+                        if (window.confirm('Möchten Sie wirklich den gesamten Verlauf löschen?')) {
+                          clearSnapshots();
+                          setIsHistoryOpen(false);
+                        }
+                      }}
+                      className="p-2 hover:bg-red-50 rounded-full transition-colors group"
+                      title="Verlauf löschen"
+                    >
+                      <TrashIcon className="h-5 w-5 text-gray-400 group-hover:text-red-500" />
+                    </button>
+                  )}
+                </div>
+                <button 
+                  onClick={() => setIsHistoryOpen(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                {getSnapshots().length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500 text-sm">Keine Snapshots vorhanden!</p>
+                  </div>
+                ) : (
+                  getSnapshots().map((snapshot) => (
+                    <div
+                      key={snapshot.id}
+                      className="group flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg cursor-pointer border border-gray-100"
+                      onClick={() => handleRestoreSnapshot(snapshot.id)}
+                    >
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">
+                          {format(new Date(snapshot.timestamp), "d. MMMM yyyy", { locale: de })}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {format(new Date(snapshot.timestamp), "HH:mm:ss", { locale: de })} Uhr • {snapshot.textDrafts.length} Texte, {snapshot.imageDrafts.length} Bilder
+                        </p>
+                        {snapshot.imageDrafts.length > 0 && (
+                          <div className="flex gap-2 mt-2 overflow-x-auto pb-2">
+                            {snapshot.imageDrafts.map((image, index) => (
+                              <img
+                                key={index}
+                                src={image.url}
+                                alt={image.title || `Bild ${index + 1}`}
+                                className="h-12 w-12 object-cover rounded-lg border border-gray-200"
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button className="px-3 py-1.5 bg-gray-900 text-white text-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-800 ml-4">
+                        Wiederherstellen
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>,
+            document.body
+          )}
         </div>
       </div>
     </div>
