@@ -24,6 +24,7 @@ interface UserStore {
   verifyPassword: (userId: string, password: string) => Promise<boolean>;
   setPassword: (userId: string, password: string) => Promise<void>;
   initializeAdminPassword: () => void;
+  updateProfile: (data: { name: string; email: string; imageUrl: string | null; password?: string }) => void;
 }
 
 const INITIAL_USER: UserProfile = {
@@ -151,6 +152,28 @@ export const useUserStore = create<UserStore>()(
             )
           }));
         }
+      },
+
+      updateProfile: (data) => {
+        const state = get();
+        const currentUserId = state.currentUser;
+        
+        if (!currentUserId) return;
+
+        const { password, ...rest } = data;
+        const updates = { ...rest };
+        
+        if (password) {
+          updates.hashedPassword = bcryptjs.hashSync(password, 10);
+        }
+
+        set((state) => ({
+          users: state.users.map(user =>
+            user.id === currentUserId
+              ? { ...user, ...updates }
+              : user
+          )
+        }));
       }
     }),
     {

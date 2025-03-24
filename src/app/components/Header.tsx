@@ -107,10 +107,10 @@ export default function Header() {
           </Link>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-100 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm"
+            className="p-2 bg-white border border-gray-100 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm"
+            title="Abmelden"
           >
             <ArrowRightOnRectangleIcon className="h-5 w-5 text-gray-600" />
-            <span className="text-gray-700">Abmelden</span>
           </button>
         </div>
       </div>
