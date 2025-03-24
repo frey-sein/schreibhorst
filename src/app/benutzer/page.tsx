@@ -244,13 +244,29 @@ export default function UsersPage() {
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">Neues Passwort (optional)</label>
-                              <input
-                                type="password"
-                                value={editingUserData.password}
-                                onChange={(e) => setEditingUserData(prev => ({ ...prev, password: e.target.value }))}
-                                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
-                                placeholder="Lassen Sie das Feld leer, um das Passwort nicht zu ändern"
-                              />
+                              <div className="flex gap-2">
+                                <input
+                                  type="password"
+                                  value={editingUserData.password}
+                                  onChange={(e) => setEditingUserData(prev => ({ ...prev, password: e.target.value }))}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && editingUserData.password) {
+                                      e.preventDefault();
+                                      handleUpdateUser();
+                                    }
+                                  }}
+                                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                                  placeholder="Lassen Sie das Feld leer, um das Passwort nicht zu ändern"
+                                />
+                                {editingUserData.password && (
+                                  <button
+                                    onClick={handleUpdateUser}
+                                    className="px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-sm font-medium"
+                                  >
+                                    Speichern
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>

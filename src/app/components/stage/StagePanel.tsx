@@ -172,12 +172,23 @@ export default function StagePanel() {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-medium text-gray-900">Textentwürfe</h3>
-            <button
-              onClick={handleRegenerateTexts}
-              className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium z-30"
-            >
-              Neu generieren
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  // TODO: Implementiere die Logik zum Neu Laden der Prompts
+                  console.log("Prompts neu laden...");
+                }}
+                className="px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium z-30"
+              >
+                Prompts neu laden
+              </button>
+              <button
+                onClick={handleRegenerateTexts}
+                className="px-4 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium z-30"
+              >
+                Texte neu generieren
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-4">
             {textDrafts.map((draft) => (
