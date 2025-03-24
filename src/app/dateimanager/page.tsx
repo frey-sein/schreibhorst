@@ -17,6 +17,9 @@ import {
   TrashIcon,
   ArrowsRightLeftIcon
 } from '@heroicons/react/24/outline';
+import { useFileStore } from '@/lib/store/fileStore';
+import FileList from '@/app/components/FileList';
+import FolderTree from '@/app/components/FolderTree';
 
 export default function DateimanagerPage() {
   const [mounted, setMounted] = useState(false);
@@ -29,6 +32,19 @@ export default function DateimanagerPage() {
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [newItemName, setNewItemName] = useState('');
   const storageService = StorageService.getInstance();
+  const { 
+    files,
+    deleteFile,
+    renameFile,
+    replaceFile,
+    navigateToFolder,
+    navigateBack,
+    getCurrentItems,
+    getBreadcrumbPath,
+    currentPath: fileStoreCurrentPath,
+    setFiles,
+    initializePath
+  } = useFileStore();
 
   useEffect(() => {
     setMounted(true);
@@ -64,7 +80,23 @@ export default function DateimanagerPage() {
     }
     
     setExpandedFolders(new Set(['root']));
-  }, []);
+
+    // Lade die Dateien beim ersten Rendern
+    const loadFiles = async () => {
+      try {
+        const response = await fetch('/api/files');
+        if (!response.ok) throw new Error('Fehler beim Laden der Dateien');
+        const files = await response.json();
+        setFiles(files);
+        // Initialisiere den gespeicherten Pfad nach dem Laden der Dateien
+        initializePath();
+      } catch (error) {
+        console.error('Fehler beim Laden der Dateien:', error);
+      }
+    };
+
+    loadFiles();
+  }, [setFiles, initializePath]);
 
   // Render nichts während des ersten Mounts
   if (!mounted) return null;
@@ -180,23 +212,6 @@ export default function DateimanagerPage() {
       });
   };
 
-  const getBreadcrumbPath = () => {
-    const path = [];
-    let currentId = getCurrentFolderId();
-    
-    while (currentId !== 'root') {
-      const parent = storageService.getItemById(currentId);
-      if (parent) {
-        path.unshift(parent);
-        currentId = parent.parentId || 'root';
-      } else {
-        break;
-      }
-    }
-    
-    return path;
-  };
-
   return (
     <>
       <Header />
@@ -205,11 +220,13 @@ export default function DateimanagerPage() {
           <div className="max-w-[2000px] mx-auto px-6 py-8">
             <div className="flex gap-6">
               {/* Seitenleiste mit Ordnerstruktur */}
-              <div className="w-64 flex-shrink-0">
-                <div className="bg-white rounded-2xl border border-gray-200 p-4">
-                  <h2 className="text-sm font-medium text-gray-900 mb-4">Ordnerstruktur</h2>
-                  <div className="space-y-1">
-                    {renderFolderTree(null)}
+              <div className="w-64">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm sticky top-[88px]">
+                  <div className="p-6">
+                    <h2 className="text-2xl font-light text-gray-900 tracking-tight">Struktur</h2>
+                  </div>
+                  <div className="overflow-y-auto px-4 pb-4">
+                    <FolderTree folder={{ id: 'root', name: 'Meine Dateien', type: 'folder', parentId: null }} />
                   </div>
                 </div>
               </div>
@@ -337,65 +354,8 @@ export default function DateimanagerPage() {
                       </button>
                     )}
                     
-                    {/* Datei- und Ordnerliste */}
-                    <div className="space-y-2">
-                      {getCurrentFolderItems()
-                        .sort((a, b) => {
-                          if (a.type === b.type) {
-                            return a.name.localeCompare(b.name);
-                          }
-                          return a.type === 'folder' ? -1 : 1;
-                        })
-                        .map(item => (
-                          <div
-                            key={item.id}
-                            className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-                          >
-                            <button
-                              onClick={() => {
-                                if (item.type === 'folder') {
-                                  handleNavigateToFolder(item.id);
-                                }
-                              }}
-                              className="flex items-center gap-3 flex-1"
-                            >
-                              {item.type === 'folder' ? (
-                                <FolderIcon className="h-5 w-5 text-gray-400" />
-                              ) : (
-                                <DocumentIcon className="h-5 w-5 text-gray-400" />
-                              )}
-                              <span className="text-gray-700">{item.name}</span>
-                            </button>
-                            
-                            <div className="flex items-center gap-2">
-                              {isAdmin && (
-                                <>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleRenameItem(item);
-                                    }}
-                                    className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                                    title="Umbenennen"
-                                  >
-                                    <PencilIcon className="h-5 w-5" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteItem(item);
-                                    }}
-                                    className="p-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                    title={`${item.type === 'folder' ? 'Ordner' : 'Datei'} löschen`}
-                                  >
-                                    <TrashIcon className="h-5 w-5" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                    </div>
+                    {/* Neue FileList-Komponente */}
+                    <FileList />
                   </div>
                 </div>
               </div>
