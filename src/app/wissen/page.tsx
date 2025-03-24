@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Header from '@/app/components/Header';
+import { useUserStore } from '@/lib/store/userStore';
 
 interface FAQItem {
   id: number;
@@ -11,6 +12,9 @@ interface FAQItem {
 }
 
 export default function WissenPage() {
+  const { getCurrentUser } = useUserStore();
+  const currentUser = getCurrentUser();
+  const isAdmin = currentUser?.role === 'admin';
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -56,6 +60,11 @@ export default function WissenPage() {
   });
 
   const handleAddFaq = () => {
+    if (!isAdmin) {
+      alert('Nur Administratoren können neue FAQs hinzufügen.');
+      return;
+    }
+
     if (!newFaq.question || !newFaq.answer || !newFaq.category) return;
     
     const newId = Math.max(...faqs.map(faq => faq.id), 0) + 1;
@@ -65,10 +74,20 @@ export default function WissenPage() {
   };
 
   const handleDeleteFaq = (id: number) => {
+    if (!isAdmin) {
+      alert('Nur Administratoren können FAQs löschen.');
+      return;
+    }
+
     setFaqs(faqs.filter(faq => faq.id !== id));
   };
 
   const handleEditCategory = (oldCategory: string) => {
+    if (!isAdmin) {
+      alert('Nur Administratoren können Kategorien bearbeiten.');
+      return;
+    }
+
     setEditingCategory(oldCategory);
     setNewCategoryName(oldCategory);
   };
@@ -93,15 +112,18 @@ export default function WissenPage() {
   };
 
   const handleAddCategory = () => {
+    if (!isAdmin) {
+      alert('Nur Administratoren können neue Kategorien hinzufügen.');
+      return;
+    }
+
     if (!newCategoryName.trim()) return;
     
-    // Prüfe, ob die Kategorie bereits existiert
     if (categories.includes(newCategoryName)) {
       alert('Diese Kategorie existiert bereits.');
       return;
     }
 
-    // Füge eine leere FAQ mit der neuen Kategorie hinzu
     const newId = Math.max(...faqs.map(faq => faq.id), 0) + 1;
     setFaqs([...faqs, {
       id: newId,
@@ -131,12 +153,14 @@ export default function WissenPage() {
                   <h1 className="text-2xl font-light text-gray-900 tracking-tight mb-2">Wissensdatenbank</h1>
                   <p className="text-sm text-gray-500">Finden Sie Antworten auf häufig gestellte Fragen</p>
                 </div>
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
-                >
-                  Neue FAQ hinzufügen
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowAddForm(true)}
+                    className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
+                  >
+                    Neue FAQ hinzufügen
+                  </button>
+                )}
               </div>
 
               {/* Formular zum Hinzufügen einer neuen FAQ */}
@@ -258,65 +282,69 @@ export default function WissenPage() {
                         >
                           {category}
                         </button>
-                        <button
-                          onClick={() => handleEditCategory(category)}
-                          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                          title="Kategorie bearbeiten"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                          </svg>
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleEditCategory(category)}
+                            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                            title="Kategorie bearbeiten"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                            </svg>
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
                 ))}
                 
-                {isAddingCategory ? (
-                  <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-2 py-1 shadow-sm">
-                    <input
-                      type="text"
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      className="px-2 py-1 text-sm border-none focus:outline-none focus:ring-0 text-gray-900 bg-transparent"
-                      placeholder="Neue Kategorie"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddCategory();
-                        if (e.key === 'Escape') handleCancelAddCategory();
-                      }}
-                    />
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={handleAddCategory}
-                        className="p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-full transition-colors"
-                        title="Kategorie hinzufügen"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={handleCancelAddCategory}
-                        className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors"
-                        title="Abbrechen"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      </button>
+                {isAdmin && (
+                  isAddingCategory ? (
+                    <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-2 py-1 shadow-sm">
+                      <input
+                        type="text"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        className="px-2 py-1 text-sm border-none focus:outline-none focus:ring-0 text-gray-900 bg-transparent"
+                        placeholder="Neue Kategorie"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleAddCategory();
+                          if (e.key === 'Escape') handleCancelAddCategory();
+                        }}
+                      />
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={handleAddCategory}
+                          className="p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-full transition-colors"
+                          title="Kategorie hinzufügen"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={handleCancelAddCategory}
+                          className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors"
+                          title="Abbrechen"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setIsAddingCategory(true)}
-                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                    title="Neue Kategorie hinzufügen"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                    </svg>
-                  </button>
+                  ) : (
+                    <button
+                      onClick={() => setIsAddingCategory(true)}
+                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                      title="Neue Kategorie hinzufügen"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )
                 )}
               </div>
 
@@ -344,14 +372,16 @@ export default function WissenPage() {
                           <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
                       </button>
-                      <button
-                        onClick={() => handleDeleteFaq(faq.id)}
-                        className="px-4 py-3 text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteFaq(faq.id)}
+                          className="px-4 py-3 text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                     {expandedId === faq.id && (
                       <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">

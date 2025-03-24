@@ -72,15 +72,14 @@ export default function UsersPage() {
       return;
     }
 
-    const userToUpdate = {
-      ...users.find(u => u.id === editingUser)!,
+    const userToUpdate: Partial<UserProfile> & { password?: string } = {
       name: editingUserData.name,
       email: editingUserData.email,
       role: editingUserData.role
     };
 
     if (editingUserData.password) {
-      userToUpdate.hashedPassword = editingUserData.password;
+      userToUpdate.password = editingUserData.password;
     }
 
     updateUser(editingUser, userToUpdate);

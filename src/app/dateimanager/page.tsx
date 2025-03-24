@@ -10,6 +10,7 @@ import VersionHistory from '@/app/components/VersionHistory';
 import FilePreview from '@/app/components/FilePreview';
 import ImagePreview from '@/app/components/ImagePreview';
 import Header from '@/app/components/Header';
+import { useUserStore } from '@/lib/store/userStore';
 
 export default function DateimanagerPage() {
   const [isClient, setIsClient] = useState(false);
@@ -30,6 +31,9 @@ export default function DateimanagerPage() {
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [selectedFileForPreview, setSelectedFileForPreview] = useState<FileItem | null>(null);
   const storageService = StorageService.getInstance();
+  const { getCurrentUser } = useUserStore();
+  const currentUser = getCurrentUser();
+  const isAdmin = currentUser?.role === 'admin';
 
   useEffect(() => {
     setIsClient(true);
@@ -153,6 +157,11 @@ export default function DateimanagerPage() {
   };
 
   const handleDeleteItem = (item: FileItem) => {
+    if (!isAdmin) {
+      alert('Nur Administratoren können Dateien löschen.');
+      return;
+    }
+
     if (confirm(`Möchten Sie "${item.name}" wirklich löschen?`)) {
       storageService.deleteItem(item.id);
       setItems(storageService.getItems());
@@ -178,12 +187,17 @@ export default function DateimanagerPage() {
   };
 
   const handleReplaceClick = (item: FileItem) => {
+    if (!isAdmin) {
+      alert('Nur Administratoren können Dateien ersetzen.');
+      return;
+    }
+
     setSelectedFileForReplace(item);
     setIsReplacing(true);
   };
 
   const handleFileReplace = async (file: File) => {
-    if (!selectedFileForReplace) return;
+    if (!isAdmin || !selectedFileForReplace) return;
 
     try {
       await storageService.replaceFile(selectedFileForReplace.id, file);
@@ -409,32 +423,34 @@ export default function DateimanagerPage() {
                         ))}
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          setNewItemType('folder');
-                          setIsCreatingNew(true);
-                        }}
-                        className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium flex items-center gap-2"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                        </svg>
-                        Neuer Ordner
-                      </button>
-                      <button
-                        onClick={() => {
-                          setNewItemType('file');
-                          setIsCreatingNew(true);
-                        }}
-                        className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium flex items-center gap-2"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                        </svg>
-                        Neue Datei
-                      </button>
-                    </div>
+                    {isAdmin && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setNewItemType('folder');
+                            setIsCreatingNew(true);
+                          }}
+                          className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium flex items-center gap-2"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                          </svg>
+                          Neuer Ordner
+                        </button>
+                        <button
+                          onClick={() => {
+                            setNewItemType('file');
+                            setIsCreatingNew(true);
+                          }}
+                          className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium flex items-center gap-2"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                          </svg>
+                          Neue Datei
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Neues Element erstellen */}
@@ -551,24 +567,28 @@ export default function DateimanagerPage() {
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                               </svg>
                             </button>
-                            <button
-                              onClick={() => handleReplaceClick(item)}
-                              className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                              title="Datei ersetzen"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleDeleteItem(item)}
-                              className="p-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Datei löschen"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                              </svg>
-                            </button>
+                            {isAdmin && (
+                              <>
+                                <button
+                                  onClick={() => handleReplaceClick(item)}
+                                  className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                  title="Datei ersetzen"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteItem(item)}
+                                  className="p-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Datei löschen"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
