@@ -99,7 +99,7 @@ export default function ChatPanel() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<string>(process.env.NEXT_PUBLIC_DEFAULT_MODEL || 'openai/gpt-3.5-turbo');
+  const [selectedModel, setSelectedModel] = useState<string>(process.env.NEXT_PUBLIC_DEFAULT_MODEL || 'openai/gpt-4-turbo-preview');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [currentChatId, setCurrentChatId] = useState<string>(uuidv4());
@@ -128,7 +128,7 @@ export default function ChatPanel() {
     setMessages([
       {
         id: 'welcome',
-        text: 'Hallo! Ich bin Ihr KI-Assistent. Wie kann ich Ihnen helfen?',
+        text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
         sender: 'assistant',
         timestamp: new Date().toISOString()
       }
@@ -374,7 +374,7 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
     setMessages([
       {
         id: 'welcome',
-        text: 'Hallo! Ich bin Ihr KI-Assistent. Wie kann ich Ihnen helfen?',
+        text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
         sender: 'assistant',
         timestamp: new Date().toISOString()
       }
@@ -533,7 +533,7 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Schreiben Sie Ihre Nachricht..."
+                placeholder="Schreibe deine Nachricht..."
                 className="flex-1 px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-sm text-gray-900"
                 disabled={isLoading}
               />
