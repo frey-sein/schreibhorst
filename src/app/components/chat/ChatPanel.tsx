@@ -452,7 +452,7 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-8 pb-36 space-y-6">
+      <div className="flex-1 overflow-y-auto p-8 pt-24 space-y-6 pb-36">
         <div className="bg-white rounded-2xl p-6 border border-gray-100 space-y-4">
           <div className="space-y-4">
             {messages.map((message) => (

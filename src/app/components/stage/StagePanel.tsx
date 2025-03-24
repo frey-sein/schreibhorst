@@ -167,14 +167,14 @@ export default function StagePanel() {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-8 space-y-12 pb-24">
+      <div className="flex-1 overflow-y-auto p-8 pt-24 space-y-12 pb-24">
         {/* Text Drafts Section */}
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-medium text-gray-900">Textentwürfe</h3>
             <button
               onClick={handleRegenerateTexts}
-              className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
+              className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium z-30"
             >
               Neu generieren
             </button>
@@ -240,7 +240,7 @@ export default function StagePanel() {
             <h3 className="text-lg font-medium text-gray-900">Bildentwürfe</h3>
             <button
               onClick={handleRegenerateImages}
-              className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
+              className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium z-30"
             >
               Neu generieren
             </button>
