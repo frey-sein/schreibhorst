@@ -1,76 +1,88 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { writeFile } from 'fs/promises';
-import path from 'path';
+import { join } from 'path';
+import { addHistoryEntry } from '../history/route';
+import { getCurrentUser } from '@/lib/auth/getCurrentUser';
 import fs from 'fs';
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const fileId = params.id;
+    console.log('Ersetze Datei mit ID:', fileId);
+    
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const fileId = params.id;
-
-    console.log('Ersetze Datei:', {
-      fileId,
-      fileName: file?.name,
-      fileType: file?.type,
-      fileSize: file?.size
-    });
-
+    
     if (!file) {
+      console.log('Keine Datei im Request gefunden');
       return NextResponse.json(
-        { error: 'Keine Datei hochgeladen' },
+        { error: 'Keine Datei gefunden' },
         { status: 400 }
       );
     }
 
-    // Extrahiere den relativen Pfad aus der fileId
-    const relativePath = fileId.replace('file-', '');
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-    const filePath = path.join(uploadsDir, relativePath);
-
-    console.log('Pfade:', {
-      relativePath,
-      uploadsDir,
-      filePath,
-      exists: fs.existsSync(filePath)
+    console.log('Datei erhalten:', {
+      name: file.name,
+      type: file.type,
+      size: file.size
     });
 
-    // Überprüfe, ob die Datei existiert
-    if (!fs.existsSync(filePath)) {
+    const currentUser = await getCurrentUser();
+    console.log('Benutzer geladen:', currentUser);
+    
+    if (!currentUser) {
+      console.error('Kein Benutzer gefunden');
       return NextResponse.json(
-        { error: 'Datei nicht gefunden' },
+        { error: 'Nicht autorisiert' },
+        { status: 401 }
+      );
+    }
+
+    // Finde die ursprüngliche Datei
+    const uploadsDir = join(process.cwd(), 'public', 'uploads');
+    const files = fs.readdirSync(uploadsDir);
+    console.log('Vorhandene Dateien:', files);
+    
+    // Extrahiere den Dateinamen aus der ID
+    const idParts = fileId.split('-');
+    const originalFileName = idParts.slice(2).join('-');
+    console.log('Gesuchter Dateiname:', originalFileName);
+
+    if (!files.includes(originalFileName)) {
+      console.error('Ursprüngliche Datei nicht gefunden:', originalFileName);
+      return NextResponse.json(
+        { error: 'Ursprüngliche Datei nicht gefunden' },
         { status: 404 }
       );
     }
 
-    // Erstelle den Buffer aus der neuen Datei
-    const buffer = Buffer.from(await file.arrayBuffer());
+    // Behalte den ursprünglichen Dateinamen bei
+    const filePath = join(uploadsDir, originalFileName);
+    console.log('Ziel-Dateipfad:', filePath);
 
-    // Stelle sicher, dass der Zielordner existiert
-    const targetDir = path.dirname(filePath);
-    if (!fs.existsSync(targetDir)) {
-      await fs.promises.mkdir(targetDir, { recursive: true });
-    }
-
-    // Schreibe die neue Datei
+    // Speichere die neue Datei mit dem ursprünglichen Namen
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
     await writeFile(filePath, buffer);
-    console.log('Datei erfolgreich geschrieben:', filePath);
+    console.log('Datei erfolgreich geschrieben');
 
-    // Erstelle die Antwort mit dem ursprünglichen Dateinamen
-    const stats = fs.statSync(filePath);
-    const originalName = path.basename(relativePath); // Behalte den ursprünglichen Namen
+    // Füge einen Eintrag zur Historie hinzu
+    const historyEntry = addHistoryEntry({
+      fileId,
+      fileName: originalFileName,
+      replacedBy: `${currentUser.name} (${currentUser.email})`,
+      timestamp: new Date().toISOString(),
+      size: file.size,
+      mimeType: file.type
+    });
+    console.log('Historie-Eintrag erstellt:', historyEntry);
 
-    return NextResponse.json({
-      id: fileId,
-      name: originalName, // Verwende den ursprünglichen Namen
-      type: 'file',
-      url: `/uploads/${relativePath}`,
-      mimeType: file.type,
-      size: stats.size,
-      lastModified: stats.mtime
+    return NextResponse.json({ 
+      success: true,
+      message: `Datei ${originalFileName} wurde erfolgreich ersetzt`
     });
   } catch (error) {
     console.error('Fehler beim Ersetzen der Datei:', error);

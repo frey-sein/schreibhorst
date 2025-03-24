@@ -9,7 +9,8 @@ import {
   ArrowPathIcon,
   EyeIcon,
   FolderIcon,
-  PencilIcon
+  PencilIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -21,9 +22,10 @@ interface FileItemProps {
   onReplace: (id: string, file: File) => void;
   onPreview: (url: string) => void;
   onNavigate?: (id: string) => void;
+  onShowHistory?: (id: string) => void;
 }
 
-export default function FileItem({ item, onDelete, onRename, onReplace, onPreview, onNavigate }: FileItemProps) {
+export default function FileItem({ item, onDelete, onRename, onReplace, onPreview, onNavigate, onShowHistory }: FileItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState(item.name);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -142,6 +144,18 @@ export default function FileItem({ item, onDelete, onRename, onReplace, onPrevie
             >
               <ArrowPathIcon className="h-4 w-4 text-gray-500" />
             </button>
+            {onShowHistory && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShowHistory(item.id);
+                }}
+                className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                title="Versionshistorie"
+              >
+                <ClockIcon className="h-4 w-4 text-gray-500" />
+              </button>
+            )}
           </>
         )}
         <button

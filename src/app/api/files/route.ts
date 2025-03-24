@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { getAllFiles } from './data';
 
 interface FileItem {
   id: string;
@@ -78,52 +80,41 @@ function readDirRecursively(dir: string, baseDir: string): FileItem[] {
   return items;
 }
 
-export async function GET() {
-  try {
-    // Definiere die Ordnerstruktur
-    const folders: FileItem[] = [
-      {
-        id: 'root',
-        name: 'Meine Dateien',
-        type: 'folder',
-        parentId: null
-      },
-      {
-        id: 'dsgvo',
-        name: 'DSGVO',
-        type: 'folder',
-        parentId: 'root'
-      },
-      {
-        id: 'logo',
-        name: 'Logo',
-        type: 'folder',
-        parentId: 'root'
-      }
-    ];
-
-    // Lade die Dateien aus dem uploads-Ordner
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-    
-    // Erstelle den Ordner, falls er nicht existiert
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
-    // Lese alle Dateien rekursiv
-    const fileItems = readDirRecursively(uploadsDir, uploadsDir);
-
-    // Debug-Ausgabe
-    console.log('Verarbeitete Dateien:', fileItems);
-
-    // Kombiniere Ordner und Dateien
-    const allItems = [...folders, ...fileItems];
-
-    return NextResponse.json(allItems);
-  } catch (error) {
-    console.error('Fehler beim Lesen der Dateien:', error);
-    return NextResponse.json({ error: 'Fehler beim Lesen der Dateien' }, { status: 500 });
+// Beispiel-Dateien und -Ordner für die Demo
+const sampleFiles = [
+  {
+    id: 'root',
+    name: 'Meine Dateien',
+    type: 'folder',
+    parentId: null,
+    path: '/',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: uuidv4(),
+    name: 'Dokumente',
+    type: 'folder',
+    parentId: 'root',
+    path: '/dokumente',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: uuidv4(),
+    name: 'Bilder',
+    type: 'folder',
+    parentId: 'root',
+    path: '/bilder',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   }
+];
+
+export async function GET() {
+  // Lade alle Dateien aus unserem Datenspeicher
+  const files = getAllFiles();
+  return NextResponse.json(files);
 }
 
 function getMimeType(fileName: string): string {
