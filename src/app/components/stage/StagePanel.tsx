@@ -204,45 +204,51 @@ export default function StagePanel() {
                     : 'bg-white border border-gray-100 hover:border-gray-200 hover:shadow-md'
                 }`}
               >
-                {draft.contentType && (
-                  <div className="mb-2 flex justify-between items-center">
-                    <span className="text-xs font-medium text-gray-500">
-                      Typ: {draft.contentType}
-                    </span>
-                    {draft.sourceContext && (
-                      <span className="text-xs text-gray-400">
-                        Quelle: {draft.sourceContext}
+                <div className="flex flex-col h-full justify-between">
+                  {draft.contentType && (
+                    <div className="mb-2 flex justify-between items-center">
+                      <span className="text-xs font-medium text-gray-500">
+                        Typ: {draft.contentType}
                       </span>
+                      {draft.sourceContext && (
+                        <span className="text-xs text-gray-400">
+                          Quelle: {draft.sourceContext}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  
+                  <p className="text-gray-700 leading-relaxed">{draft.content}</p>
+                  
+                  <div className="mt-3 space-y-3">
+                    {draft.tags && draft.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {draft.tags.slice(0, 3).map((tag, index) => (
+                          <span key={index} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                            {tag}
+                          </span>
+                        ))}
+                        {draft.tags.length > 3 && (
+                          <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                            +{draft.tags.length - 3}
+                          </span>
+                        )}
+                      </div>
                     )}
-                  </div>
-                )}
-                
-                <p className="text-gray-700 leading-relaxed">{draft.content}</p>
-                
-                {draft.tags && draft.tags.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-1">
-                    {draft.tags.slice(0, 3).map((tag, index) => (
-                      <span key={index} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
-                        {tag}
-                      </span>
-                    ))}
-                    {draft.tags.length > 3 && (
-                      <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
-                        +{draft.tags.length - 3}
-                      </span>
-                    )}
-                  </div>
-                )}
-                
-                {draft.isSelected && (
-                  <div className="mt-3 flex justify-between items-center">
-                    <span className="text-sm text-[#2c2c2c] font-medium">Ausgewählt</span>
-                    <div className="flex items-center space-x-1 text-gray-500 text-xs">
-                      <span>{draft.title}</span>
-                      {draft.contentType && <span>• {draft.contentType}</span>}
+                    
+                    <div className="flex justify-between items-center h-6">
+                      {draft.isSelected ? (
+                        <>
+                          <span className="text-sm text-[#2c2c2c] font-medium">Ausgewählt</span>
+                          <div className="flex items-center space-x-1 text-gray-500 text-xs">
+                            <span>{draft.title}</span>
+                            {draft.contentType && <span>• {draft.contentType}</span>}
+                          </div>
+                        </>
+                      ) : <div />}
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             ))}
           </div>
