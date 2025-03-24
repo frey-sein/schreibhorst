@@ -193,7 +193,7 @@ export default function ProfilePage() {
                           type="text"
                           value={profileData.name}
                           onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
-                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                          className="input-field"
                         />
                       </div>
 
@@ -203,7 +203,7 @@ export default function ProfilePage() {
                           type="email"
                           value={profileData.email}
                           onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))}
-                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                          className="input-field"
                         />
                       </div>
 

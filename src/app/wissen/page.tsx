@@ -174,7 +174,7 @@ export default function WissenPage() {
                         type="text"
                         value={newFaq.question}
                         onChange={(e) => setNewFaq({ ...newFaq, question: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                        className="input-field"
                         placeholder="Geben Sie die Frage ein"
                       />
                     </div>
@@ -183,7 +183,7 @@ export default function WissenPage() {
                       <textarea
                         value={newFaq.answer}
                         onChange={(e) => setNewFaq({ ...newFaq, answer: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                        className="input-field"
                         rows={3}
                         placeholder="Geben Sie die Antwort ein"
                       />

@@ -139,7 +139,7 @@ export default function UsersPage() {
                           type="text"
                           value={newUser.name}
                           onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
-                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                          className="input-field"
                           placeholder="Name des Benutzers"
                         />
                       </div>
@@ -149,7 +149,7 @@ export default function UsersPage() {
                           type="email"
                           value={newUser.email}
                           onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
-                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                          className="input-field"
                           placeholder="E-Mail-Adresse"
                         />
                       </div>
@@ -289,7 +289,9 @@ export default function UsersPage() {
                               <p className="text-sm text-gray-500">{user.email}</p>
                             </div>
                             <span className={`ml-4 px-3 py-1 rounded-full text-xs font-medium ${
-                              user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                              user.role === 'admin' 
+                                ? 'bg-amber-100 text-amber-800' 
+                                : 'bg-gray-100 text-gray-600'
                             }`}>
                               {user.role === 'admin' ? 'Administrator' : 'Benutzer'}
                             </span>
