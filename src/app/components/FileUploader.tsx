@@ -1,144 +1,78 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
-import mammoth from 'mammoth';
-import { saveAs } from 'file-saver';
+import { useState, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { CloudArrowUpIcon } from '@heroicons/react/24/outline';
 
 interface FileUploaderProps {
-  onFileSelect: (file: File) => void;
-  onCancel: () => void;
+  onUpload: (files: File[]) => void;
+  accept?: Record<string, string[]>;
+  maxSize?: number;
+  parentId?: string;
 }
 
-export default function FileUploader({ onFileSelect, onCancel }: FileUploaderProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+export default function FileUploader({ onUpload, accept, maxSize = 10485760, parentId }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const supportedFormats = [
-    'text/plain',
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-excel',
-    'image/jpeg',
-    'image/png',
-    'image/svg+xml',
-    'image/gif',
-    'image/webp',
-    'application/postscript'
-  ];
-
-  const formatNames: { [key: string]: string } = {
-    'text/plain': 'Text (TXT)',
-    'application/pdf': 'PDF',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word (DOCX)',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel (XLSX)',
-    'application/vnd.ms-excel': 'Excel (XLS)',
-    'image/jpeg': 'JPEG',
-    'image/png': 'PNG',
-    'image/svg+xml': 'SVG',
-    'image/gif': 'GIF',
-    'image/webp': 'WebP',
-    'application/postscript': 'EPS'
-  };
-
-  const handleFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const fileType = file.type;
-      const fileExtension = file.name.split('.').pop()?.toLowerCase();
-
-      if (!supportedFormats.includes(fileType) && !['docx', 'xlsx', 'xls'].includes(fileExtension || '')) {
-        alert('Bitte laden Sie nur unterstützte Dateiformate hoch.');
-        return;
-      }
-
-      onFileSelect(file);
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+    
+    setIsUploading(true);
+    try {
+      await onUpload(acceptedFiles);
+    } catch (error) {
+      console.error('Fehler beim Upload:', error);
+    } finally {
+      setIsUploading(false);
     }
-  };
+  }, [onUpload]);
 
-  const handleDragOver = (event: React.DragEvent) => {
-    event.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (event: React.DragEvent) => {
-    event.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (event: React.DragEvent) => {
-    event.preventDefault();
-    setIsDragging(false);
-
-    const file = event.dataTransfer.files[0];
-    if (file) {
-      const fileType = file.type;
-      const fileExtension = file.name.split('.').pop()?.toLowerCase();
-
-      if (!supportedFormats.includes(fileType) && !['docx', 'xlsx', 'xls'].includes(fileExtension || '')) {
-        alert('Bitte laden Sie nur unterstützte Dateiformate hoch.');
-        return;
-      }
-
-      onFileSelect(file);
-    }
-  };
+  const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({
+    onDrop,
+    accept,
+    maxSize,
+    onDragEnter: () => setIsDragging(true),
+    onDragLeave: () => setIsDragging(false),
+    onDropAccepted: () => setIsDragging(false),
+    onDropRejected: () => setIsDragging(false),
+    multiple: false // Erlaube nur eine Datei auf einmal
+  });
 
   return (
-    <div className="mb-6">
-      <div
-        className={`p-6 border-2 border-dashed rounded-lg text-center ${
-          isDragging ? 'border-[#2c2c2c] bg-gray-50' : 'border-gray-300'
-        }`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileInput}
-          className="hidden"
-          accept={supportedFormats.join(',')}
-        />
-        <div className="space-y-2">
-          <svg
-            className="mx-auto h-12 w-12 text-gray-400"
-            stroke="currentColor"
-            fill="none"
-            viewBox="0 0 48 48"
-          >
-            <path
-              d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <div className="text-gray-600">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="text-[#2c2c2c] hover:text-[#1a1a1a] font-medium"
-            >
-              Datei auswählen
-            </button>
-            <span className="mx-2">oder</span>
-            <span>per Drag & Drop hierher ziehen</span>
+    <div 
+      {...getRootProps()} 
+      className={`relative p-8 border-2 border-dashed rounded-xl transition-all cursor-pointer
+        ${isDragging ? 'border-[#2c2c2c] bg-[#2c2c2c]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}
+      `}
+    >
+      <input {...getInputProps()} />
+      <div className="flex flex-col items-center justify-center text-center">
+        <CloudArrowUpIcon className={`w-12 h-12 mb-4 ${isDragging ? 'text-[#2c2c2c]' : 'text-gray-400'}`} />
+        <p className="text-sm text-gray-600 mb-1">
+          {isDragActive
+            ? 'Dateien hier ablegen...'
+            : isUploading
+              ? 'Lade Datei hoch...'
+              : 'Datei hierher ziehen oder klicken zum Auswählen'}
+        </p>
+        <p className="text-xs text-gray-500">
+          Maximale Dateigröße: {Math.round(maxSize / 1024 / 1024)}MB
+        </p>
+        {fileRejections.length > 0 && (
+          <div className="mt-4 p-4 bg-red-50 text-red-600 rounded-lg text-sm">
+            {fileRejections.map(({ file, errors }) => (
+              <div key={file.name}>
+                <p className="font-medium">{file.name}:</p>
+                <ul className="list-disc list-inside">
+                  {errors.map(error => (
+                    <li key={error.code}>{error.message}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
-          <p className="text-sm text-gray-500">
-            Unterstützte Formate: {Object.values(formatNames).join(', ')}
-          </p>
-        </div>
-      </div>
-      <div className="mt-4 flex justify-end">
-        <button
-          onClick={onCancel}
-          className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
-        >
-          Abbrechen
-        </button>
+        )}
       </div>
     </div>
   );
