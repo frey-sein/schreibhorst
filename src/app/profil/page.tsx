@@ -53,8 +53,13 @@ export default function ProfilePage() {
 
       const response = await fetch('/api/profile', {
         method: 'POST',
-        body: formData
+        body: formData,
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Ein Fehler ist aufgetreten');
+      }
 
       const data = await response.json();
 
@@ -75,7 +80,7 @@ export default function ProfilePage() {
       console.error('Fehler beim Speichern:', error);
       setMessage({
         type: 'error',
-        text: 'Fehler beim Speichern des Profils'
+        text: error instanceof Error ? error.message : 'Fehler beim Speichern des Profils'
       });
     } finally {
       setIsLoading(false);
@@ -141,7 +146,7 @@ export default function ProfilePage() {
                   id="name"
                   value={profileData.name}
                   onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
                   placeholder="Dein Name"
                 />
               </div>
@@ -156,7 +161,7 @@ export default function ProfilePage() {
                   id="email"
                   value={profileData.email}
                   onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
                   placeholder="deine@email.de"
                 />
               </div>
