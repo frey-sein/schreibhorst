@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePromptStore } from '@/lib/store/promptStore';
 import { useStageHistoryStore } from '@/lib/store/stageHistoryStore';
 import { TextDraft, ImageDraft } from '@/types/stage';
-import { ClockIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { ClockIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { createPortal } from 'react-dom';
@@ -186,9 +186,10 @@ export default function StagePanel() {
               </button>
               <button
                 onClick={handleRegenerateTexts}
-                className="px-4 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium z-30"
+                className="p-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] transition-colors border border-[#2c2c2c] mr-3"
+                title="Alle Texte neu generieren"
               >
-                Texte neu generieren
+                <ArrowPathIcon className="h-5 w-5" />
               </button>
             </div>
           </div>
@@ -253,9 +254,10 @@ export default function StagePanel() {
             <h3 className="text-lg font-medium text-gray-900">Bildentwürfe</h3>
             <button
               onClick={handleRegenerateImages}
-              className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium z-30"
+              className="p-2.5 bg-[#2c2c2c] hover:bg-[#1a1a1a] rounded-full transition-colors border border-[#2c2c2c] mr-3"
+              title="Alle Bilder neu generieren"
             >
-              Neu generieren
+              <ArrowPathIcon className="h-5 w-5 text-white" />
             </button>
           </div>
           <div className="grid grid-cols-3 gap-6">
@@ -266,25 +268,32 @@ export default function StagePanel() {
                 className={`group relative aspect-square rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 ${
                   draft.isSelected
                     ? 'ring-2 ring-[#2c2c2c] shadow-lg'
-                    : 'hover:ring-2 hover:ring-gray-200 hover:shadow-md'
+                    : 'hover:ring-2 hover:ring-gray-400 hover:shadow-md'
                 }`}
               >
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ zIndex: 1 }} />
                 <img
                   src={draft.url}
                   alt={draft.title}
-                  className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-200"
-                  style={{ zIndex: 0 }}
+                  className="w-full h-full object-cover"
                 />
-                <div className="absolute bottom-0 left-0 right-0 p-4 text-white transform translate-y-full group-hover:translate-y-0 transition-transform duration-200" style={{ zIndex: 2 }}>
-                  <h4 className="text-sm font-medium">{draft.title}</h4>
-                  {draft.contentType && <p className="text-xs mt-1 opacity-80">{draft.contentType}</p>}
+                <div className="absolute top-3 right-3 flex items-center gap-2">
+                  {draft.isSelected && (
+                    <div className="bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-sm font-medium">
+                      Ausgewählt
+                    </div>
+                  )}
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // TODO: Implementiere KI-Regenerierung
+                      console.log('Regeneriere Bild...');
+                    }}
+                    className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                    title="Bild neu generieren"
+                  >
+                    <ArrowPathIcon className="h-4 w-4 text-gray-600" />
+                  </button>
                 </div>
-                {draft.isSelected && (
-                  <div className="absolute top-3 right-3 bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-sm font-medium" style={{ zIndex: 2 }}>
-                    Ausgewählt
-                  </div>
-                )}
               </div>
             ))}
           </div>
