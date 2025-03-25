@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Header from '@/app/components/Header';
 import { useUserStore } from '@/lib/store/userStore';
+import * as XLSX from 'xlsx';
 
 interface FAQItem {
   id: number;
@@ -34,6 +35,11 @@ export default function WissenPage() {
     answer: '',
     category: ''
   });
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importPreview, setImportPreview] = useState<Omit<FAQItem, 'id'>[]>([]);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showClearConfirmation, setShowClearConfirmation] = useState(false);
 
   // Initialisiere FAQ-Daten mit Beispieldaten oder lade sie aus dem localStorage
   const [faqs, setFaqs] = useState<FAQItem[]>([]);
@@ -223,6 +229,153 @@ export default function WissenPage() {
     });
   };
 
+  // Funktion zum Importieren von Excel-Dateien
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setImportError(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        // Nimm das erste Arbeitsblatt
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        
+        // Konvertiere das Arbeitsblatt in ein Array von Objekten
+        const jsonData = XLSX.utils.sheet_to_json<any>(firstSheet);
+        
+        // Überprüfe, ob die Daten die erforderlichen Spalten haben
+        if (jsonData.length > 0) {
+          const firstRow = jsonData[0];
+          
+          // Prüfe, ob die benötigten Spalten vorhanden sind
+          // Unterstütze sowohl deutsche als auch englische Spaltenbezeichnungen
+          const hasCategory = 'Kategorie' in firstRow || 'Category' in firstRow || 'category' in firstRow;
+          const hasQuestion = 'Frage' in firstRow || 'Question' in firstRow || 'question' in firstRow;
+          const hasAnswer = 'Antwort' in firstRow || 'Answer' in firstRow || 'answer' in firstRow;
+          
+          if (!hasCategory || !hasQuestion || !hasAnswer) {
+            setImportError('Die Excel-Datei muss Spalten für "Kategorie/Category", "Frage/Question" und "Antwort/Answer" enthalten.');
+            return;
+          }
+          
+          // Konvertiere die Daten in das FAQItem-Format
+          const convertedData = jsonData.map(row => {
+            // Ermittle die tatsächlichen Spaltennamen
+            const categoryKey = Object.keys(row).find(key => 
+              key.toLowerCase() === 'kategorie' || key.toLowerCase() === 'category') || '';
+            const questionKey = Object.keys(row).find(key => 
+              key.toLowerCase() === 'frage' || key.toLowerCase() === 'question') || '';
+            const answerKey = Object.keys(row).find(key => 
+              key.toLowerCase() === 'antwort' || key.toLowerCase() === 'answer') || '';
+            
+            return {
+              category: String(row[categoryKey] || ''),
+              question: String(row[questionKey] || ''),
+              answer: String(row[answerKey] || '')
+            };
+          }).filter(item => item.category && item.question && item.answer);
+          
+          if (convertedData.length === 0) {
+            setImportError('Keine gültigen Daten in der Excel-Datei gefunden.');
+            return;
+          }
+          
+          // Zeige eine Vorschau der zu importierenden Daten
+          setImportPreview(convertedData);
+          setShowImportModal(true);
+        } else {
+          setImportError('Die Excel-Datei enthält keine Daten.');
+        }
+      } catch (error) {
+        console.error('Fehler beim Parsen der Excel-Datei:', error);
+        setImportError('Die Datei konnte nicht verarbeitet werden. Bitte stellen Sie sicher, dass es sich um eine gültige Excel-Datei handelt.');
+      }
+    };
+    
+    reader.onerror = () => {
+      setImportError('Fehler beim Lesen der Datei.');
+    };
+    
+    reader.readAsArrayBuffer(file);
+  };
+  
+  // Funktion zum tatsächlichen Import der Daten
+  const confirmImport = () => {
+    if (importPreview.length === 0) return;
+    
+    // Generiere neue IDs für die importierten FAQs
+    const lastId = Math.max(...faqs.map(faq => faq.id), 0);
+    const newFaqs = importPreview.map((item, index) => ({
+      ...item,
+      id: lastId + index + 1
+    }));
+    
+    // Füge die neuen FAQs zum bestehenden Array hinzu
+    const updatedFaqs = [...faqs, ...newFaqs];
+    setFaqs(updatedFaqs);
+    
+    // Schließe das Modal und setze die Vorschau zurück
+    setShowImportModal(false);
+    setImportPreview([]);
+    
+    // Reset das Datei-Input-Feld
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+  
+  // Funktion zum Erstellen einer Beispiel-Excel-Datei zum Download
+  const createExampleExcel = () => {
+    // Erstelle einen Beispiel-Datensatz
+    const exampleData = [
+      { Kategorie: 'Grundlagen', Frage: 'Beispielfrage 1', Antwort: 'Beispielantwort 1' },
+      { Kategorie: 'Funktionen', Frage: 'Beispielfrage 2', Antwort: 'Beispielantwort 2' },
+      { Kategorie: 'Datenschutz', Frage: 'Beispielfrage 3', Antwort: 'Beispielantwort 3' }
+    ];
+    
+    // Erstelle ein Arbeitsblatt aus den Daten
+    const worksheet = XLSX.utils.json_to_sheet(exampleData);
+    
+    // Erstelle ein Workbook und füge das Arbeitsblatt hinzu
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Wissensdatenbank');
+    
+    // Exportiere die Excel-Datei
+    XLSX.writeFile(workbook, 'Wissensdatenbank_Vorlage.xlsx');
+  };
+
+  // Funktion zum Leeren aller FAQs
+  const clearAllFaqs = () => {
+    if (!isAdmin) {
+      alert('Nur Administratoren können die Wissensdatenbank leeren.');
+      return;
+    }
+    
+    setShowClearConfirmation(true);
+  };
+  
+  // Funktion zum Bestätigen des Löschens aller FAQs
+  const confirmClearAll = () => {
+    setFaqs([]);
+    setShowClearConfirmation(false);
+    
+    // Optional: Füge eine Basiskategorie hinzu, damit die Datenbank nicht komplett leer ist
+    // Entferne diese Zeilen, falls die Datenbank vollständig leer sein soll
+    /*
+    const emptyFaq: FAQItem = {
+      id: 1,
+      question: 'Beispielfrage',
+      answer: 'Beispielantwort',
+      category: 'Allgemein'
+    };
+    setFaqs([emptyFaq]);
+    */
+  };
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -258,14 +411,135 @@ export default function WissenPage() {
                   <p className="text-sm text-gray-500">Finden Sie Antworten auf häufig gestellte Fragen</p>
                 </div>
                 {isAdmin && (
-                  <button
-                    onClick={() => setShowAddForm(true)}
-                    className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
-                  >
-                    Neue FAQ hinzufügen
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium"
+                    >
+                      Excel importieren
+                    </button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileSelect}
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => setShowAddForm(true)}
+                      className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
+                    >
+                      Neue FAQ hinzufügen
+                    </button>
+                  </div>
                 )}
               </div>
+
+              {/* Bestätigungsdialog für das Leeren der Datenbank */}
+              {showClearConfirmation && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                  <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+                    <h3 className="text-lg font-semibold mb-2 text-red-600">Wissensdatenbank leeren</h3>
+                    <p className="mb-4 text-gray-700">
+                      Sind Sie sicher, dass Sie alle Einträge aus der Wissensdatenbank löschen möchten? 
+                      Diese Aktion kann nicht rückgängig gemacht werden.
+                    </p>
+                    
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setShowClearConfirmation(false)}
+                        className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        Abbrechen
+                      </button>
+                      <button
+                        onClick={confirmClearAll}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      >
+                        Ja, alles löschen
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Import-Vorschau-Modal */}
+              {showImportModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                  <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[80vh] shadow-xl overflow-hidden flex flex-col">
+                    <h3 className="text-lg font-semibold mb-4">Excel-Import Vorschau</h3>
+                    
+                    <div className="overflow-auto flex-1 mb-4">
+                      <p className="mb-2 text-sm text-gray-500">
+                        {importPreview.length} Einträge zum Importieren gefunden. Bitte überprüfen Sie die Daten vor dem Import.
+                      </p>
+                      
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="p-2 text-left font-medium text-gray-700 border border-gray-200">Kategorie</th>
+                            <th className="p-2 text-left font-medium text-gray-700 border border-gray-200">Frage</th>
+                            <th className="p-2 text-left font-medium text-gray-700 border border-gray-200">Antwort</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importPreview.map((item, index) => (
+                            <tr key={index} className="border-b border-gray-200">
+                              <td className="p-2 border border-gray-200">{item.category}</td>
+                              <td className="p-2 border border-gray-200">{item.question}</td>
+                              <td className="p-2 border border-gray-200">{item.answer}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          setShowImportModal(false);
+                          setImportPreview([]);
+                        }}
+                        className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        Abbrechen
+                      </button>
+                      <button
+                        onClick={confirmImport}
+                        className="px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20"
+                      >
+                        Importieren
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Fehler-Modal */}
+              {importError && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                  <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+                    <h3 className="text-lg font-semibold mb-2 text-red-600">Fehler beim Import</h3>
+                    <p className="mb-4 text-gray-700">{importError}</p>
+                    
+                    <div className="flex flex-col gap-3">
+                      <button
+                        onClick={createExampleExcel}
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none"
+                      >
+                        Beispiel-Excel herunterladen
+                      </button>
+                      
+                      <button
+                        onClick={() => setImportError(null)}
+                        className="px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] focus:outline-none"
+                      >
+                        Schließen
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Formular zum Hinzufügen einer neuen FAQ */}
               {showAddForm && (

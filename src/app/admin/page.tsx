@@ -9,6 +9,7 @@ export default function AdminPage() {
   const { user, isAdmin, isLoading } = useUser();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [showClearConfirmation, setShowClearConfirmation] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -27,6 +28,18 @@ export default function AdminPage() {
       localStorage.removeItem('filemanager_state');
       window.location.reload();
     }
+  };
+  
+  // Funktion zum Leeren der Wissensdatenbank
+  const clearKnowledgeBase = () => {
+    setShowClearConfirmation(true);
+  };
+  
+  // Funktion zum Bestätigen des Löschens der Wissensdatenbank
+  const confirmClearKnowledgeBase = () => {
+    localStorage.removeItem('wissensdatenbank_faqs');
+    setShowClearConfirmation(false);
+    alert('Die Wissensdatenbank wurde erfolgreich geleert.');
   };
 
   // Nicht rendern, wenn die Komponente noch nicht geladen ist oder der Benutzer kein Admin ist
@@ -73,6 +86,27 @@ export default function AdminPage() {
                 </button>
               </div>
             </div>
+            
+            {/* Wissensdatenbank-Verwaltung */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-medium text-gray-900">Wissensdatenbank-Verwaltung</h3>
+              
+              <div className="p-6 rounded-2xl bg-white border border-gray-100 hover:border-gray-200 hover:shadow-md">
+                <div className="mb-4">
+                  <h4 className="text-base font-semibold text-gray-800">Wissensdatenbank leeren</h4>
+                  <p className="text-gray-600 text-sm mt-2">
+                    Dies löscht alle FAQ-Einträge aus der Wissensdatenbank und setzt sie auf einen leeren Zustand zurück.
+                    Diese Aktion kann nicht rückgängig gemacht werden.
+                  </p>
+                </div>
+                <button
+                  onClick={clearKnowledgeBase}
+                  className="px-5 py-2.5 bg-red-600 text-white rounded-full hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all text-sm font-medium"
+                >
+                  Wissensdatenbank leeren
+                </button>
+              </div>
+            </div>
 
             {/* Weitere Verwaltungskategorien */}
             <div className="space-y-6">
@@ -98,6 +132,34 @@ export default function AdminPage() {
           </div>
         </div>
       </main>
+      
+      {/* Bestätigungsdialog für das Leeren der Wissensdatenbank */}
+      {showClearConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+            <h3 className="text-lg font-semibold mb-2 text-red-600">Wissensdatenbank leeren</h3>
+            <p className="mb-4 text-gray-700">
+              Sind Sie sicher, dass Sie alle Einträge aus der Wissensdatenbank löschen möchten? 
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </p>
+            
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowClearConfirmation(false)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={confirmClearKnowledgeBase}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                Ja, alles löschen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 } 
