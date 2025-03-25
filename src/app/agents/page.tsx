@@ -19,13 +19,15 @@ interface Agent {
   status: 'active' | 'inactive';
   prompt: string;
   sources: string[]; // URLs für die Recherche
+  watchedFolders: string[]; // Überwachte Ordner im Dateimanager
+  knowledgeCategories: string[]; // Ausgewählte Kategorien aus dem Wissensbereich
 }
 
 const MOCK_AGENTS: Agent[] = [
   {
     id: '1',
     name: 'Ben',
-    role: 'AZAV',
+    role: 'Texter und Recherche',
     schedule: {
       frequency: 'daily',
       time: '09:00'
@@ -33,8 +35,10 @@ const MOCK_AGENTS: Agent[] = [
     topics: ['AZAV'],
     avatar: '/images/avatars/male-writer.png',
     status: 'active',
-    prompt: 'Ich bin ein AZAV-Experte und helfe bei der Zertifizierung von Bildungsträgern.',
-    sources: ['https://www.azav.de/zertifizierung', 'https://www.bildungstraeger.info/azav']
+    prompt: 'Der Agent liest einmal täglich die tagesschau ;-)',
+    sources: ['https://www.tagesschau.de'],
+    watchedFolders: ['/dokumente/recherche', '/dokumente/artikel'],
+    knowledgeCategories: ['Nachrichten', 'Bildung']
   },
   // Weitere Agenten hier...
 ];
@@ -159,6 +163,48 @@ export default function AgentsPage() {
                       <p className="text-sm text-gray-600 mt-3 line-clamp-2">
                         {agent.prompt}
                       </p>
+                      
+                      {/* Überwachte Ordner */}
+                      {agent.watchedFolders && agent.watchedFolders.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs font-medium text-gray-500 mb-1">Überwachte Ordner:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {agent.watchedFolders.map((folder, index) => (
+                              <span
+                                key={index}
+                                className="inline-flex items-center px-2 py-1 text-xs bg-gray-50 text-gray-600 rounded-md"
+                              >
+                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                </svg>
+                                {folder}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Wissensbereiche */}
+                      {agent.knowledgeCategories && agent.knowledgeCategories.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs font-medium text-gray-500 mb-1">Wissensbereiche:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {agent.knowledgeCategories.map((category, index) => (
+                              <span
+                                key={index}
+                                className="inline-flex items-center px-2 py-1 text-xs bg-gray-50 text-gray-600 rounded-md"
+                              >
+                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                </svg>
+                                {category}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Datenquellen */}
                       {agent.sources && agent.sources.length > 0 && (
                         <div className="mt-3">
                           <p className="text-xs font-medium text-gray-500 mb-1">Datenquellen:</p>

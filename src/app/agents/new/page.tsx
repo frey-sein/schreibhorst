@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
 import Image from 'next/image';
 import AvatarSelector from '../../components/agents/AvatarSelector';
+import FolderSelector from '../../components/agents/FolderSelector';
+import KnowledgeSelector from '../../components/agents/KnowledgeSelector';
 
 interface Agent {
   id: string;
@@ -20,18 +22,24 @@ interface Agent {
   status: 'active' | 'inactive';
   prompt?: string;
   sources?: string[];
+  watchedFolders?: string[];
+  knowledgeCategories?: string[];
 }
 
 export default function NewAgentPage() {
   const router = useRouter();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [showFolderSelector, setShowFolderSelector] = useState(false);
+  const [showKnowledgeSelector, setShowKnowledgeSelector] = useState(false);
   const [formData, setFormData] = useState<Partial<Agent>>({
     schedule: {
       frequency: 'daily',
       time: '09:00'
     },
     topics: [],
-    status: 'active'
+    status: 'active',
+    watchedFolders: [],
+    knowledgeCategories: []
   });
 
   const handleAvatarSelect = (avatarPath: string) => {
@@ -60,7 +68,9 @@ export default function NewAgentPage() {
         avatar: formData.avatar,
         status: formData.status || 'inactive',
         prompt: formData.prompt || '',
-        sources: formData.sources || []
+        sources: formData.sources || [],
+        watchedFolders: formData.watchedFolders || [],
+        knowledgeCategories: formData.knowledgeCategories || []
       };
 
       // Lade aktuelle Agenten
@@ -74,6 +84,16 @@ export default function NewAgentPage() {
     } catch (error) {
       console.error('Fehler beim Erstellen des Agenten:', error);
     }
+  };
+
+  // Ordner-Auswahl
+  const handleFolderSelect = (folders: string[]) => {
+    setFormData({ ...formData, watchedFolders: folders });
+  };
+
+  // Wissensbereiche-Auswahl
+  const handleKnowledgeSelect = (categories: string[]) => {
+    setFormData({ ...formData, knowledgeCategories: categories });
   };
 
   return (
@@ -321,6 +341,90 @@ export default function NewAgentPage() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Überwachte Ordner */}
+                  <div className="col-span-6">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Überwachte Ordner
+                    </label>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Wählen Sie Ordner aus, die der Agent überwachen soll
+                    </p>
+                    <div className="space-y-2">
+                      {formData.watchedFolders?.map((folder, index) => (
+                        <div key={index} className="flex gap-2">
+                          <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                            </svg>
+                            <span className="text-sm text-gray-900">{folder}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newFolders = [...(formData.watchedFolders || [])];
+                              newFolders.splice(index, 1);
+                              setFormData({ ...formData, watchedFolders: newFolders });
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-600 transition-colors rounded-full"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setShowFolderSelector(true)}
+                        className="mt-2 px-4 py-2 text-sm text-[#2c2c2c] border border-gray-200 rounded-full hover:bg-gray-50 transition-colors"
+                      >
+                        + Ordner auswählen
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Wissensbereiche */}
+                  <div className="col-span-6">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Wissensbereiche
+                    </label>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Wählen Sie relevante Kategorien aus dem Wissensbereich
+                    </p>
+                    <div className="space-y-2">
+                      {formData.knowledgeCategories?.map((category, index) => (
+                        <div key={index} className="flex gap-2">
+                          <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                            <span className="text-sm text-gray-900">{category}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newCategories = [...(formData.knowledgeCategories || [])];
+                              newCategories.splice(index, 1);
+                              setFormData({ ...formData, knowledgeCategories: newCategories });
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-600 transition-colors rounded-full"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setShowKnowledgeSelector(true)}
+                        className="mt-2 px-4 py-2 text-sm text-[#2c2c2c] border border-gray-200 rounded-full hover:bg-gray-50 transition-colors"
+                      >
+                        + Kategorie auswählen
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Aktionen */}
@@ -380,6 +484,20 @@ export default function NewAgentPage() {
               </div>
             </div>
           )}
+
+          {/* Selector Modals */}
+          <FolderSelector
+            isOpen={showFolderSelector}
+            onClose={() => setShowFolderSelector(false)}
+            onSelect={handleFolderSelect}
+            selectedFolders={formData.watchedFolders || []}
+          />
+          <KnowledgeSelector
+            isOpen={showKnowledgeSelector}
+            onClose={() => setShowKnowledgeSelector(false)}
+            onSelect={handleKnowledgeSelect}
+            selectedCategories={formData.knowledgeCategories || []}
+          />
         </div>
       </main>
     </>

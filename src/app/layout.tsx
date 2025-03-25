@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "./components/Header";
 import Script from 'next/script';
+import { FileManagerProvider } from './dateimanager/FileManagerContext';
+import { KnowledgeProvider } from './wissen/KnowledgeContext';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -36,7 +38,11 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <div className="min-h-screen bg-[#f4f4f4]">
-          {children}
+          <FileManagerProvider>
+            <KnowledgeProvider>
+              {children}
+            </KnowledgeProvider>
+          </FileManagerProvider>
         </div>
         
         <Script 
