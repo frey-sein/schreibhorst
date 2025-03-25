@@ -1,97 +1,94 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useFileStore } from '@/lib/store/fileStore';
-import FileList from '../components/FileList';
-import FolderTree from '../components/FolderTree';
-import FileUploader from '../components/FileUploader';
 import Header from '../components/Header';
+import FolderTree from '../components/FolderTree';
+import FileList from '../components/FileList';
+import { useState, useEffect } from 'react';
+import { useFileStore } from '@/lib/store/fileStore';
 
 export default function DateimanagerPage() {
-  const { loadFiles, getCurrentFolder, uploadFile, initializePath } = useFileStore();
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const { loadFiles, initializePath } = useFileStore();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Initial laden der Dateien
   useEffect(() => {
-    // Zuerst den gespeicherten Pfad wiederherstellen
-    initializePath();
-    
-    // Dann die Dateien laden
-    loadFiles();
+    const loadFilesystem = async () => {
+      try {
+        // Zuerst den gespeicherten Pfad wiederherstellen
+        initializePath();
+        // Dann die Dateien laden
+        await loadFiles();
+      } catch (err) {
+        setError('Fehler beim Laden des Dateisystems. Bitte versuchen Sie es später erneut.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFilesystem();
   }, [loadFiles, initializePath]);
 
-  const currentFolder = getCurrentFolder();
-
-  const handleUpload = async (files: File[]) => {
-    setIsUploading(true);
-    setUploadError(null);
-    
-    try {
-      // Da unser FileUploader mehrere Dateien unterstützt, verarbeiten wir sie einzeln
-      for (const file of files) {
-        await uploadFile(file);
-      }
-    } catch (error) {
-      console.error('Fehler beim Hochladen:', error);
-      if (error instanceof Error) {
-        setUploadError(error.message);
-      } else {
-        setUploadError('Fehler beim Hochladen der Datei');
-      }
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
   return (
-    <>
+    <main className="min-h-screen bg-[#f9f9f9] flex flex-col">
       <Header />
-      <div className="min-h-screen bg-[#f4f4f4] pt-24">
-        <div className="max-w-[2000px] mx-auto px-6 py-8">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h1 className="text-2xl font-light text-gray-900 tracking-tight mb-2">Dateimanager</h1>
-                <p className="text-sm text-gray-500">Verwalten und organisieren Sie Ihre Dateien</p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-12 gap-8">
-              {/* Linke Spalte: Ordnerstruktur */}
-              <div className="col-span-3 bg-[#f4f4f4] rounded-lg border border-gray-200 shadow-sm p-4">
-                <h2 className="text-lg font-light text-gray-900 tracking-tight mb-4">Struktur</h2>
-                <div className="bg-white rounded-md border border-gray-100 p-2">
-                  <FolderTree />
-                </div>
-              </div>
-
-              {/* Rechte Spalte: Dateien und Upload */}
-              <div className="col-span-9 space-y-6">
-                <div className="bg-[#f4f4f4] rounded-lg border border-gray-200 shadow-sm p-6">
-                  <FileList />
-                </div>
-
-                <div className="bg-[#f4f4f4] rounded-lg border border-gray-200 shadow-sm p-6">
-                  <h2 className="text-lg font-light text-gray-900 tracking-tight mb-4">Datei hochladen</h2>
-                  {uploadError && (
-                    <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">
-                      {uploadError}
-                    </div>
-                  )}
-                  <div className="bg-white rounded-lg border border-gray-100 p-4">
-                    <FileUploader
-                      onUpload={handleUpload}
-                      maxSize={10 * 1024 * 1024} // 10MB
-                      isUploading={isUploading}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+      
+      {/* Header - angepasst an StagePanel */}
+      <div className="sticky top-[64px] z-20 h-[120px] p-6 border-b border-gray-100 bg-white/80 backdrop-blur-md mt-16">
+        <div className="flex justify-between items-start gap-4 w-full max-w-screen-2xl mx-auto">
+          <div className="flex-1">
+            <h2 className="text-xl lg:text-2xl font-light text-gray-900 tracking-tight">Dateimanager</h2>
+            <p className="text-xs lg:text-sm text-gray-500 mt-1 break-normal">
+              Verwalten und organisieren Sie Ihre Dateien und Ordner
+            </p>
+          </div>
+          {/* Unsichtbares Element für gleiche Höhe */}
+          <div className="flex items-start space-x-3 shrink-0 invisible">
+            <div className="p-2.5 border border-gray-200 rounded-full w-[48px] h-[48px]"></div>
+            <div className="p-2.5 border border-gray-200 rounded-full w-[48px] h-[48px]"></div>
           </div>
         </div>
       </div>
-    </>
+      
+      <div className="flex-1 px-6 py-8 md:px-8 lg:px-12 max-w-screen-2xl mx-auto w-full mt-8">
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#2c2c2c]"></div>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 text-red-600 p-6 rounded-xl border border-red-100 shadow-sm">
+            <p className="font-medium mb-2">Ein Fehler ist aufgetreten</p>
+            <p>{error}</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm h-[calc(100vh-16rem)] overflow-auto">
+              <div className="flex items-center mb-6">
+                <span className="bg-gray-100 p-1.5 rounded-lg mr-3">
+                  <svg className="h-5 w-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                  </svg>
+                </span>
+                <h2 className="text-xl font-semibold text-gray-900 tracking-tight">Ordner</h2>
+              </div>
+              <FolderTree />
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <div className="text-sm text-gray-600">
+                  <p className="mb-1">Speichernutzung</p>
+                  <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#2c2c2c] rounded-full" style={{ width: '15%' }}></div>
+                  </div>
+                  <p className="mt-1 text-xs">Ca. 15% genutzt</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="lg:col-span-4 h-[calc(100vh-16rem)]">
+              <FileList className="h-full" />
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
   );
 } 

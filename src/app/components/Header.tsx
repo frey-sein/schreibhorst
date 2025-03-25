@@ -23,6 +23,7 @@ export default function Header() {
   const isWissen = pathname.startsWith('/wissen');
   const isProfile = pathname.startsWith('/profil');
   const isUsers = pathname.startsWith('/benutzer');
+  const isAdmin = pathname.startsWith('/admin');
   
   const initials = currentUser?.name
     ? currentUser.name
@@ -34,6 +35,7 @@ export default function Header() {
     : 'U';
 
   const handleLogout = () => {
+    // Benutzer abmelden
     setCurrentUser(null);
     // Lösche den Cookie
     document.cookie = 'user-id=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
@@ -109,6 +111,34 @@ export default function Header() {
             )}
             <span className={`${isProfile ? 'text-gray-800' : 'text-gray-700'}`}>{currentUser.name}</span>
           </Link>
+          
+          {/* Admin-Icon (nur für Admins sichtbar) */}
+          {currentUser.role === 'admin' && (
+            <Link
+              href="/admin"
+              className={`p-2.5 aspect-square bg-white border rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
+                isAdmin 
+                  ? 'border-[#2c2c2c] bg-gray-200 shadow-sm' 
+                  : 'border-gray-100'
+              }`}
+              title="Verwaltungsbereich"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className={`h-5 w-5 ${isAdmin ? 'text-gray-800' : 'text-gray-600'}`}
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </Link>
+          )}
+          
+          {/* Abmelde-Button */}
           <button
             onClick={handleLogout}
             className="p-2.5 aspect-square bg-white border border-gray-100 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm"

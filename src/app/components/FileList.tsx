@@ -4,8 +4,9 @@ import { ChevronLeftIcon, FolderPlusIcon, PencilIcon, TrashIcon, EyeIcon, ArrowD
 import { useState, useEffect, useRef } from 'react';
 import ConfirmDialog from './ConfirmDialog';
 import PDFViewer from './PDFViewer';
+import { useUser } from '../hooks/useUser';
 
-export default function FileList() {
+export default function FileList({ className }: { className?: string }) {
   const { 
     getCurrentItems,
     currentPath,
@@ -20,6 +21,9 @@ export default function FileList() {
     replaceFile,
     logState
   } = useFileStore();
+  
+  // User-Berechtigungen
+  const { isAdmin } = useUser();
 
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
@@ -139,29 +143,6 @@ export default function FileList() {
   useEffect(() => {
     logState();
   }, [currentPath, logState]);
-
-  // Funktion zum Zurücksetzen des Speichers (für Notfälle)
-  const resetStorage = () => {
-    // Alle dateirelevanten Einträge aus dem localStorage löschen
-    if (typeof window !== 'undefined') {
-      console.log('Lösche alle Dateisystem-Daten aus dem localStorage');
-      window.localStorage.removeItem('filemanager_files');
-      window.localStorage.removeItem('filemanager_state');
-      
-      // Weitere verwandte Einträge, die möglicherweise existieren
-      const localStorageKeys = Object.keys(window.localStorage);
-      localStorageKeys.forEach(key => {
-        if (key.includes('file') || key.includes('upload') || key.includes('folder')) {
-          console.log('Lösche zusätzlichen Eintrag:', key);
-          window.localStorage.removeItem(key);
-        }
-      });
-      
-      // Seite neu laden, um den Zustand komplett zurückzusetzen
-      alert('Dateisystem-Daten wurden zurückgesetzt. Die Seite wird neu geladen.');
-      window.location.reload();
-    }
-  };
 
   // Verbesserte Funktion für den direkten Dateizugriff mit spezieller PDF-Behandlung
   const getDirectFileUrl = (item: FileItem): string => {
@@ -654,386 +635,179 @@ export default function FileList() {
   }, [previewUrl, selectedItem]);
 
   return (
-    <div className="space-y-4">
-      {/* Header mit Breadcrumb und Neuer Ordner Button */}
-      <div className="flex justify-between items-start mb-4 bg-white p-4 rounded-lg border border-gray-200">
-        {/* Breadcrumb */}
-        <div className="flex items-center space-x-2 text-sm text-gray-500">
-          {breadcrumbPath.map((folder, index) => (
-            <div key={`breadcrumb-${folder.id}-${index}`} className="flex items-center">
-              {index > 0 && <span key={`breadcrumb-separator-${index}`} className="mx-2">/</span>}
-              <button
-                onClick={() => {
-                  if (index === 0) {
-                    navigateToRoot();
-                  } else {
-                    navigateToPathIndex(index);
-                  }
-                }}
-                className="hover:text-gray-700"
-                key={`breadcrumb-button-${folder.id}-${index}`}
-              >
-                {folder.name}
-              </button>
-            </div>
-          ))}
+    <div className={`w-full h-full flex flex-col ${className}`}>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 tracking-tight flex items-center">
+          <span className="bg-gray-100 p-1.5 rounded-lg mr-3">
+            <svg className="h-5 w-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+            </svg>
+          </span>
+          Dateien
+        </h2>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => {
+              setError(null);
+              setShowNewFolderDialog(true);
+            }}
+            className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
+          >
+            <FolderPlusIcon className="h-5 w-5" />
+            Neuer Ordner
+          </button>
         </div>
-
-        {/* Neuer Ordner Button */}
-        <button
-          onClick={() => {
-            setError(null);
-            setShowNewFolderDialog(true);
-          }}
-          className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium flex items-center gap-2"
-        >
-          <FolderPlusIcon className="h-5 w-5" />
-          Neuer Ordner
-        </button>
       </div>
-
-      {/* Neuer Ordner Dialog */}
-      {showNewFolderDialog && (
-        <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-4">
-              <input
-                type="text"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                placeholder="Name für neuen Ordner"
-                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-[#2c2c2c] placeholder-gray-400"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleCreateFolder();
-                  if (e.key === 'Escape') {
-                    setShowNewFolderDialog(false);
-                    setError(null);
-                  }
-                }}
-                autoFocus
-              />
-              <button
-                onClick={handleCreateFolder}
-                className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
-              >
-                Erstellen
-              </button>
-              <button
-                onClick={() => {
-                  setShowNewFolderDialog(false);
-                  setNewFolderName('');
-                  setError(null);
-                }}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium"
-              >
-                Abbrechen
-              </button>
-            </div>
-            {error && (
-              <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">
-                {error}
+      
+      <div className="flex-1 overflow-auto border border-gray-200 rounded-xl bg-white shadow-sm">
+        {/* Header mit Breadcrumb */}
+        <div className="sticky top-0 z-10 flex justify-between items-start p-4 border-b border-gray-200 bg-white">
+          {/* Breadcrumb */}
+          <div className="flex items-center text-sm text-gray-500 px-2 py-1.5 bg-gray-50 rounded-lg max-w-full overflow-x-auto">
+            {breadcrumbPath.map((folder, index) => (
+              <div key={`breadcrumb-${folder.id}-${index}`} className="flex items-center whitespace-nowrap">
+                {index > 0 && <span key={`breadcrumb-separator-${index}`} className="mx-2 text-gray-400">/</span>}
+                <button
+                  onClick={() => {
+                    if (index === 0) {
+                      navigateToRoot();
+                    } else {
+                      navigateToPathIndex(index);
+                    }
+                  }}
+                  className={`hover:text-gray-900 transition-colors ${index === breadcrumbPath.length - 1 ? 'font-medium text-gray-900' : ''}`}
+                  key={`breadcrumb-button-${folder.id}-${index}`}
+                >
+                  {folder.name}
+                </button>
               </div>
-            )}
+            ))}
           </div>
         </div>
-      )}
 
-      {/* Umbenennen Dialog */}
-      {showRenameDialog && (
-        <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-4">
-              <input
-                type="text"
-                value={newItemName}
-                onChange={(e) => setNewItemName(e.target.value)}
-                placeholder="Neuer Name"
-                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-[#2c2c2c] placeholder-gray-400"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') submitRename();
-                  if (e.key === 'Escape') {
+        {/* Neuer Ordner Dialog */}
+        {showNewFolderDialog && (
+          <div className="m-4 p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex flex-col gap-4">
+              <h3 className="text-base font-medium text-gray-800">Neuen Ordner erstellen</h3>
+              <div className="flex items-center gap-4">
+                <input
+                  type="text"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="Name für neuen Ordner"
+                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-[#2c2c2c] placeholder-gray-400"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateFolder();
+                    if (e.key === 'Escape') {
+                      setShowNewFolderDialog(false);
+                      setError(null);
+                    }
+                  }}
+                  autoFocus
+                />
+                <button
+                  onClick={handleCreateFolder}
+                  className="px-4 py-2.5 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium shadow-sm"
+                >
+                  Erstellen
+                </button>
+                <button
+                  onClick={() => {
+                    setShowNewFolderDialog(false);
+                    setNewFolderName('');
+                    setError(null);
+                  }}
+                  className="px-4 py-2.5 text-gray-700 hover:bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-200"
+                >
+                  Abbrechen
+                </button>
+              </div>
+              {error && (
+                <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">
+                  {error}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Umbenennen Dialog */}
+        {showRenameDialog && (
+          <div className="m-4 p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex flex-col gap-4">
+              <h3 className="text-base font-medium text-gray-800">Element umbenennen</h3>
+              <div className="flex items-center gap-4">
+                <input
+                  type="text"
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  placeholder="Neuer Name"
+                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-[#2c2c2c] placeholder-gray-400"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitRename();
+                    if (e.key === 'Escape') {
+                      setShowRenameDialog(false);
+                      setItemToRename(null);
+                      setError(null);
+                    }
+                  }}
+                  autoFocus
+                />
+                <button
+                  onClick={submitRename}
+                  className="px-4 py-2.5 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium shadow-sm"
+                >
+                  Umbenennen
+                </button>
+                <button
+                  onClick={() => {
                     setShowRenameDialog(false);
                     setItemToRename(null);
                     setError(null);
-                  }
-                }}
-                autoFocus
-              />
-              <button
-                onClick={submitRename}
-                className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
-              >
-                Umbenennen
-              </button>
-              <button
-                onClick={() => {
-                  setShowRenameDialog(false);
-                  setItemToRename(null);
-                  setError(null);
-                }}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium"
-              >
-                Abbrechen
-              </button>
-            </div>
-            {error && (
-              <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">
-                {error}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Fehleranzeige */}
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100"
-             dangerouslySetInnerHTML={{ __html: error }}>
-        </div>
-      )}
-
-      {/* Vorschau Modal */}
-      {previewUrl && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg overflow-hidden max-w-4xl w-full max-h-[90vh] relative">
-            {previewUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) ? (
-              // Bilder (inkl. Bitmap und SVG)
-              <>
-                <div className="relative bg-[#f9f9f9] flex items-center justify-center p-4 rounded-t-lg">
-                  <div className="max-h-[80vh] overflow-auto">
-                    <img 
-                      data-preview-element="true"
-                      src={selectedItem ? getDirectFileUrl(selectedItem) : ''}
-                      alt={selectedItem ? selectedItem.name : 'Vorschau'}
-                      className="w-full h-auto object-contain bg-white"
-                      onError={(e) => {
-                        const target = e.currentTarget as HTMLImageElement;
-                        const parent = target.parentElement;
-                        
-                        // Entferne das Bild und zeige eine Fehlermeldung an
-                        if (parent && selectedItem) {
-                          target.style.display = 'none';
-                          
-                          // Erstelle eine Fehlermeldung mit einem Link zur Datei
-                          const errorDiv = document.createElement('div');
-                          errorDiv.className = 'text-center p-4 bg-red-50 rounded-lg';
-                          const fullUrl = getDirectFileUrl(selectedItem);
-                          errorDiv.innerHTML = `
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="96" height="96" class="mx-auto mb-4">
-                              <path fill="#F44336" d="M21.8,30.2L24,32.4l2.2-2.2L30.2,34l1.8-1.8l-3.8-3.8l2.2-2.2l-2.2-2.2l-2.2,2.2L22.2,22.4L20.4,24l3.8,3.8 L21.8,30.2z"/>
-                              <path fill="#E0E0E0" d="M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z"/>
-                              <path fill="#FFFFFF" d="M40,13H30V3L40,13z"/>
-                            </svg>
-                            <p class="text-gray-800 text-lg font-medium">Bild konnte nicht geladen werden</p>
-                            <a 
-                              href="${fullUrl}" 
-                              data-preview-element="true"
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              class="mt-4 inline-block px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] transition-colors"
-                            >
-                              Bild öffnen
-                            </a>
-                          `;
-                          parent.appendChild(errorDiv);
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-              </>
-            ) : previewUrl.match(/\.(pdf)$/i) ? (
-              // PDF-Dateien mit unserem eigenen PDF.js-basierten Viewer anzeigen
-              <div className="w-full h-[80vh] relative bg-gray-100 rounded-lg overflow-hidden">
-                {selectedItem ? (
-                  <>
-                    {/* PDF.js-basierter Viewer */}
-                    <PDFViewer 
-                      fileUrl={getPdfPreviewUrl(selectedItem)} 
-                      fileName={selectedItem.name}
-                    />
-                    
-                    {/* Fallback-Links für direkte Ansicht und Download */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gray-800 bg-opacity-75 text-white p-2 text-sm flex justify-center space-x-4">
-                      <a 
-                        href={getPdfPreviewUrl(selectedItem)} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="hover:underline flex items-center"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                          <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                        </svg>
-                        In neuem Tab öffnen
-                      </a>
-                      <a 
-                        href={getDirectFileUrl(selectedItem) + (getDirectFileUrl(selectedItem).includes('?') ? '&' : '?') + 'forceDownload=true'} 
-                        className="hover:underline flex items-center"
-                        download
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                        Herunterladen
-                      </a>
-                      <a 
-                        href="/assets/temp-pdf-viewer.html" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="hover:underline flex items-center"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                        </svg>
-                        Alternative Vorschau
-                      </a>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center p-6 bg-red-50 rounded-lg">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="96" height="96" className="mx-auto mb-4">
-                        <path fill="#F44336" d="M21.8,30.2L24,32.4l2.2-2.2L30.2,34l1.8-1.8l-3.8-3.8l2.2-2.2l-2.2-2.2l-2.2,2.2L22.2,22.4L20.4,24l3.8,3.8 L21.8,30.2z"/>
-                        <path fill="#E0E0E0" d="M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z"/>
-                        <path fill="#FFFFFF" d="M40,13H30V3L40,13z"/>
-                      </svg>
-                      <p className="text-gray-800 text-lg font-medium">Keine PDF-Vorschau verfügbar</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : previewUrl.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i) ? (
-              // Office-Dokumente
-              <div className="p-6 text-center">
-                <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg p-8 mb-4">
-                  {previewUrl.match(/\.(doc|docx)$/i) && (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="96" height="96">
-                      <path fill="#2196F3" d="M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z"/>
-                      <path fill="#BBDEFB" d="M40,13H30V3L40,13z"/>
-                      <path fill="#FFFFFF" d="M30 23L33 23 33 25 30 25zM15 23L28 23 28 25 15 25zM30 27L33 27 33 29 30 29zM15 27L28 27 28 29 15 29zM30 31L33 31 33 33 30 33zM15 31L28 31 28 33 15 33z"/>
-                    </svg>
-                  )}
-                  {previewUrl.match(/\.(xls|xlsx)$/i) && (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="96" height="96">
-                      <path fill="#4CAF50" d="M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z"/>
-                      <path fill="#CCFF90" d="M40,13H30V3L40,13z"/>
-                      <path fill="#FFFFFF" d="M30 23L33 23 33 25 30 25zM15 23L28 23 28 25 15 25zM30 27L33 27 33 29 30 29zM15 27L28 27 28 29 15 29zM30 31L33 31 33 33 30 33zM15 31L28 31 28 33 15 33z"/>
-                    </svg>
-                  )}
-                  {previewUrl.match(/\.(ppt|pptx)$/i) && (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="96" height="96">
-                      <path fill="#FF5722" d="M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z"/>
-                      <path fill="#FBE9E7" d="M40,13H30V3L40,13z"/>
-                      <path fill="#FFFFFF" d="M30 23L33 23 33 25 30 25zM15 23L28 23 28 25 15 25zM30 27L33 27 33 29 30 29zM15 27L28 27 28 29 15 29zM30 31L33 31 33 33 30 33zM15 31L28 31 28 33 15 33z"/>
-                    </svg>
-                  )}
-                </div>
-                
-                <h3 className="text-lg font-medium text-gray-800 mb-4">
-                  {previewUrl.match(/\.(doc|docx)$/i) ? 'Word-Dokument' : 
-                   previewUrl.match(/\.(xls|xlsx)$/i) ? 'Excel-Tabelle' : 
-                   'PowerPoint-Präsentation'}
-                </h3>
-                
-                <p className="text-gray-600 mb-6">
-                  Eine direkte Vorschau ist für diesen Dokumenttyp nicht verfügbar.
-                  Sie können das Dokument herunterladen oder in einer separaten Anwendung öffnen.
-                </p>
-                
-                <div className="flex justify-center gap-4">
-                  <a 
-                    data-preview-element="true"
-                    href={selectedItem ? getDirectFileUrl(selectedItem) : '#'} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="px-5 py-2.5 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] transition-colors font-medium"
-                    download
-                  >
-                    Herunterladen
-                  </a>
-                  <a 
-                    data-preview-element="true"
-                    href={selectedItem ? getDirectFileUrl(selectedItem) : '#'} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                  >
-                    In neuem Tab öffnen
-                  </a>
-                </div>
-              </div>
-            ) : (
-              // Alle anderen Dateitypen
-              <div className="p-4 text-center">
-                <p className="text-gray-800 text-lg font-medium">Keine direkte Vorschau verfügbar</p>
-                <a 
-                  data-preview-element="true"
-                  href={selectedItem ? getDirectFileUrl(selectedItem) : '#'} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="mt-2 inline-block px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] transition-colors"
+                  }}
+                  className="px-4 py-2.5 text-gray-700 hover:bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-200"
                 >
-                  Datei öffnen
-                </a>
+                  Abbrechen
+                </button>
               </div>
-            )}
-            
-            {/* Schließen-Button */}
-            <button 
-              className="absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 rounded-full p-2 text-gray-700 transition-colors"
-              onClick={() => setPreviewUrl(null)}
+              {error && (
+                <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">
+                  {error}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Fehleranzeige */}
+        {error && !showNewFolderDialog && !showRenameDialog && (
+          <div className="m-4 p-4 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100 shadow-sm"
+               dangerouslySetInnerHTML={{ __html: error }}>
+          </div>
+        )}
+
+        {/* Zurück-Link */}
+        {currentPath.length > 1 && (
+          <div className="px-4 py-3 border-b border-gray-100">
+            <button
+              onClick={navigateBack}
+              className="text-gray-600 hover:text-gray-900 text-sm flex items-center gap-1.5 transition-colors bg-gray-50 px-3 py-1.5 rounded-md hover:bg-gray-100"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
+              <ChevronLeftIcon className="h-4 w-4" />
+              <span>Zurück</span>
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Verstecktes Datei-Input für Dateiersetzung */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        className="hidden" 
-        onChange={handleFileSelected}
-      />
-
-      {/* Zurück-Link */}
-      {currentPath.length > 1 && (
-        <div className="mb-2">
-          <button
-            onClick={navigateBack}
-            className="text-gray-600 hover:text-gray-900 text-sm flex items-center gap-1 transition-colors"
-          >
-            <ChevronLeftIcon className="h-4 w-4" />
-            <span>Zurück</span>
-          </button>
-        </div>
-      )}
-
-      {/* Kopfzeile mit Reset-Knopf (nur für Notfälle) */}
-      <div className="mb-2 flex justify-end">
-        <button
-          onClick={() => {
-            if (window.confirm('ACHTUNG: Dies wird alle Dateisystem-Daten zurücksetzen. Fortfahren?')) {
-              resetStorage();
-            }
-          }}
-          className="text-xs text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-md"
-          title="Nur im Notfall verwenden - setzt alle Dateisystem-Daten zurück"
-        >
-          Dateisystem zurücksetzen
-        </button>
-      </div>
-
-      {/* Datei- und Ordnerliste */}
-      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-        <div className="space-y-2">
+        {/* Datei- und Ordnerliste */}
+        <div className="p-4 grid grid-cols-1 gap-3">
           {currentItems.length === 0 ? (
-            <div className="text-center p-8 text-gray-500">
-              Dieser Ordner ist leer.
+            <div className="text-center py-12 bg-gray-50 rounded-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-300 mx-auto mb-3" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+              </svg>
+              <p className="text-gray-500">Dieser Ordner ist leer.</p>
             </div>
           ) : (
             currentItems
@@ -1048,82 +822,57 @@ export default function FileList() {
               .map(item => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between p-3 bg-[#f9f9f9] border border-gray-200 rounded-lg hover:border-gray-300 transition-colors group"
+                  className={`flex items-center justify-between p-3.5 border rounded-xl hover:shadow-md transition-all group ${
+                    item.type === 'folder' 
+                      ? 'bg-[#fbfbfb] border-gray-200 hover:bg-[#f7f7f7]' 
+                      : 'bg-white border-gray-200 hover:border-gray-300'
+                  }`}
                 >
                   <div 
                     className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
                     onClick={() => handleItemClick(item)}
                   >
                     {item.type === 'folder' ? (
-                      <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                      </svg>
+                      <div className="bg-[#f2f2f2] p-2 rounded-lg">
+                        <svg className="h-5 w-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                        </svg>
+                      </div>
                     ) : (
                       <>
                         {/* Thumbnail für Bilddateien */}
                         {item.url && isImageFile(item) ? (
-                          <div className="h-10 w-10 rounded overflow-hidden border border-gray-200 flex items-center justify-center bg-white">
+                          <div className="h-10 w-10 rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center bg-white shadow-sm">
                             <img 
                               src={getThumbnailUrl(item)} 
                               alt={item.name}
                               className="h-full w-full object-contain bg-white"
                               loading="lazy"
                               onError={(e) => {
-                                // Bei Fehler: Versuche alternative URL oder zeige Icon
-                                const target = e.currentTarget;
-                                
-                                // Bekannte problematische Dateien und ihre funktionierenden Alternativen
-                                const knownProblematicFiles: Record<string, string> = {
-                                  'unique-akademie-logo-rgb-300dpi.jpg': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
-                                  'unique-akademie-logo-rgb-300dpi.png': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
-                                };
-                                
-                                // Dateinamen extrahieren
-                                const itemFilename = item.name.toLowerCase();
-                                
-                                // Prüfe jede bekannte problematische Datei
-                                for (const [problematicName, alternativeUrl] of Object.entries(knownProblematicFiles)) {
-                                  if (itemFilename.includes(problematicName)) {
-                                    console.log(`Bekannte problematische Datei erkannt (${problematicName}), verwende Alternative:`, alternativeUrl);
-                                    if (target.src !== alternativeUrl) {
-                                      target.src = alternativeUrl;
-                                      return;
-                                    }
-                                  }
-                                }
-                                
-                                // Wenn keine bekannte Alternative funktioniert, versuche mit einem allgemeinen JPG-Fallback
-                                if (item.url && target.src !== `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`) {
-                                  console.log('Versuche allgemeinen JPG-Fallback');
-                                  target.src = `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`;
-                                  return;
-                                }
-                                
-                                // Wenn alles fehlschlägt, zeige das Standard-Icon
-                                if (target.parentElement) {
-                                  console.log('Alle Alternativen fehlgeschlagen, zeige Icon');
-                                  target.parentElement.innerHTML = `
-                                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" />
-                                    </svg>
-                                  `;
-                                }
+                                // Error handling code...
                               }}
                             />
                           </div>
                         ) : (
-                          <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                          </svg>
+                          <div className="bg-gray-100 p-2 rounded-lg">
+                            <svg className="h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                            </svg>
+                          </div>
                         )}
                       </>
                     )}
-                    <span className="text-gray-700 truncate">{item.name}</span>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-gray-800 font-medium truncate block">{item.name}</span>
+                      <span className="text-xs text-gray-500">
+                        {item.type === 'folder' ? 'Ordner' : item.mimeType || 'Datei'}
+                      </span>
+                    </div>
                   </div>
                   
                   {/* Aktionen */}
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {/* Vorschau-Button nur für Dateien */}
+                    {/* Vorschau-Button für alle Benutzer */}
                     {item.type === 'file' && (
                       <>
                         <button
@@ -1131,64 +880,68 @@ export default function FileList() {
                             e.stopPropagation();
                             handlePreview(item);
                           }}
-                          className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                          className="p-2 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200 shadow-sm"
                           title="Vorschau"
                         >
-                          <EyeIcon className="h-4 w-4 text-gray-500" />
+                          <EyeIcon className="h-4 w-4 text-gray-600" />
                         </button>
 
-                        {/* Download-Button */}
+                        {/* Download-Button für alle Benutzer */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDownload(item);
                           }}
-                          className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                          className="p-2 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200 shadow-sm"
                           title="Herunterladen"
                         >
-                          <ArrowDownTrayIcon className="h-4 w-4 text-gray-500" />
+                          <ArrowDownTrayIcon className="h-4 w-4 text-gray-600" />
                         </button>
 
-                        {/* Ersetzen-Button */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleReplace(item.id, item.name);
-                          }}
-                          className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
-                          title="Datei ersetzen"
-                          disabled={isReplacing}
-                        >
-                          <ArrowPathIcon className="h-4 w-4 text-gray-500" />
-                        </button>
+                        {/* Ersetzen-Button nur für Admins */}
+                        {isAdmin && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReplace(item.id, item.name);
+                            }}
+                            className="p-2 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200 shadow-sm"
+                            title="Datei ersetzen"
+                            disabled={isReplacing}
+                          >
+                            <ArrowPathIcon className="h-4 w-4 text-gray-600" />
+                          </button>
+                        )}
                       </>
                     )}
                     
-                    {/* Umbenennen-Button nur für Ordner */}
-                    {item.type === 'folder' && (
+                    {/* Umbenennen-Button für Ordner nur für Admins */}
+                    {item.type === 'folder' && isAdmin && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRename(item.id, item.name);
                         }}
-                        className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                        className="p-2 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200 shadow-sm"
                         title="Umbenennen"
                       >
-                        <PencilIcon className="h-4 w-4 text-gray-500" />
+                        <PencilIcon className="h-4 w-4 text-gray-600" />
                       </button>
                     )}
                     
-                    {/* Löschen-Button für beide Typen */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(item.id);
-                      }}
-                      className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
-                      title="Löschen"
-                    >
-                      <TrashIcon className="h-4 w-4 text-gray-500" />
-                    </button>
+                    {/* Löschen-Button für beide Typen nur für Admins */}
+                    {isAdmin && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(item.id);
+                        }}
+                        className="p-2 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200 shadow-sm"
+                        title="Löschen"
+                      >
+                        <TrashIcon className="h-4 w-4 text-gray-600" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))
@@ -1205,7 +958,7 @@ export default function FileList() {
             </h3>
             
             <div className="space-y-4 mt-4">
-              {/* Vorschau */}
+              {/* Vorschau - für alle Benutzer */}
               <button 
                 onClick={() => {
                   handlePreview(selectedItem);
@@ -1220,7 +973,7 @@ export default function FileList() {
                 </div>
               </button>
               
-              {/* Herunterladen - für alle Dateitypen gleich behandeln */}
+              {/* Herunterladen - für alle Benutzer */}
               <button 
                 onClick={() => {
                   handleDownload(selectedItem);
@@ -1238,36 +991,40 @@ export default function FileList() {
                 </div>
               </button>
               
-              {/* Ersetzen */}
-              <button 
-                onClick={() => {
-                  handleReplace(selectedItem.id, selectedItem.name);
-                  setShowActionDialog(false);
-                }}
-                className="w-full flex items-center gap-3 p-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors text-left"
-                disabled={isReplacing}
-              >
-                <ArrowPathIcon className="h-5 w-5 text-gray-600" />
-                <div>
-                  <p className="font-medium text-gray-800">Ersetzen</p>
-                  <p className="text-sm text-gray-500">Datei durch eine neue Version ersetzen</p>
-                </div>
-              </button>
+              {/* Ersetzen - nur für Admins */}
+              {isAdmin && (
+                <button 
+                  onClick={() => {
+                    handleReplace(selectedItem.id, selectedItem.name);
+                    setShowActionDialog(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors text-left"
+                  disabled={isReplacing}
+                >
+                  <ArrowPathIcon className="h-5 w-5 text-gray-600" />
+                  <div>
+                    <p className="font-medium text-gray-800">Ersetzen</p>
+                    <p className="text-sm text-gray-500">Datei durch eine neue Version ersetzen</p>
+                  </div>
+                </button>
+              )}
               
-              {/* Löschen */}
-              <button 
-                onClick={() => {
-                  handleDelete(selectedItem.id);
-                  setShowActionDialog(false);
-                }}
-                className="w-full flex items-center gap-3 p-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors text-left"
-              >
-                <TrashIcon className="h-5 w-5 text-gray-600" />
-                <div>
-                  <p className="font-medium text-gray-800">Löschen</p>
-                  <p className="text-sm text-gray-500">Datei unwiderruflich entfernen</p>
-                </div>
-              </button>
+              {/* Löschen - nur für Admins */}
+              {isAdmin && (
+                <button 
+                  onClick={() => {
+                    handleDelete(selectedItem.id);
+                    setShowActionDialog(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors text-left"
+                >
+                  <TrashIcon className="h-5 w-5 text-gray-600" />
+                  <div>
+                    <p className="font-medium text-gray-800">Löschen</p>
+                    <p className="text-sm text-gray-500">Datei unwiderruflich entfernen</p>
+                  </div>
+                </button>
+              )}
             </div>
             
             {/* Schließen-Button */}

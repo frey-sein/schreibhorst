@@ -274,12 +274,12 @@ export default function PDFViewer({ fileUrl, fileName = 'Dokument' }: PDFViewerP
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-gray-100">
+    <div className="flex flex-col h-full w-full bg-white">
       {/* Toolbar */}
-      <div className="flex items-center justify-between p-2 bg-gray-800 text-white">
+      <div className="flex items-center justify-between p-2 bg-[#2c2c2c] text-white">
         <div className="flex items-center space-x-2">
           <button 
-            className="bg-gray-700 hover:bg-gray-600 p-1 rounded disabled:opacity-50"
+            className="bg-[#3a3a3a] hover:bg-[#484848] p-1 rounded disabled:opacity-50"
             disabled={pageNum <= 1}
             onClick={prevPage}
           >
@@ -287,11 +287,11 @@ export default function PDFViewer({ fileUrl, fileName = 'Dokument' }: PDFViewerP
               <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
             </svg>
           </button>
-          <span className="text-sm">
+          <span className="text-xs md:text-sm">
             Seite {pageNum} von {numPages || '?'}
           </span>
           <button 
-            className="bg-gray-700 hover:bg-gray-600 p-1 rounded disabled:opacity-50"
+            className="bg-[#3a3a3a] hover:bg-[#484848] p-1 rounded disabled:opacity-50"
             disabled={pageNum >= numPages}
             onClick={nextPage}
           >
@@ -301,24 +301,24 @@ export default function PDFViewer({ fileUrl, fileName = 'Dokument' }: PDFViewerP
           </button>
         </div>
         
-        <div className="font-medium truncate px-2 max-w-[200px]" title={fileName}>
+        <div className="font-medium truncate px-2 max-w-[200px] text-sm" title={fileName}>
           {fileName}
         </div>
         
         <div className="flex items-center space-x-2">
           <button 
-            className="bg-gray-700 hover:bg-gray-600 p-1 rounded"
+            className="bg-[#3a3a3a] hover:bg-[#484848] p-1 rounded"
             onClick={zoomOut}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" />
             </svg>
           </button>
-          <span className="text-sm">
+          <span className="text-xs md:text-sm">
             {Math.round(scale * 100)}%
           </span>
           <button 
-            className="bg-gray-700 hover:bg-gray-600 p-1 rounded"
+            className="bg-[#3a3a3a] hover:bg-[#484848] p-1 rounded"
             onClick={zoomIn}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -328,7 +328,7 @@ export default function PDFViewer({ fileUrl, fileName = 'Dokument' }: PDFViewerP
           
           <button 
             onClick={downloadPdf}
-            className="bg-[#2c2c2c] hover:bg-gray-600 p-1 rounded ml-2"
+            className="bg-[#1e1e1e] hover:bg-[#484848] p-1 rounded ml-2"
             title="Herunterladen"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -339,26 +339,26 @@ export default function PDFViewer({ fileUrl, fileName = 'Dokument' }: PDFViewerP
       </div>
 
       {/* PDF-Anzeigebereich */}
-      <div ref={containerRef} className="flex-1 overflow-auto flex items-center justify-center p-4">
+      <div ref={containerRef} className="flex-1 overflow-auto flex items-center justify-center p-2 bg-[#f4f4f4]">
         {isLoading && (
           <div className="flex flex-col items-center justify-center space-y-2">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-800"></div>
-            <p className="text-gray-700">PDF wird geladen...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#2c2c2c]"></div>
+            <p className="text-gray-700 text-sm">PDF wird geladen...</p>
           </div>
         )}
         
         {error && (
-          <div className="text-center p-6 bg-red-50 rounded-lg max-w-md">
+          <div className="text-center p-6 bg-gray-50 rounded-lg max-w-md">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="96" height="96" className="mx-auto mb-4">
-              <path fill="#F44336" d="M21.8,30.2L24,32.4l2.2-2.2L30.2,34l1.8-1.8l-3.8-3.8l2.2-2.2l-2.2-2.2l-2.2,2.2L22.2,22.4L20.4,24l3.8,3.8 L21.8,30.2z"/>
+              <path fill="#666666" d="M21.8,30.2L24,32.4l2.2-2.2L30.2,34l1.8-1.8l-3.8-3.8l2.2-2.2l-2.2-2.2l-2.2,2.2L22.2,22.4L20.4,24l3.8,3.8 L21.8,30.2z"/>
               <path fill="#E0E0E0" d="M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z"/>
               <path fill="#FFFFFF" d="M40,13H30V3L40,13z"/>
             </svg>
-            <p className="text-gray-800 text-lg font-medium">{error}</p>
+            <p className="text-gray-800 text-sm font-medium">{error}</p>
             <div className="mt-4">
               <button 
                 onClick={downloadPdf}
-                className="inline-block px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] transition-colors"
+                className="inline-block px-4 py-2 bg-[#2c2c2c] text-white rounded text-sm hover:bg-[#3a3a3a] transition-colors"
               >
                 PDF herunterladen
               </button>
@@ -368,7 +368,7 @@ export default function PDFViewer({ fileUrl, fileName = 'Dokument' }: PDFViewerP
         
         <canvas 
           ref={canvasRef} 
-          className={`shadow-lg ${isLoading || error ? 'hidden' : 'block'}`}
+          className={`shadow-sm border border-gray-200 ${isLoading || error ? 'hidden' : 'block'}`}
         ></canvas>
       </div>
     </div>
