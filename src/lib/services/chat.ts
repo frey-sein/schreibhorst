@@ -4,7 +4,7 @@ import { ChatMessage } from '@/types/chat';
 export class ChatService {
   private static instance: ChatService;
   private client: OpenRouterClient | null = null;
-  private messageHistory: ChatMessage[] = [];
+  private messageHistories: { [chatId: string]: ChatMessage[] } = {};
 
   private constructor() {
     // Der Client wird erst bei Bedarf initialisiert
@@ -73,11 +73,22 @@ export class ChatService {
     message: string,
     model: string,
     onChunk: (chunk: string) => void,
-    onError: (error: Error) => void
+    onError: (error: Error) => void,
+    chatId: string
   ): Promise<void> {
     try {
-      // Hole die letzten 10 Nachrichten aus dem Verlauf
-      const conversationHistory = this.messageHistory.slice(-10).map(msg => ({
+      // Hole die Nachrichtenhistorie für diesen spezifischen Chat
+      const messageHistory = this.messageHistories[chatId] || [];
+      
+      // Filtere die Willkommensnachricht und Systemnachrichten aus der Historie
+      const filteredHistory = messageHistory.filter(msg => 
+        msg.id !== 'welcome' && 
+        msg.sender !== 'system' &&
+        msg.text.trim() !== ''
+      );
+      
+      // Konvertiere die Nachrichtenhistorie in das richtige Format
+      const conversationHistory = filteredHistory.map(msg => ({
         role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
         content: msg.text
       }));
@@ -99,13 +110,15 @@ export class ChatService {
         onError
       );
 
-      // Speichere die Nachricht im Verlauf
-      this.messageHistory.push({
+      // Speichere die Nachricht im Verlauf für diesen spezifischen Chat
+      const newMessage: ChatMessage = {
         id: Date.now().toString(),
         text: message,
         sender: 'user',
         timestamp: new Date().toISOString()
-      });
+      };
+
+      this.messageHistories[chatId] = [...messageHistory, newMessage];
     } catch (error) {
       console.error('Stream error:', error);
       onError(error as Error);
@@ -153,5 +166,15 @@ export class ChatService {
       console.error('Stream error:', error);
       onError(error as Error);
     }
+  }
+
+  // Neue Methode zum Setzen der Nachrichtenhistorie für einen Chat
+  public setMessageHistory(chatId: string, messages: ChatMessage[]): void {
+    this.messageHistories[chatId] = messages;
+  }
+
+  // Neue Methode zum Abrufen der Nachrichtenhistorie für einen Chat
+  public getMessageHistory(chatId: string): ChatMessage[] {
+    return this.messageHistories[chatId] || [];
   }
 }
