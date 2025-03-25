@@ -4,12 +4,13 @@ import { useState, useEffect } from 'react';
 import { usePromptStore } from '@/lib/store/promptStore';
 import { useStageHistoryStore } from '@/lib/store/stageHistoryStore';
 import { TextDraft, ImageDraft } from '@/types/stage';
-import { ClockIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ClockIcon, TrashIcon, ArrowPathIcon, PhotoIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { createPortal } from 'react-dom';
 import { generateImage, availableModels, ImageModel } from '@/lib/services/imageGenerator';
 import { useStageStore } from '@/lib/store/stageStore';
+import StockImagePanel from './StockImagePanel';
 
 export default function StagePanel() {
   // Zugriff auf den persistenten Store
@@ -17,6 +18,7 @@ export default function StagePanel() {
     textDrafts, setTextDrafts, 
     imageDrafts, setImageDrafts, 
     selectedModel, setSelectedModel,
+    activeImageTab, setActiveImageTab,
     updateTextDraft, updateImageDraft
   } = useStageStore();
 
@@ -260,8 +262,12 @@ export default function StagePanel() {
             <div className="flex gap-2">
               <button
                 onClick={() => {
-                  // TODO: Implementiere die Logik zum Neu Laden der Prompts
+                  // Hier würde die Logik zum Neu Laden der Prompts stehen
                   console.log("Prompts neu laden...");
+                  
+                  // In einer realen Implementierung würde hier der Aufruf an einen
+                  // Textgenerierungsservice stehen, ähnlich wie bei den Bildern
+                  alert("Diese Funktion ist noch nicht implementiert. Sie würde Text-Prompts neu generieren.");
                 }}
                 className="px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium z-30"
               >
@@ -339,89 +345,126 @@ export default function StagePanel() {
 
         {/* Image Drafts Section */}
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium text-gray-900">Bildentwürfe</h3>
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="appearance-none bg-white border border-gray-200 text-gray-700 py-2 px-4 pr-8 rounded-full leading-tight focus:outline-none focus:border-gray-400 text-sm"
-                >
-                  {availableModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                  </svg>
-                </div>
-              </div>
-              <button
-                onClick={handleRegenerateImages}
-                className="p-2.5 bg-[#2c2c2c] hover:bg-[#1a1a1a] rounded-full transition-colors border border-[#2c2c2c] mr-3"
-                title="Alle ausgewählten Bilder neu generieren"
-              >
-                <ArrowPathIcon className="h-5 w-5 text-white" />
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-6">
-            {imageDrafts.map((draft) => (
-              <div
-                key={draft.id}
-                className="flex flex-col"
-              >
-                <div
-                  onClick={() => handleImageSelect(draft.id)}
-                  className={`group relative aspect-square rounded-t-2xl overflow-hidden cursor-pointer transition-all duration-200 ${
-                    draft.isSelected
-                      ? 'ring-2 ring-[#2c2c2c] shadow-lg'
-                      : 'hover:ring-2 hover:ring-gray-400 hover:shadow-md'
+              <div className="bg-white border border-gray-200 rounded-full p-1 flex">
+                <button
+                  onClick={() => setActiveImageTab('ai')}
+                  className={`px-4 py-1.5 rounded-full flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                    activeImageTab === 'ai'
+                      ? 'bg-[#2c2c2c] text-white'
+                      : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 >
-                  <img
-                    src={draft.url}
-                    alt={draft.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute top-3 right-3 flex items-center gap-2">
-                    {draft.isSelected && (
-                      <div className="bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-sm font-medium">
-                        Ausgewählt
-                      </div>
-                    )}
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRegenerateImage(draft.id);
-                      }}
-                      className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
-                      title="Bild neu generieren"
-                    >
-                      <ArrowPathIcon className="h-4 w-4 text-gray-600" />
-                    </button>
+                  <SparklesIcon className="h-4 w-4" />
+                  KI-Generierung
+                </button>
+                <button
+                  onClick={() => setActiveImageTab('stock')}
+                  className={`px-4 py-1.5 rounded-full flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                    activeImageTab === 'stock'
+                      ? 'bg-[#2c2c2c] text-white'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <PhotoIcon className="h-4 w-4" />
+                  Stockbilder
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* KI-Generierung Tab */}
+          {activeImageTab === 'ai' && (
+            <>
+              <div className="flex justify-between items-center">
+                <div className="relative">
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="appearance-none bg-white border border-gray-200 text-gray-700 py-2 px-4 pr-8 rounded-full leading-tight focus:outline-none focus:border-gray-400 text-sm"
+                  >
+                    {availableModels.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                    </svg>
                   </div>
                 </div>
-                {draft.prompt && (
-                  <div 
-                    onClick={() => handleOpenPromptModal(draft.id)}
-                    className="p-3 bg-white border border-gray-100 rounded-b-2xl cursor-pointer hover:bg-gray-50"
-                  >
-                    <p className="text-sm text-gray-600 truncate" title={draft.prompt}>
-                      {draft.prompt.length > 60 
-                        ? `${draft.prompt.substring(0, 60)}...` 
-                        : draft.prompt}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">Klicken zum Bearbeiten</p>
-                  </div>
-                )}
+                <button
+                  onClick={handleRegenerateImages}
+                  className="p-2.5 bg-[#2c2c2c] hover:bg-[#1a1a1a] rounded-full transition-colors border border-[#2c2c2c] mr-3"
+                  title="Alle ausgewählten Bilder neu generieren"
+                >
+                  <ArrowPathIcon className="h-5 w-5 text-white" />
+                </button>
               </div>
-            ))}
-          </div>
+              <div className="grid grid-cols-3 gap-6">
+                {imageDrafts.map((draft) => (
+                  <div
+                    key={draft.id}
+                    className="flex flex-col"
+                  >
+                    <div
+                      onClick={() => handleImageSelect(draft.id)}
+                      className={`group relative aspect-square rounded-t-2xl overflow-hidden cursor-pointer transition-all duration-200 ${
+                        draft.isSelected
+                          ? 'ring-2 ring-[#2c2c2c] shadow-lg'
+                          : 'hover:ring-2 hover:ring-gray-400 hover:shadow-md'
+                      }`}
+                    >
+                      <img
+                        src={draft.url}
+                        alt={draft.title}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute top-3 right-3 flex items-center gap-2">
+                        {draft.isSelected && (
+                          <div className="bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-sm font-medium">
+                            Ausgewählt
+                          </div>
+                        )}
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRegenerateImage(draft.id);
+                          }}
+                          className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                          title="Bild neu generieren"
+                        >
+                          <ArrowPathIcon className="h-4 w-4 text-gray-600" />
+                        </button>
+                      </div>
+                    </div>
+                    {draft.prompt && (
+                      <div 
+                        onClick={() => handleOpenPromptModal(draft.id)}
+                        className="p-3 bg-white border border-gray-100 rounded-b-2xl cursor-pointer hover:bg-gray-50"
+                      >
+                        <p className="text-sm text-gray-600 truncate" title={draft.prompt}>
+                          {draft.prompt.length > 60 
+                            ? `${draft.prompt.substring(0, 60)}...` 
+                            : draft.prompt}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">Klicken zum Bearbeiten</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          
+          {/* Stockbilder Tab */}
+          {activeImageTab === 'stock' && (
+            <StockImagePanel />
+          )}
         </div>
       </div>
 

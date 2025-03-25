@@ -1,20 +1,27 @@
 export interface TextDraft {
   id: number;
   content: string;
-  isSelected: boolean;
   title?: string;
-  contentType?: string;
-  tags?: string[];
-  sourceContext?: string;
+  isSelected: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface ImageDraft {
   id: number;
   url: string;
-  isSelected: boolean;
   title: string;
-  contentType?: string;
-  tags?: string[];
-  sourceContext?: string;
   prompt?: string;
+  isSelected: boolean;
+  modelId: string;
+  width: number;
+  height: number;
+  meta?: {
+    provider?: string;
+    author?: string;
+    stockImageId?: string;
+    licenseInfo?: string;
+    tags?: string[];
+    [key: string]: any;
+  };
 } 

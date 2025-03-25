@@ -3,16 +3,17 @@ import { persist } from 'zustand/middleware';
 import { TextDraft, ImageDraft } from '@/types/stage';
 import { availableModels } from '@/lib/services/imageGenerator';
 
-interface StageState {
+export interface StageState {
   textDrafts: TextDraft[];
   imageDrafts: ImageDraft[];
   selectedModel: string;
-  
+  activeImageTab: 'ai' | 'stock';
   setTextDrafts: (drafts: TextDraft[]) => void;
   setImageDrafts: (drafts: ImageDraft[]) => void;
+  setSelectedModel: (modelId: string) => void;
+  setActiveImageTab: (tab: 'ai' | 'stock') => void;
   updateTextDraft: (id: number, updates: Partial<TextDraft>) => void;
   updateImageDraft: (id: number, updates: Partial<ImageDraft>) => void;
-  setSelectedModel: (modelId: string) => void;
 }
 
 // Hilfsfunktion: Stellt sicher, dass das Modell in der verfügbaren Liste ist
@@ -81,35 +82,38 @@ export const useStageStore = create<StageState>()(
         }
       ],
       
-      selectedModel: 'stabilityai/stable-diffusion-xl-base-1.0',
+      selectedModel: availableModels[0].id,
+      activeImageTab: 'ai',
       
       setTextDrafts: (drafts) => set({ textDrafts: drafts }),
-      
       setImageDrafts: (drafts) => set({ imageDrafts: drafts }),
+      setSelectedModel: (modelId) => set({ selectedModel: getValidModel(modelId) }),
+      setActiveImageTab: (tab) => set({ activeImageTab: tab }),
       
       updateTextDraft: (id, updates) => set((state) => ({
-        textDrafts: state.textDrafts.map(draft => 
+        textDrafts: state.textDrafts.map((draft) =>
           draft.id === id ? { ...draft, ...updates } : draft
-        )
+        ),
       })),
       
       updateImageDraft: (id, updates) => set((state) => ({
-        imageDrafts: state.imageDrafts.map(draft => 
+        imageDrafts: state.imageDrafts.map((draft) =>
           draft.id === id ? { ...draft, ...updates } : draft
-        )
+        ),
       })),
-      
-      setSelectedModel: (modelId) => set({ 
-        selectedModel: getValidModel(modelId) 
-      })
     }),
     {
       name: 'stage-storage',
-      partialize: (state) => ({ 
-        textDrafts: state.textDrafts,
-        imageDrafts: state.imageDrafts,
-        selectedModel: getValidModel(state.selectedModel)
-      })
+      // Beim Wiederherstellen aus dem Speicher prüfen, ob das 
+      // gespeicherte Modell noch existiert, sonst das erste verfügbare verwenden
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          const modelExists = availableModels.some(model => model.id === state.selectedModel);
+          if (!modelExists) {
+            state.selectedModel = availableModels[0].id;
+          }
+        }
+      }
     }
   )
 ); 
