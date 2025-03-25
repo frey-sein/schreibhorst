@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/app/components/Header';
 import { useUserStore } from '@/lib/store/userStore';
 
@@ -12,6 +12,7 @@ interface FAQItem {
 }
 
 export default function WissenPage() {
+  const [isMounted, setIsMounted] = useState(false);
   const { getCurrentUser } = useUserStore();
   const currentUser = getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
@@ -27,28 +28,64 @@ export default function WissenPage() {
     answer: '',
     category: ''
   });
+  const [editingFaqId, setEditingFaqId] = useState<number | null>(null);
+  const [editingFaq, setEditingFaq] = useState<Omit<FAQItem, 'id'>>({
+    question: '',
+    answer: '',
+    category: ''
+  });
 
-  // FAQ-Daten in State verwalten
-  const [faqs, setFaqs] = useState<FAQItem[]>([
-    {
-      id: 1,
-      question: "Wie funktioniert der KI-Schreibassistent?",
-      answer: "Der KI-Schreibassistent nutzt fortschrittliche Sprachmodelle, um Ihnen beim Schreiben zu helfen. Sie können mit ihm in natürlicher Sprache kommunizieren und erhalten Vorschläge, Anregungen und Verbesserungen für Ihre Texte.",
-      category: "Grundlagen"
-    },
-    {
-      id: 2,
-      question: "Welche Arten von Texten kann ich erstellen?",
-      answer: "Sie können verschiedene Arten von Texten erstellen, darunter Blogbeiträge, Social Media Posts, Produktbeschreibungen, Geschichten und mehr. Der Assistent passt sich an Ihre spezifischen Bedürfnisse an.",
-      category: "Funktionen"
-    },
-    {
-      id: 3,
-      question: "Wie sicher sind meine Daten?",
-      answer: "Ihre Daten werden mit höchsten Sicherheitsstandards geschützt. Alle Informationen werden verschlüsselt übertragen und sicher gespeichert. Wir geben keine Daten an Dritte weiter.",
-      category: "Datenschutz"
+  // Initialisiere FAQ-Daten mit Beispieldaten oder lade sie aus dem localStorage
+  const [faqs, setFaqs] = useState<FAQItem[]>([]);
+
+  // Lade Daten aus dem localStorage beim ersten Rendern
+  useEffect(() => {
+    setIsMounted(true);
+    
+    try {
+      const savedFaqs = localStorage.getItem('wissensdatenbank_faqs');
+      if (savedFaqs) {
+        setFaqs(JSON.parse(savedFaqs));
+      } else {
+        // Verwende Beispieldaten beim ersten Besuch
+        const initialFaqs: FAQItem[] = [
+          {
+            id: 1,
+            question: "Wie funktioniert der KI-Schreibassistent?",
+            answer: "Der KI-Schreibassistent nutzt fortschrittliche Sprachmodelle, um Ihnen beim Schreiben zu helfen. Sie können mit ihm in natürlicher Sprache kommunizieren und erhalten Vorschläge, Anregungen und Verbesserungen für Ihre Texte.",
+            category: "Grundlagen"
+          },
+          {
+            id: 2,
+            question: "Welche Arten von Texten kann ich erstellen?",
+            answer: "Sie können verschiedene Arten von Texten erstellen, darunter Blogbeiträge, Social Media Posts, Produktbeschreibungen, Geschichten und mehr. Der Assistent passt sich an Ihre spezifischen Bedürfnisse an.",
+            category: "Funktionen"
+          },
+          {
+            id: 3,
+            question: "Wie sicher sind meine Daten?",
+            answer: "Ihre Daten werden mit höchsten Sicherheitsstandards geschützt. Alle Informationen werden verschlüsselt übertragen und sicher gespeichert. Wir geben keine Daten an Dritte weiter.",
+            category: "Datenschutz"
+          }
+        ];
+        setFaqs(initialFaqs);
+        localStorage.setItem('wissensdatenbank_faqs', JSON.stringify(initialFaqs));
+      }
+    } catch (error) {
+      console.error('Fehler beim Laden der Daten aus dem localStorage:', error);
     }
-  ]);
+  }, []);
+
+  // Speichere Daten im localStorage bei jeder Änderung
+  useEffect(() => {
+    if (isMounted && faqs.length > 0) {
+      try {
+        localStorage.setItem('wissensdatenbank_faqs', JSON.stringify(faqs));
+      } catch (error) {
+        console.error('Fehler beim Speichern der Daten im localStorage:', error);
+      }
+    }
+  }, [faqs, isMounted]);
 
   const categories = Array.from(new Set(faqs.map(faq => faq.category)));
 
@@ -68,7 +105,8 @@ export default function WissenPage() {
     if (!newFaq.question || !newFaq.answer || !newFaq.category) return;
     
     const newId = Math.max(...faqs.map(faq => faq.id), 0) + 1;
-    setFaqs([...faqs, { ...newFaq, id: newId }]);
+    const updatedFaqs = [...faqs, { ...newFaq, id: newId }];
+    setFaqs(updatedFaqs);
     setNewFaq({ question: '', answer: '', category: '' });
     setShowAddForm(false);
   };
@@ -79,7 +117,8 @@ export default function WissenPage() {
       return;
     }
 
-    setFaqs(faqs.filter(faq => faq.id !== id));
+    const updatedFaqs = faqs.filter(faq => faq.id !== id);
+    setFaqs(updatedFaqs);
   };
 
   const handleEditCategory = (oldCategory: string) => {
@@ -96,12 +135,13 @@ export default function WissenPage() {
     if (!newCategoryName.trim()) return;
 
     // Aktualisiere die Kategorie in allen FAQs
-    setFaqs(faqs.map(faq => 
+    const updatedFaqs = faqs.map(faq => 
       faq.category === editingCategory 
         ? { ...faq, category: newCategoryName }
         : faq
-    ));
-
+    );
+    
+    setFaqs(updatedFaqs);
     setEditingCategory(null);
     setNewCategoryName('');
   };
@@ -125,13 +165,14 @@ export default function WissenPage() {
     }
 
     const newId = Math.max(...faqs.map(faq => faq.id), 0) + 1;
-    setFaqs([...faqs, {
+    const updatedFaqs = [...faqs, {
       id: newId,
       question: 'Neue Frage',
       answer: 'Neue Antwort',
       category: newCategoryName
-    }]);
-
+    }];
+    
+    setFaqs(updatedFaqs);
     setNewCategoryName('');
     setIsAddingCategory(false);
   };
@@ -141,6 +182,69 @@ export default function WissenPage() {
     setNewCategoryName('');
   };
 
+  const handleEditFaq = (faq: FAQItem) => {
+    if (!isAdmin) {
+      alert('Nur Administratoren können FAQs bearbeiten.');
+      return;
+    }
+    
+    setEditingFaqId(faq.id);
+    setEditingFaq({
+      question: faq.question,
+      answer: faq.answer,
+      category: faq.category
+    });
+  };
+  
+  const handleSaveFaq = () => {
+    if (!editingFaqId || !editingFaq.question || !editingFaq.answer || !editingFaq.category) return;
+    
+    const updatedFaqs = faqs.map(faq => 
+      faq.id === editingFaqId 
+        ? { ...faq, ...editingFaq }
+        : faq
+    );
+    
+    setFaqs(updatedFaqs);
+    setEditingFaqId(null);
+    setEditingFaq({
+      question: '',
+      answer: '',
+      category: ''
+    });
+  };
+  
+  const handleCancelEditFaq = () => {
+    setEditingFaqId(null);
+    setEditingFaq({
+      question: '',
+      answer: '',
+      category: ''
+    });
+  };
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+  
+  // Zeige nur einen Ladeindikator, wenn die Komponente noch nicht gemounted ist
+  if (!isMounted) {
+    return (
+      <>
+        <Header />
+        <div className="min-h-screen bg-[#f4f4f4] pt-24">
+          <main>
+            <div className="max-w-[2000px] mx-auto px-6 py-8">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex justify-center items-center">
+                <p className="text-gray-500">Lade Wissensdatenbank...</p>
+              </div>
+            </div>
+          </main>
+        </div>
+      </>
+    );
+  }
+  
   return (
     <>
       <Header />
@@ -165,7 +269,7 @@ export default function WissenPage() {
 
               {/* Formular zum Hinzufügen einer neuen FAQ */}
               {showAddForm && (
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="mb-6 p-4 bg-gray-100 rounded-lg border border-gray-300">
                   <h2 className="text-lg font-medium text-gray-900 mb-4">Neue FAQ hinzufügen</h2>
                   <div className="space-y-4">
                     <div>
@@ -174,7 +278,7 @@ export default function WissenPage() {
                         type="text"
                         value={newFaq.question}
                         onChange={(e) => setNewFaq({ ...newFaq, question: e.target.value })}
-                        className="input-field"
+                        className="w-full px-4 py-2 border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 focus:border-[#2c2c2c] text-gray-900"
                         placeholder="Geben Sie die Frage ein"
                       />
                     </div>
@@ -183,20 +287,37 @@ export default function WissenPage() {
                       <textarea
                         value={newFaq.answer}
                         onChange={(e) => setNewFaq({ ...newFaq, answer: e.target.value })}
-                        className="input-field"
+                        className="w-full px-4 py-2 border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 focus:border-[#2c2c2c] text-gray-900"
                         rows={3}
                         placeholder="Geben Sie die Antwort ein"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Kategorie</label>
-                      <input
-                        type="text"
-                        value={newFaq.category}
-                        onChange={(e) => setNewFaq({ ...newFaq, category: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
-                        placeholder="Geben Sie die Kategorie ein"
-                      />
+                      <div className="flex gap-2">
+                        <select
+                          value={newFaq.category}
+                          onChange={(e) => setNewFaq({ ...newFaq, category: e.target.value })}
+                          className="flex-1 px-4 py-2 border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 focus:border-[#2c2c2c] text-gray-900"
+                        >
+                          <option value="">Kategorie auswählen</option>
+                          {categories.map(category => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
+                          {!categories.includes(newFaq.category) && newFaq.category && (
+                            <option value={newFaq.category}>{newFaq.category}</option>
+                          )}
+                        </select>
+                        <input
+                          type="text"
+                          value={newFaq.category}
+                          onChange={(e) => setNewFaq({ ...newFaq, category: e.target.value })}
+                          className="flex-1 px-4 py-2 border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 focus:border-[#2c2c2c] text-gray-900"
+                          placeholder="Oder neue Kategorie eingeben"
+                        />
+                      </div>
                     </div>
                     <div className="flex justify-end space-x-2">
                       <button
@@ -237,7 +358,7 @@ export default function WissenPage() {
                 {categories.map((category) => (
                   <div key={category} className="flex items-center gap-2">
                     {editingCategory === category ? (
-                      <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-2 py-1 shadow-sm">
+                      <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-full px-2 py-1 shadow-sm">
                         <input
                           type="text"
                           value={newCategoryName}
@@ -252,7 +373,7 @@ export default function WissenPage() {
                         <div className="flex items-center gap-1">
                           <button
                             onClick={handleSaveCategory}
-                            className="p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-full transition-colors"
+                            className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
                             title="Speichern"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -261,7 +382,7 @@ export default function WissenPage() {
                           </button>
                           <button
                             onClick={handleCancelEdit}
-                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors"
+                            className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
                             title="Abbrechen"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -300,7 +421,7 @@ export default function WissenPage() {
                 
                 {isAdmin && (
                   isAddingCategory ? (
-                    <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-2 py-1 shadow-sm">
+                    <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-full px-2 py-1 shadow-sm">
                       <input
                         type="text"
                         value={newCategoryName}
@@ -316,7 +437,7 @@ export default function WissenPage() {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={handleAddCategory}
-                          className="p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-full transition-colors"
+                          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
                           title="Kategorie hinzufügen"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -325,7 +446,7 @@ export default function WissenPage() {
                         </button>
                         <button
                           onClick={handleCancelAddCategory}
-                          className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors"
+                          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
                           title="Abbrechen"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -350,43 +471,129 @@ export default function WissenPage() {
 
               {/* FAQ Liste */}
               <div className="space-y-4">
-                {filteredFaqs.map((faq) => (
+                {filteredFaqs.map(faq => (
                   <div
                     key={faq.id}
                     className="border border-gray-100 rounded-lg overflow-hidden"
                   >
-                    <div className="flex justify-between items-center">
-                      <button
-                        onClick={() => setExpandedId(expandedId === faq.id ? null : faq.id)}
-                        className="flex-1 px-4 py-3 flex justify-between items-center text-left hover:bg-gray-50 transition-colors"
-                      >
-                        <span className="font-medium text-gray-900">{faq.question}</span>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className={`h-5 w-5 text-gray-500 transform transition-transform ${
-                            expandedId === faq.id ? 'rotate-180' : ''
-                          }`}
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      </button>
-                      {isAdmin && (
-                        <button
-                          onClick={() => handleDeleteFaq(faq.id)}
-                          className="px-4 py-3 text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                    {expandedId === faq.id && (
-                      <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
-                        <p className="text-gray-600">{faq.answer}</p>
+                    {editingFaqId === faq.id ? (
+                      // Bearbeitungsformular
+                      <div className="p-4 bg-gray-100">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">FAQ bearbeiten</h3>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Frage</label>
+                            <input
+                              type="text"
+                              value={editingFaq.question}
+                              onChange={(e) => setEditingFaq({ ...editingFaq, question: e.target.value })}
+                              className="w-full px-4 py-2 border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 focus:border-[#2c2c2c] text-gray-900"
+                              placeholder="Geben Sie die Frage ein"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Antwort</label>
+                            <textarea
+                              value={editingFaq.answer}
+                              onChange={(e) => setEditingFaq({ ...editingFaq, answer: e.target.value })}
+                              className="w-full px-4 py-2 border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 focus:border-[#2c2c2c] text-gray-900"
+                              rows={3}
+                              placeholder="Geben Sie die Antwort ein"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Kategorie</label>
+                            <div className="flex gap-2">
+                              <select
+                                value={editingFaq.category}
+                                onChange={(e) => setEditingFaq({ ...editingFaq, category: e.target.value })}
+                                className="flex-1 px-4 py-2 border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 focus:border-[#2c2c2c] text-gray-900"
+                              >
+                                {categories.map(category => (
+                                  <option key={category} value={category}>
+                                    {category}
+                                  </option>
+                                ))}
+                                {!categories.includes(editingFaq.category) && editingFaq.category && (
+                                  <option value={editingFaq.category}>{editingFaq.category}</option>
+                                )}
+                              </select>
+                              <input
+                                type="text"
+                                value={editingFaq.category}
+                                onChange={(e) => setEditingFaq({ ...editingFaq, category: e.target.value })}
+                                className="flex-1 px-4 py-2 border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 focus:border-[#2c2c2c] text-gray-900"
+                                placeholder="Oder neue Kategorie eingeben"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end space-x-2">
+                            <button
+                              onClick={handleCancelEditFaq}
+                              className="px-4 py-2 text-gray-700 hover:text-gray-900 focus:outline-none"
+                            >
+                              Abbrechen
+                            </button>
+                            <button
+                              onClick={handleSaveFaq}
+                              className="px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20"
+                            >
+                              Speichern
+                            </button>
+                          </div>
+                        </div>
                       </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between items-center">
+                          <button
+                            onClick={() => setExpandedId(expandedId === faq.id ? null : faq.id)}
+                            className="flex-1 px-4 py-3 flex justify-between items-center text-left hover:bg-gray-50 transition-colors"
+                          >
+                            <span className="font-medium text-gray-900">{faq.question}</span>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className={`h-5 w-5 text-gray-500 transform transition-transform ${
+                                expandedId === faq.id ? 'rotate-180' : ''
+                              }`}
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                          {isAdmin && (
+                            <div className="flex">
+                              <button
+                                onClick={() => handleEditFaq(faq)}
+                                className="px-4 py-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                                title="FAQ bearbeiten"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFaq(faq.id)}
+                                className="px-4 py-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                                title="FAQ löschen"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {expandedId === faq.id && (
+                          <div className="px-4 py-3 bg-gray-100 border-t border-gray-300">
+                            <p className="text-gray-800">{faq.answer}</p>
+                            <div className="mt-2 text-sm text-gray-600">
+                              Kategorie: {faq.category}
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 ))}
