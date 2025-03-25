@@ -44,7 +44,8 @@ export default function StagePanel() {
       title: "Mystische Berglandschaft",
       isSelected: false,
       contentType: "Landschaft",
-      tags: ["Berg", "Natur", "Mystisch"]
+      tags: ["Berg", "Natur", "Mystisch"],
+      prompt: "Eine atemberaubende mystische Berglandschaft bei Sonnenuntergang, mit Nebelschwaden zwischen den Bergen, warmes goldenes Licht, fotorealistisch, hohe Auflösung."
     },
     {
       id: 2,
@@ -52,7 +53,8 @@ export default function StagePanel() {
       title: "Neblige Bergspitze",
       isSelected: false,
       contentType: "Landschaft",
-      tags: ["Berg", "Nebel", "Natur"]
+      tags: ["Berg", "Nebel", "Natur"],
+      prompt: "Eine einsame Bergspitze im dichten Nebel, mysteriöse Atmosphäre, dramatisches Licht, hochdetailliert, fotorealistisch."
     },
     {
       id: 3,
@@ -60,11 +62,15 @@ export default function StagePanel() {
       title: "Sonnenaufgang in den Bergen",
       isSelected: false,
       contentType: "Landschaft",
-      tags: ["Berg", "Sonnenaufgang", "Natur"]
+      tags: ["Berg", "Sonnenaufgang", "Natur"],
+      prompt: "Majestätischer Sonnenaufgang über einer Bergkette, dramatische Lichtstrahlen, lebendige Farben, Morgennebel im Tal, fotorealistisch, atmosphärisch."
     }
   ]);
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+  const [currentImageId, setCurrentImageId] = useState<number | null>(null);
+  const [editingPrompt, setEditingPrompt] = useState("");
   const { addSnapshot, getSnapshots, restoreSnapshot, clearSnapshots } = useStageHistoryStore();
 
   // Get prompts from the store
@@ -105,7 +111,8 @@ export default function StagePanel() {
         isSelected: false,
         contentType: prompt.contentType,
         tags: prompt.tags,
-        sourceContext: prompt.sourceContext
+        sourceContext: prompt.sourceContext,
+        prompt: prompt.prompt
       }));
       
       setImageDrafts(prev => [...newImageDrafts, ...prev]);
@@ -139,6 +146,40 @@ export default function StagePanel() {
   const handleSave = () => {
     addSnapshot(textDrafts, imageDrafts);
     setIsHistoryOpen(false); // Schließe das Verlaufsmenü nach dem Speichern
+  };
+
+  const handleOpenPromptModal = (id: number) => {
+    const image = imageDrafts.find(img => img.id === id);
+    if (image) {
+      setCurrentImageId(id);
+      setEditingPrompt(image.prompt || "");
+      setIsPromptModalOpen(true);
+    }
+  };
+
+  const handleClosePromptModal = () => {
+    setIsPromptModalOpen(false);
+    setCurrentImageId(null);
+    setEditingPrompt("");
+  };
+
+  const handleSavePrompt = () => {
+    if (currentImageId) {
+      setImageDrafts(prev => prev.map(draft => 
+        draft.id === currentImageId 
+          ? { ...draft, prompt: editingPrompt } 
+          : draft
+      ));
+    }
+    handleClosePromptModal();
+  };
+
+  const handleRegenerateImage = (id: number) => {
+    const image = imageDrafts.find(img => img.id === id);
+    if (image && image.prompt) {
+      console.log(`Regeneriere Bild mit Prompt: ${image.prompt}`);
+      // Hier würde die API-Anfrage zur Bildgenerierung erfolgen
+    }
   };
 
   const handleRestoreSnapshot = (snapshotId: string) => {
@@ -270,36 +311,52 @@ export default function StagePanel() {
             {imageDrafts.map((draft) => (
               <div
                 key={draft.id}
-                onClick={() => handleImageSelect(draft.id)}
-                className={`group relative aspect-square rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 ${
-                  draft.isSelected
-                    ? 'ring-2 ring-[#2c2c2c] shadow-lg'
-                    : 'hover:ring-2 hover:ring-gray-400 hover:shadow-md'
-                }`}
+                className="flex flex-col"
               >
-                <img
-                  src={draft.url}
-                  alt={draft.title}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-3 right-3 flex items-center gap-2">
-                  {draft.isSelected && (
-                    <div className="bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-sm font-medium">
-                      Ausgewählt
-                    </div>
-                  )}
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // TODO: Implementiere KI-Regenerierung
-                      console.log('Regeneriere Bild...');
-                    }}
-                    className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
-                    title="Bild neu generieren"
-                  >
-                    <ArrowPathIcon className="h-4 w-4 text-gray-600" />
-                  </button>
+                <div
+                  onClick={() => handleImageSelect(draft.id)}
+                  className={`group relative aspect-square rounded-t-2xl overflow-hidden cursor-pointer transition-all duration-200 ${
+                    draft.isSelected
+                      ? 'ring-2 ring-[#2c2c2c] shadow-lg'
+                      : 'hover:ring-2 hover:ring-gray-400 hover:shadow-md'
+                  }`}
+                >
+                  <img
+                    src={draft.url}
+                    alt={draft.title}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-3 right-3 flex items-center gap-2">
+                    {draft.isSelected && (
+                      <div className="bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-sm font-medium">
+                        Ausgewählt
+                      </div>
+                    )}
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRegenerateImage(draft.id);
+                      }}
+                      className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                      title="Bild neu generieren"
+                    >
+                      <ArrowPathIcon className="h-4 w-4 text-gray-600" />
+                    </button>
+                  </div>
                 </div>
+                {draft.prompt && (
+                  <div 
+                    onClick={() => handleOpenPromptModal(draft.id)}
+                    className="p-3 bg-white border border-gray-100 rounded-b-2xl cursor-pointer hover:bg-gray-50"
+                  >
+                    <p className="text-sm text-gray-600 truncate" title={draft.prompt}>
+                      {draft.prompt.length > 60 
+                        ? `${draft.prompt.substring(0, 60)}...` 
+                        : draft.prompt}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Klicken zum Bearbeiten</p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -402,6 +459,78 @@ export default function StagePanel() {
           )}
         </div>
       </div>
+
+      {/* Prompt-Bearbeitungs-Modal */}
+      {isPromptModalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-xl max-w-xl w-full p-6 relative max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Prompt bearbeiten</h3>
+              <button 
+                onClick={handleClosePromptModal}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <label htmlFor="prompt" className="block text-sm font-medium text-gray-700 mb-2">
+                Bildgenerierungsprompt
+              </label>
+              <textarea
+                id="prompt"
+                className="w-full border border-gray-300 rounded-lg p-3 min-h-[150px] text-gray-700 focus:ring-2 focus:ring-[#2c2c2c] focus:border-transparent outline-none resize-none"
+                value={editingPrompt}
+                onChange={(e) => setEditingPrompt(e.target.value)}
+                placeholder="Beschreibe das Bild, das du generieren möchtest..."
+              />
+            </div>
+            
+            {currentImageId && (
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Aktuelles Bild:</h4>
+                <div className="aspect-video rounded-lg overflow-hidden bg-gray-100">
+                  <img 
+                    src={imageDrafts.find(d => d.id === currentImageId)?.url} 
+                    alt="Aktuelles Bild" 
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-3 mt-auto">
+              <button
+                onClick={handleClosePromptModal}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleSavePrompt}
+                className="px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a]"
+              >
+                Speichern & Schließen
+              </button>
+              <button
+                onClick={() => {
+                  handleSavePrompt();
+                  if (currentImageId) {
+                    handleRegenerateImage(currentImageId);
+                  }
+                }}
+                className="px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a]"
+              >
+                Speichern & Neu Generieren
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 } 

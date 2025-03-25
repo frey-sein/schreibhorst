@@ -16,4 +16,5 @@ export interface ImageDraft {
   contentType?: string;
   tags?: string[];
   sourceContext?: string;
+  prompt?: string;
 } 
