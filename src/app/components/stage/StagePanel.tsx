@@ -29,6 +29,18 @@ export default function StagePanel() {
   // Get prompts from the store
   const { textPrompts, imagePrompts } = usePromptStore();
 
+  // Validiere das gespeicherte Modell beim Laden
+  useEffect(() => {
+    // Überprüfen, ob das ausgewählte Modell verfügbar ist
+    const isModelAvailable = availableModels.some(model => model.id === selectedModel);
+    
+    if (!isModelAvailable) {
+      // Wenn nicht, setze auf das Standardmodell
+      console.warn(`Das gespeicherte Modell "${selectedModel}" ist nicht verfügbar. Verwende Standardmodell.`);
+      setSelectedModel(availableModels[0].id);
+    }
+  }, [selectedModel, setSelectedModel]);
+
   // Listen for new prompts from the store
   useEffect(() => {
     if (textPrompts.length > 0) {

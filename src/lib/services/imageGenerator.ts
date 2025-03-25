@@ -27,46 +27,10 @@ export const availableModels: ImageModel[] = [
     description: 'Produktionsversion des FLUX.1 Modells für hochwertige Bildgenerierung'
   },
   {
-    id: 'stabilityai/stable-diffusion-xl-turbo',
-    name: 'SDXL Turbo',
-    provider: 'Together AI',
-    description: 'Schnellere Version von SDXL mit guter Bildqualität'
-  },
-  {
     id: 'runwayml/stable-diffusion-v1-5',
     name: 'Stable Diffusion 1.5',
     provider: 'Together AI',
     description: 'Grundlegendes Modell mit guter Vielseitigkeit'
-  },
-  {
-    id: 'stability-ai/sdxl',
-    name: 'SDXL (Stability AI)',
-    provider: 'Together AI',
-    description: 'Offizielle Version von SDXL von Stability AI'
-  },
-  {
-    id: 'dataolympics/sd3',
-    name: 'Stable Diffusion 3',
-    provider: 'Together AI',
-    description: 'Neueste Version der Stable Diffusion-Familie mit verbesserter Qualität'
-  },
-  {
-    id: 'ByteDance/SDXL-Lightning',
-    name: 'SDXL Lightning',
-    provider: 'Together AI',
-    description: 'Extrem schnelle Bildgenerierung mit guter Qualität'
-  },
-  {
-    id: 'DeepFloyd/IF',
-    name: 'DeepFloyd IF',
-    provider: 'Together AI',
-    description: 'Hochdetailliertes Modell mit starker Texterkennung'
-  },
-  {
-    id: 'francois-rozet/wuerstchen',
-    name: 'Würstchen',
-    provider: 'Together AI',
-    description: 'Effiziente latente Diffusion für detaillierte Bilder'
   }
 ];
 
@@ -89,15 +53,13 @@ export async function generateImage(prompt: string, modelId?: string): Promise<G
     }
 
     // Wenn kein Modell angegeben wurde, verwende das Standardmodell
-    const model = modelId || 'stabilityai/stable-diffusion-xl-base-1.0';
+    let model = modelId || 'stabilityai/stable-diffusion-xl-base-1.0';
 
     // Prüfe, ob das Modell in der Liste verfügbar ist
     const isValidModel = availableModels.some(m => m.id === model);
     if (!isValidModel) {
-      return {
-        success: false,
-        error: `Das ausgewählte Modell "${model}" ist nicht verfügbar.`
-      };
+      console.warn(`Das ausgewählte Modell "${model}" ist nicht in der Liste der verfügbaren Modelle. Verwende Standardmodell.`);
+      model = 'stabilityai/stable-diffusion-xl-base-1.0';
     }
 
     const response = await fetch('https://api.together.xyz/v1/images/generations', {

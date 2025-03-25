@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { TextDraft, ImageDraft } from '@/types/stage';
+import { availableModels } from '@/lib/services/imageGenerator';
 
 interface StageState {
   textDrafts: TextDraft[];
@@ -13,6 +14,12 @@ interface StageState {
   updateImageDraft: (id: number, updates: Partial<ImageDraft>) => void;
   setSelectedModel: (modelId: string) => void;
 }
+
+// Hilfsfunktion: Stellt sicher, dass das Modell in der verfügbaren Liste ist
+const getValidModel = (modelId: string): string => {
+  const isValid = availableModels.some(model => model.id === modelId);
+  return isValid ? modelId : 'stabilityai/stable-diffusion-xl-base-1.0';
+};
 
 export const useStageStore = create<StageState>()(
   persist(
@@ -92,15 +99,17 @@ export const useStageStore = create<StageState>()(
         )
       })),
       
-      setSelectedModel: (modelId) => set({ selectedModel: modelId })
+      setSelectedModel: (modelId) => set({ 
+        selectedModel: getValidModel(modelId) 
+      })
     }),
     {
       name: 'stage-storage',
       partialize: (state) => ({ 
         textDrafts: state.textDrafts,
         imageDrafts: state.imageDrafts,
-        selectedModel: state.selectedModel
-      }),
+        selectedModel: getValidModel(state.selectedModel)
+      })
     }
   )
 ); 
