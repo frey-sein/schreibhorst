@@ -8,65 +8,17 @@ import { ClockIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { createPortal } from 'react-dom';
-import { generateImage } from '@/lib/services/imageGenerator';
+import { generateImage, availableModels, ImageModel } from '@/lib/services/imageGenerator';
+import { useStageStore } from '@/lib/store/stageStore';
 
 export default function StagePanel() {
-  const [textDrafts, setTextDrafts] = useState<TextDraft[]>([
-    {
-      id: 1,
-      content: "In einem fernen Land, wo die Berge den Himmel berührten und die Wälder voller Geheimnisse waren, lebte ein außergewöhnlicher Drache...",
-      isSelected: false,
-      title: "Drachengeschichte",
-      contentType: "Geschichte",
-      tags: ["Drache", "Fantasy", "Abenteuer"]
-    },
-    {
-      id: 2,
-      content: "Der Drache, den alle nur Funkel nannten, war ein besonderes Wesen. Seine Schuppen glitzerten wie Diamanten im Sonnenlicht...",
-      isSelected: false,
-      title: "Funkel der Drache",
-      contentType: "Kurzgeschichte",
-      tags: ["Drache", "Fantasy"]
-    },
-    {
-      id: 3,
-      content: "Tief in den Bergen, versteckt vor neugierigen Blicken, hatte sich ein junger Drache niedergelassen. Anders als seine Artgenossen...",
-      isSelected: false,
-      title: "Der Bergdrache",
-      contentType: "Erzählung",
-      tags: ["Drache", "Berge", "Einsamkeit"]
-    }
-  ]);
-
-  const [imageDrafts, setImageDrafts] = useState<ImageDraft[]>([
-    {
-      id: 1,
-      url: "https://images.unsplash.com/photo-1500964757637-c85e8a162699?w=800&auto=format&fit=crop&q=60",
-      title: "Mystische Berglandschaft",
-      isSelected: false,
-      contentType: "Landschaft",
-      tags: ["Berg", "Natur", "Mystisch"],
-      prompt: "Eine atemberaubende mystische Berglandschaft bei Sonnenuntergang, mit Nebelschwaden zwischen den Bergen, warmes goldenes Licht, fotorealistisch, hohe Auflösung."
-    },
-    {
-      id: 2,
-      url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&auto=format&fit=crop&q=60",
-      title: "Neblige Bergspitze",
-      isSelected: false,
-      contentType: "Landschaft",
-      tags: ["Berg", "Nebel", "Natur"],
-      prompt: "Eine einsame Bergspitze im dichten Nebel, mysteriöse Atmosphäre, dramatisches Licht, hochdetailliert, fotorealistisch."
-    },
-    {
-      id: 3,
-      url: "https://images.unsplash.com/photo-1486870591958-9b9d0d1dda99?w=800&auto=format&fit=crop&q=60",
-      title: "Sonnenaufgang in den Bergen",
-      isSelected: false,
-      contentType: "Landschaft",
-      tags: ["Berg", "Sonnenaufgang", "Natur"],
-      prompt: "Majestätischer Sonnenaufgang über einer Bergkette, dramatische Lichtstrahlen, lebendige Farben, Morgennebel im Tal, fotorealistisch, atmosphärisch."
-    }
-  ]);
+  // Zugriff auf den persistenten Store
+  const { 
+    textDrafts, setTextDrafts, 
+    imageDrafts, setImageDrafts, 
+    selectedModel, setSelectedModel,
+    updateTextDraft, updateImageDraft
+  } = useStageStore();
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
@@ -91,9 +43,9 @@ export default function StagePanel() {
         sourceContext: prompt.sourceContext
       }));
       
-      setTextDrafts(prev => [...newTextDrafts, ...prev]);
+      setTextDrafts([...newTextDrafts, ...textDrafts]);
     }
-  }, [textPrompts]);
+  }, [textPrompts, textDrafts.length, setTextDrafts]);
 
   useEffect(() => {
     if (imagePrompts.length > 0) {
@@ -116,27 +68,33 @@ export default function StagePanel() {
         prompt: prompt.prompt
       }));
       
-      setImageDrafts(prev => [...newImageDrafts, ...prev]);
+      setImageDrafts([...newImageDrafts, ...imageDrafts]);
     }
-  }, [imagePrompts]);
+  }, [imagePrompts, imageDrafts.length, setImageDrafts]);
 
   const handleTextSelect = (id: number) => {
-    setTextDrafts(prev => prev.map(draft => ({
+    setTextDrafts(textDrafts.map(draft => ({
       ...draft,
       isSelected: draft.id === id
     })));
   };
 
   const handleImageSelect = (id: number) => {
-    setImageDrafts(prev => prev.map(draft => ({
+    setImageDrafts(imageDrafts.map(draft => ({
       ...draft,
       isSelected: draft.id === id
     })));
   };
 
   const handleRegenerateTexts = () => {
-    // TODO: Implementiere die Logik zum Neu Generieren der Texte
-    console.log("Texte neu generieren...");
+    // Hier würde die Logik zum Neu Laden der Prompts stehen
+    // Zum Beispiel eine API-Anfrage an einen Text-Generierungs-Service
+    
+    console.log("Prompts neu laden...");
+    
+    // In einer realen Implementierung würde hier der Aufruf an einen
+    // Textgenerierungsservice stehen, ähnlich wie bei den Bildern
+    alert("Diese Funktion ist noch nicht implementiert. Sie würde Text-Prompts neu generieren.");
   };
 
   const handleRegenerateImages = async () => {
@@ -148,23 +106,45 @@ export default function StagePanel() {
       return;
     }
     
+    // Prüfe, ob das ausgewählte Modell in der Liste verfügbar ist
+    const isValidModel = availableModels.some(m => m.id === selectedModel);
+    if (!isValidModel) {
+      const defaultModel = availableModels[0].id;
+      setSelectedModel(defaultModel);
+      alert(`Das ausgewählte Modell ist nicht verfügbar. Es wurde auf ${availableModels[0].name} zurückgesetzt.`);
+    }
+    
     // Setze alle ausgewählten Bilder in den Ladezustand
-    setImageDrafts(prev => prev.map(draft => 
+    setImageDrafts(imageDrafts.map(draft => 
       draft.isSelected && draft.prompt 
         ? { ...draft, url: '/images/loading.svg' } 
         : draft
     ));
     
     // Generiere alle ausgewählten Bilder neu
+    let hasModelError = false;
     for (const image of selectedImages) {
       if (image.prompt) {
-        await handleRegenerateImage(image.id);
+        try {
+          await handleRegenerateImage(image.id);
+        } catch (error) {
+          console.error(`Fehler bei der Regenerierung von Bild ${image.id}:`, error);
+          // Wenn bereits ein Modellfehler aufgetreten ist, zeige keine weiteren Meldungen an
+          if (!hasModelError && (error as Error).message?.includes('nicht verfügbar')) {
+            hasModelError = true;
+          }
+        }
       }
     }
   };
 
   const handleSave = () => {
+    // Speichere den aktuellen Zustand im History-Store
     addSnapshot(textDrafts, imageDrafts);
+    
+    // Der aktuelle Zustand ist bereits im Stage-Store gespeichert
+    // durch die reactive updates in den Funktionen
+    
     setIsHistoryOpen(false); // Schließe das Verlaufsmenü nach dem Speichern
   };
 
@@ -185,11 +165,7 @@ export default function StagePanel() {
 
   const handleSavePrompt = () => {
     if (currentImageId) {
-      setImageDrafts(prev => prev.map(draft => 
-        draft.id === currentImageId 
-          ? { ...draft, prompt: editingPrompt } 
-          : draft
-      ));
+      updateImageDraft(currentImageId, { prompt: editingPrompt });
     }
     handleClosePromptModal();
   };
@@ -198,45 +174,39 @@ export default function StagePanel() {
     const image = imageDrafts.find(img => img.id === id);
     if (image && image.prompt) {
       // Setze das Bild in einen Ladezustand
-      setImageDrafts(prev => prev.map(draft => 
-        draft.id === id 
-          ? { ...draft, url: '/images/loading.svg' } 
-          : draft
-      ));
+      updateImageDraft(id, { url: '/images/loading.svg' });
       
       try {
         // Generiere ein neues Bild mit dem Prompt über die Together API
-        const result = await generateImage(image.prompt);
+        const result = await generateImage(image.prompt, selectedModel);
         
         if (result.success && result.imageUrl) {
           // Aktualisiere das Bild mit der neuen URL
-          setImageDrafts(prev => prev.map(draft => 
-            draft.id === id 
-              ? { ...draft, url: result.imageUrl as string } 
-              : draft
-          ));
+          updateImageDraft(id, { url: result.imageUrl as string });
         } else {
           // Fehlerbehandlung
           console.error('Fehler bei der Bildgenerierung:', result.error);
-          alert(`Fehler bei der Bildgenerierung: ${result.error}`);
+          
+          // Anzeigen einer benutzerfreundlichen Fehlermeldung
+          const errorMessage = result.error || 'Unbekannter Fehler';
+          alert(`Fehler bei der Bildgenerierung: ${errorMessage}`);
           
           // Setze das Bild auf ein Fehlerbild
-          setImageDrafts(prev => prev.map(draft => 
-            draft.id === id 
-              ? { ...draft, url: '/images/error.svg' } 
-              : draft
-          ));
+          updateImageDraft(id, { url: '/images/error.svg' });
+          
+          // Wenn das Modell nicht verfügbar ist, setze auf das Standardmodell zurück
+          if (errorMessage.includes('nicht verfügbar') || errorMessage.includes('Unable to access model')) {
+            const defaultModel = availableModels[0].id;
+            setSelectedModel(defaultModel);
+            alert(`Das ausgewählte Modell ist nicht verfügbar. Es wurde auf ${availableModels[0].name} zurückgesetzt.`);
+          }
         }
       } catch (error) {
         console.error('Fehler bei der Bildgenerierung:', error);
-        alert('Es ist ein unerwarteter Fehler aufgetreten.');
+        alert(`Es ist ein unerwarteter Fehler aufgetreten: ${(error as Error).message || 'Unbekannter Fehler'}`);
         
         // Setze das Bild auf ein Fehlerbild
-        setImageDrafts(prev => prev.map(draft => 
-          draft.id === id 
-            ? { ...draft, url: '/images/error.svg' } 
-            : draft
-        ));
+        updateImageDraft(id, { url: '/images/error.svg' });
       }
     }
   };
@@ -244,6 +214,7 @@ export default function StagePanel() {
   const handleRestoreSnapshot = (snapshotId: string) => {
     const snapshot = restoreSnapshot(snapshotId);
     if (snapshot) {
+      // Aktualisiere beide Stores - History und Stage
       setTextDrafts(snapshot.textDrafts);
       setImageDrafts(snapshot.imageDrafts);
       setIsHistoryOpen(false);
@@ -358,13 +329,33 @@ export default function StagePanel() {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-medium text-gray-900">Bildentwürfe</h3>
-            <button
-              onClick={handleRegenerateImages}
-              className="p-2.5 bg-[#2c2c2c] hover:bg-[#1a1a1a] rounded-full transition-colors border border-[#2c2c2c] mr-3"
-              title="Alle Bilder neu generieren"
-            >
-              <ArrowPathIcon className="h-5 w-5 text-white" />
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="appearance-none bg-white border border-gray-200 text-gray-700 py-2 px-4 pr-8 rounded-full leading-tight focus:outline-none focus:border-gray-400 text-sm"
+                >
+                  {availableModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                  </svg>
+                </div>
+              </div>
+              <button
+                onClick={handleRegenerateImages}
+                className="p-2.5 bg-[#2c2c2c] hover:bg-[#1a1a1a] rounded-full transition-colors border border-[#2c2c2c] mr-3"
+                title="Alle ausgewählten Bilder neu generieren"
+              >
+                <ArrowPathIcon className="h-5 w-5 text-white" />
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-6">
             {imageDrafts.map((draft) => (
@@ -546,6 +537,36 @@ export default function StagePanel() {
                 onChange={(e) => setEditingPrompt(e.target.value)}
                 placeholder="Beschreibe das Bild, das du generieren möchtest..."
               />
+            </div>
+            
+            <div className="mb-4">
+              <label htmlFor="model" className="block text-sm font-medium text-gray-700 mb-2">
+                KI-Modell
+              </label>
+              <div className="relative">
+                <select
+                  id="model"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="appearance-none w-full border border-gray-300 rounded-lg py-2.5 px-4 pr-8 text-gray-700 focus:ring-2 focus:ring-[#2c2c2c] focus:border-transparent outline-none"
+                >
+                  {availableModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name} - {model.provider}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                  </svg>
+                </div>
+              </div>
+              {availableModels.find(m => m.id === selectedModel)?.description && (
+                <p className="mt-1 text-xs text-gray-500">
+                  {availableModels.find(m => m.id === selectedModel)?.description}
+                </p>
+              )}
             </div>
             
             {currentImageId && (

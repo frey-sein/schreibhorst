@@ -1,12 +1,82 @@
 import { v4 as uuidv4 } from 'uuid';
 
+export interface ImageModel {
+  id: string;
+  name: string;
+  provider: string;
+  description?: string;
+}
+
+export const availableModels: ImageModel[] = [
+  {
+    id: 'stabilityai/stable-diffusion-xl-base-1.0',
+    name: 'Stable Diffusion XL',
+    provider: 'Together AI',
+    description: 'Hohe Qualität mit guter Balance aus Geschwindigkeit und Detailgrad'
+  },
+  {
+    id: 'black-forest-labs/FLUX.1-dev',
+    name: 'FLUX.1 (Dev)',
+    provider: 'Together AI / Black Forest Labs',
+    description: 'Fortschrittliches Modell für kreative Bildgenerierung'
+  },
+  {
+    id: 'black-forest-labs/FLUX.1',
+    name: 'FLUX.1',
+    provider: 'Together AI / Black Forest Labs',
+    description: 'Produktionsversion des FLUX.1 Modells für hochwertige Bildgenerierung'
+  },
+  {
+    id: 'stabilityai/stable-diffusion-xl-turbo',
+    name: 'SDXL Turbo',
+    provider: 'Together AI',
+    description: 'Schnellere Version von SDXL mit guter Bildqualität'
+  },
+  {
+    id: 'runwayml/stable-diffusion-v1-5',
+    name: 'Stable Diffusion 1.5',
+    provider: 'Together AI',
+    description: 'Grundlegendes Modell mit guter Vielseitigkeit'
+  },
+  {
+    id: 'stability-ai/sdxl',
+    name: 'SDXL (Stability AI)',
+    provider: 'Together AI',
+    description: 'Offizielle Version von SDXL von Stability AI'
+  },
+  {
+    id: 'dataolympics/sd3',
+    name: 'Stable Diffusion 3',
+    provider: 'Together AI',
+    description: 'Neueste Version der Stable Diffusion-Familie mit verbesserter Qualität'
+  },
+  {
+    id: 'ByteDance/SDXL-Lightning',
+    name: 'SDXL Lightning',
+    provider: 'Together AI',
+    description: 'Extrem schnelle Bildgenerierung mit guter Qualität'
+  },
+  {
+    id: 'DeepFloyd/IF',
+    name: 'DeepFloyd IF',
+    provider: 'Together AI',
+    description: 'Hochdetailliertes Modell mit starker Texterkennung'
+  },
+  {
+    id: 'francois-rozet/wuerstchen',
+    name: 'Würstchen',
+    provider: 'Together AI',
+    description: 'Effiziente latente Diffusion für detaillierte Bilder'
+  }
+];
+
 interface GenerateImageResponse {
   success: boolean;
   imageUrl?: string;
   error?: string;
 }
 
-export async function generateImage(prompt: string): Promise<GenerateImageResponse> {
+export async function generateImage(prompt: string, modelId?: string): Promise<GenerateImageResponse> {
   try {
     const apiKey = process.env.NEXT_PUBLIC_TOGETHER_API_KEY;
     
@@ -18,6 +88,18 @@ export async function generateImage(prompt: string): Promise<GenerateImageRespon
       };
     }
 
+    // Wenn kein Modell angegeben wurde, verwende das Standardmodell
+    const model = modelId || 'stabilityai/stable-diffusion-xl-base-1.0';
+
+    // Prüfe, ob das Modell in der Liste verfügbar ist
+    const isValidModel = availableModels.some(m => m.id === model);
+    if (!isValidModel) {
+      return {
+        success: false,
+        error: `Das ausgewählte Modell "${model}" ist nicht verfügbar.`
+      };
+    }
+
     const response = await fetch('https://api.together.xyz/v1/images/generations', {
       method: 'POST',
       headers: {
@@ -25,7 +107,7 @@ export async function generateImage(prompt: string): Promise<GenerateImageRespon
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'stabilityai/stable-diffusion-xl-base-1.0',
+        model: model,
         prompt: prompt,
         n: 1, // Anzahl der zu generierenden Bilder
         size: '1024x1024', // Bildgröße
