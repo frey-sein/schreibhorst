@@ -141,6 +141,7 @@ export default function ChatPanel() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedSuggestions, setSelectedSuggestions] = useState<AnalysisResult[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get prompt store functions
   const { addPrompt } = usePromptStore();
@@ -377,9 +378,9 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
   };
 
   // Funktion zum Senden der ausgewählten Vorschläge
-  const handleSendSelectedSuggestions = () => {
-    selectedSuggestions.forEach(suggestion => {
-      handleSendToStage(suggestion);
+  const handleSendSelectedSuggestions = async () => {
+    selectedSuggestions.forEach(async (suggestion) => {
+      await handleSendToStage(suggestion);
     });
     
     // Füge eine Bestätigungsnachricht hinzu
@@ -477,23 +478,175 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
     setInput('');
   };
 
+  // Diese Funktion ist für die direkte Textnachrichtenverarbeitung
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || isLoading) return;
+
+    const userMessage: ChatMessage = {
+      id: uuidv4(),
+      text: text,
+      sender: 'user',
+      timestamp: new Date().toISOString()
+    };
+
+    // Die ursprüngliche Benutzernachricht nicht nochmal hinzufügen, da sie bereits durch handleFileUpload hinzugefügt wurde
+    // Wir nehmen direkt den Aufruf der API vor
+
+    setIsLoading(true);
+    try {
+      console.log('Sende Nachricht an API:', text);
+
+      // Verwende die sendMessage-Methode des ChatService
+      const botResponse = await chatService.sendMessage(text, selectedModel);
+
+      const aiMessage: ChatMessage = {
+        id: uuidv4(),
+        text: botResponse.trim(),
+        sender: 'assistant',
+        timestamp: new Date().toISOString()
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+
+      // Speichere den Chat in der Historie
+      const chatMessages: HistoryMessage[] = [
+        ...messages.map(msg => ({
+          id: msg.id,
+          content: msg.text,
+          role: msg.sender,
+          timestamp: msg.timestamp
+        })),
+        {
+          id: userMessage.id,
+          content: userMessage.text,
+          role: userMessage.sender,
+          timestamp: userMessage.timestamp
+        },
+        {
+          id: aiMessage.id,
+          content: aiMessage.text,
+          role: aiMessage.sender,
+          timestamp: aiMessage.timestamp
+        }
+      ];
+      
+      // Aktualisiere den Chat in der Historie
+      if (currentChatId) {
+        updateChat(currentChatId, {
+          messages: chatMessages,
+          lastUpdated: new Date()
+        });
+      }
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setMessages(prev => [...prev, {
+        id: uuidv4(),
+        text: `Fehler bei der Verarbeitung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
+        sender: 'assistant',
+        timestamp: new Date().toISOString()
+      }]);
+    } finally {
+      setIsLoading(false);
+      setInput('');
+    }
+  };
+  
   const handleFileUpload = async (file: File) => {
     if (!file || isUploading) return;
 
     setIsUploading(true);
     try {
-      const content = await processFile(file);
-      const message: ChatMessage = {
+      // Füge die Benutzernachricht mit der Datei hinzu
+      const userMessage: ChatMessage = {
         id: uuidv4(),
-        text: content,
+        text: `Datei-Upload: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`,
         sender: 'user',
         timestamp: new Date().toISOString()
       };
-      setMessages(prev => [...prev, message]);
+      setMessages(prev => [...prev, userMessage]);
+      
+      // Prüfe, ob es sich um ein Bild handelt
+      const isImage = file.type.startsWith('image/');
+      
+      if (isImage) {
+        // Für Bilder verwenden wir den neuen sendFile-Service
+        console.log('Sende Bild an API mit Modell:', selectedModel);
+        const botResponse = await chatService.sendFile(
+          `Bitte analysiere dieses Bild: ${file.name}`, 
+          file, 
+          selectedModel
+        );
+        
+        // Füge die Antwort des Bots hinzu
+        const aiMessage: ChatMessage = {
+          id: uuidv4(),
+          text: botResponse.trim(),
+          sender: 'assistant',
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        
+        // Speichere den Chat in der Historie
+        const chatMessages: HistoryMessage[] = [
+          ...messages.map(msg => ({
+            id: msg.id,
+            content: msg.text,
+            role: msg.sender,
+            timestamp: msg.timestamp
+          })),
+          {
+            id: userMessage.id,
+            content: userMessage.text,
+            role: userMessage.sender,
+            timestamp: userMessage.timestamp
+          },
+          {
+            id: aiMessage.id,
+            content: aiMessage.text,
+            role: aiMessage.sender,
+            timestamp: aiMessage.timestamp
+          }
+        ];
+        
+        // Aktualisiere den Chat in der Historie
+        if (currentChatId) {
+          updateChat(currentChatId, {
+            messages: chatMessages,
+            lastUpdated: new Date()
+          });
+        }
+      } else {
+        // Für Textdateien weiterhin verarbeiten wie bisher
+        const content = await processFile(file);
+        await sendMessage(content);
+      }
     } catch (error) {
       console.error('Error processing file:', error);
+      // Feedback an den Benutzer anzeigen
+      setMessages(prev => [...prev, {
+        id: uuidv4(),
+        text: `Fehler beim Verarbeiten der Datei: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
+        sender: 'assistant',
+        timestamp: new Date().toISOString()
+      }]);
     } finally {
       setIsUploading(false);
+      setSelectedFile(null);
+    }
+  };
+
+  // Funktion zum Öffnen des Datei-Dialogs
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Funktion zum Verarbeiten der ausgewählten Datei
+  const onFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      handleFileUpload(file);
     }
   };
 
@@ -632,11 +785,29 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
                 className="flex-1 px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-sm text-gray-900"
                 disabled={isLoading}
               />
+              {/* Verstecktes File-Input-Element */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={onFileSelected}
+                className="hidden"
+                accept=".txt,.xlsx,.xls,.csv,image/jpeg,image/png,image/gif,image/webp"
+              />
               <button
                 type="button"
+                onClick={triggerFileUpload}
                 className="p-2 text-gray-600 hover:text-gray-800 focus:outline-none"
+                title="Datei hochladen (nur Text, CSV, Excel, Bilder)"
+                disabled={isLoading || isUploading}
               >
-                <PaperClipIcon className="w-5 h-5" />
+                {isUploading ? (
+                  <svg className="animate-spin h-5 w-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <PaperClipIcon className="w-5 h-5" />
+                )}
               </button>
               <button
                 type="submit"

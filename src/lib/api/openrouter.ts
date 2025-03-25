@@ -1,6 +1,15 @@
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  content: string | ChatContent[];
+}
+
+// Neue Schnittstelle für multimodale Inhalte
+interface ChatContent {
+  type: 'text' | 'image_url';
+  text?: string;
+  image_url?: {
+    url: string;
+  };
 }
 
 interface ChatCompletionRequest {
@@ -73,6 +82,64 @@ export class OpenRouterClient {
       return await response.json();
     } catch (error) {
       console.error('OpenRouter API request failed:', error);
+      throw error;
+    }
+  }
+
+  // Neue Methode für das Konvertieren von Dateien in Base64
+  async fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          // Format: data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAA...
+          // Wir brauchen nur den Base64-Teil nach dem Komma
+          const base64 = reader.result.split(',')[1];
+          resolve(base64);
+        } else {
+          reject(new Error('Failed to convert file to base64'));
+        }
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  }
+
+  // Neue Methode für Chat mit Datei
+  async sendFileMessage(text: string, file: File, model: string): Promise<Response> {
+    try {
+      // Konvertiere die Datei in Base64
+      const base64 = await this.fileToBase64(file);
+      
+      // Bestimme den MIME-Typ
+      const mimeType = file.type || 'application/octet-stream';
+      
+      // Erstelle eine multimodale Nachricht
+      const message: ChatMessage = {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: text || `Bitte analysiere diese ${file.name} Datei.`
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:${mimeType};base64,${base64}`
+            }
+          }
+        ]
+      };
+      
+      // Sende die Anfrage
+      return this.streamChatCompletion({
+        messages: [message],
+        model: model,
+        temperature: 0.7,
+        stream: true
+      });
+    } catch (error) {
+      console.error('Error sending file message:', error);
       throw error;
     }
   }
