@@ -78,17 +78,19 @@ export default function Header() {
             <BookOpenIcon className={`h-5 w-5 ${isWissen ? 'text-gray-800' : 'text-gray-600'}`} />
             <span className={`${isWissen ? 'text-gray-800' : 'text-gray-700'}`}>Wissen</span>
           </Link>
-          <Link 
-            href="/agents"
-            className={`flex items-center gap-2 px-3 py-1.5 border rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
-              isAgents 
-                ? 'border-[#2c2c2c] bg-gray-200 font-medium shadow-sm' 
-                : 'bg-white border-gray-100'
-            }`}
-          >
-            <BeakerIcon className={`h-5 w-5 ${isAgents ? 'text-gray-800' : 'text-gray-600'}`} />
-            <span className={`${isAgents ? 'text-gray-800' : 'text-gray-700'}`}>Agenten</span>
-          </Link>
+          {currentUser.role === 'admin' && (
+            <Link 
+              href="/agents"
+              className={`flex items-center gap-2 px-3 py-1.5 border rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
+                isAgents 
+                  ? 'border-[#2c2c2c] bg-gray-200 font-medium shadow-sm' 
+                  : 'bg-white border-gray-100'
+              }`}
+            >
+              <BeakerIcon className={`h-5 w-5 ${isAgents ? 'text-gray-800' : 'text-gray-600'}`} />
+              <span className={`${isAgents ? 'text-gray-800' : 'text-gray-700'}`}>Agenten</span>
+            </Link>
+          )}
           {currentUser.role === 'admin' && (
             <Link 
               href="/benutzer"
