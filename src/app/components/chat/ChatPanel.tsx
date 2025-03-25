@@ -93,6 +93,16 @@ const AVAILABLE_MODELS = [
   { id: 'cohere/command-r-08-2024', name: 'Cohere Command R' }
 ];
 
+// Die unterstützten Vision-Modelle
+const VISION_MODELS = [
+  'openai/gpt-4-vision-preview',
+  'openai/gpt-4o',
+  'anthropic/claude-3-opus',
+  'anthropic/claude-3-sonnet',
+  'anthropic/claude-3-haiku',
+  'anthropic/claude-3.5-sonnet'
+];
+
 const formatTime = (date: Date) => {
   return date.toLocaleTimeString('de-DE', {
     hour: '2-digit',
@@ -142,6 +152,8 @@ export default function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedSuggestions, setSelectedSuggestions] = useState<AnalysisResult[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showModelSelectionDialog, setShowModelSelectionDialog] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   // Get prompt store functions
   const { addPrompt } = usePromptStore();
@@ -552,8 +564,37 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
     }
   };
   
+  // Prüft, ob das aktuelle Modell Vision-Fähigkeiten hat
+  const hasVisionCapabilities = (model: string) => {
+    return VISION_MODELS.includes(model);
+  };
+
+  // Funktion zum Wechseln des Modells und Fortsetzen des Uploads
+  const switchModelAndUpload = (newModel: string) => {
+    setSelectedModel(newModel);
+    if (pendingFile) {
+      // Verzögerung hinzufügen, um sicherzustellen, dass das neue Modell ausgewählt wurde
+      setTimeout(() => {
+        handleFileUpload(pendingFile);
+        setPendingFile(null);
+      }, 100);
+    }
+    setShowModelSelectionDialog(false);
+  };
+
   const handleFileUpload = async (file: File) => {
     if (!file || isUploading) return;
+    
+    // Prüfe, ob es sich um ein Bild handelt
+    const isImage = file.type.startsWith('image/');
+    
+    // Wenn es ein Bild ist und das ausgewählte Modell keine Vision-Fähigkeiten hat,
+    // zeige den Dialog an und speichere die Datei für später
+    if (isImage && !hasVisionCapabilities(selectedModel)) {
+      setPendingFile(file);
+      setShowModelSelectionDialog(true);
+      return;
+    }
 
     setIsUploading(true);
     try {
@@ -565,9 +606,6 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, userMessage]);
-      
-      // Prüfe, ob es sich um ein Bild handelt
-      const isImage = file.type.startsWith('image/');
       
       if (isImage) {
         // Für Bilder verwenden wir den neuen sendFile-Service
@@ -650,6 +688,46 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
     }
   };
 
+  // Dialog-Komponente für die Modellauswahl
+  const ModelSelectionDialog = () => {
+    if (!showModelSelectionDialog) return null;
+    
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-white rounded-lg p-6 max-w-lg w-full shadow-xl">
+          <h3 className="text-lg font-semibold mb-3">Modell unterstützt keine Bilder</h3>
+          <p className="mb-4">
+            Das aktuell ausgewählte Modell <span className="font-semibold">{selectedModel}</span> unterstützt 
+            keine Bildverarbeitung. Bitte wählen Sie eines der folgenden Modelle:
+          </p>
+          <div className="grid gap-2 mb-4">
+            {VISION_MODELS.map(model => (
+              <button
+                key={model}
+                onClick={() => switchModelAndUpload(model)}
+                className="w-full text-left px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <div className="font-medium">{model.split('/')[1]}</div>
+                <div className="text-xs text-gray-500">{model.split('/')[0]}</div>
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => {
+                setPendingFile(null);
+                setShowModelSelectionDialog(false);
+              }}
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0] relative">
       {isHistoryOpen && (
@@ -660,6 +738,10 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
           />
         </div>
       )}
+      
+      {/* Dialog für Modellauswahl anzeigen */}
+      <ModelSelectionDialog />
+      
       {/* Header */}
       <div className="sticky top-[64px] z-40 h-[120px] p-6 border-b border-gray-100 bg-white/80 backdrop-blur-md">
         <div className="flex justify-between items-start gap-4">
@@ -791,13 +873,17 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
                 ref={fileInputRef}
                 onChange={onFileSelected}
                 className="hidden"
-                accept=".txt,.xlsx,.xls,.csv,image/jpeg,image/png,image/gif,image/webp"
+                accept={hasVisionCapabilities(selectedModel) 
+                  ? ".txt,.xlsx,.xls,.csv,image/jpeg,image/png,image/gif,image/webp" 
+                  : ".txt,.xlsx,.xls,.csv"}
               />
               <button
                 type="button"
                 onClick={triggerFileUpload}
                 className="p-2 text-gray-600 hover:text-gray-800 focus:outline-none"
-                title="Datei hochladen (nur Text, CSV, Excel, Bilder)"
+                title={hasVisionCapabilities(selectedModel)
+                  ? "Datei hochladen (Text, CSV, Excel, Bilder)" 
+                  : "Datei hochladen (nur Text, CSV, Excel)"}
                 disabled={isLoading || isUploading}
               >
                 {isUploading ? (
