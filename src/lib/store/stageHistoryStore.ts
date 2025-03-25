@@ -45,7 +45,7 @@ export const useStageHistoryStore = create<StageHistoryStore>()(
           set({ currentSnapshotId: id });
           return {
             ...snapshot,
-            timestamp: new Date(snapshot.timestamp) // Konvertiere das Datum zurück
+            timestamp: snapshot.timestamp instanceof Date ? snapshot.timestamp : new Date(snapshot.timestamp) // Sicherstellen, dass es ein Date-Objekt ist
           };
         }
         return null;
@@ -55,7 +55,7 @@ export const useStageHistoryStore = create<StageHistoryStore>()(
         const { snapshots } = get();
         return snapshots.map(snapshot => ({
           ...snapshot,
-          timestamp: new Date(snapshot.timestamp) // Konvertiere das Datum zurück
+          timestamp: snapshot.timestamp instanceof Date ? snapshot.timestamp : new Date(snapshot.timestamp) // Sicherstellen, dass es ein Date-Objekt ist
         }));
       },
 
@@ -66,7 +66,7 @@ export const useStageHistoryStore = create<StageHistoryStore>()(
       partialize: (state) => ({
         snapshots: state.snapshots.map(snapshot => ({
           ...snapshot,
-          timestamp: snapshot.timestamp.toISOString() // Konvertiere Datum zu String für Storage
+          timestamp: snapshot.timestamp instanceof Date ? snapshot.timestamp.toISOString() : snapshot.timestamp // Prüfe, ob timestamp ein Date ist
         })),
         currentSnapshotId: state.currentSnapshotId
       })

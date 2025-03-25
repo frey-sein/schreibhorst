@@ -8,6 +8,7 @@ import { ClockIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { createPortal } from 'react-dom';
+import { generateImage } from '@/lib/services/imageGenerator';
 
 export default function StagePanel() {
   const [textDrafts, setTextDrafts] = useState<TextDraft[]>([
@@ -138,9 +139,28 @@ export default function StagePanel() {
     console.log("Texte neu generieren...");
   };
 
-  const handleRegenerateImages = () => {
-    // TODO: Implementiere die Logik zum Neu Generieren der Bilder
-    console.log("Bilder neu generieren...");
+  const handleRegenerateImages = async () => {
+    const selectedImages = imageDrafts.filter(img => img.isSelected && img.prompt);
+    
+    if (selectedImages.length === 0) {
+      // Wenn keine Bilder ausgewählt sind, informiere den Benutzer
+      alert('Bitte wähle mindestens ein Bild aus, oder klicke auf die Regenerieren-Schaltfläche eines einzelnen Bildes.');
+      return;
+    }
+    
+    // Setze alle ausgewählten Bilder in den Ladezustand
+    setImageDrafts(prev => prev.map(draft => 
+      draft.isSelected && draft.prompt 
+        ? { ...draft, url: '/images/loading.svg' } 
+        : draft
+    ));
+    
+    // Generiere alle ausgewählten Bilder neu
+    for (const image of selectedImages) {
+      if (image.prompt) {
+        await handleRegenerateImage(image.id);
+      }
+    }
   };
 
   const handleSave = () => {
@@ -174,11 +194,50 @@ export default function StagePanel() {
     handleClosePromptModal();
   };
 
-  const handleRegenerateImage = (id: number) => {
+  const handleRegenerateImage = async (id: number) => {
     const image = imageDrafts.find(img => img.id === id);
     if (image && image.prompt) {
-      console.log(`Regeneriere Bild mit Prompt: ${image.prompt}`);
-      // Hier würde die API-Anfrage zur Bildgenerierung erfolgen
+      // Setze das Bild in einen Ladezustand
+      setImageDrafts(prev => prev.map(draft => 
+        draft.id === id 
+          ? { ...draft, url: '/images/loading.svg' } 
+          : draft
+      ));
+      
+      try {
+        // Generiere ein neues Bild mit dem Prompt über die Together API
+        const result = await generateImage(image.prompt);
+        
+        if (result.success && result.imageUrl) {
+          // Aktualisiere das Bild mit der neuen URL
+          setImageDrafts(prev => prev.map(draft => 
+            draft.id === id 
+              ? { ...draft, url: result.imageUrl as string } 
+              : draft
+          ));
+        } else {
+          // Fehlerbehandlung
+          console.error('Fehler bei der Bildgenerierung:', result.error);
+          alert(`Fehler bei der Bildgenerierung: ${result.error}`);
+          
+          // Setze das Bild auf ein Fehlerbild
+          setImageDrafts(prev => prev.map(draft => 
+            draft.id === id 
+              ? { ...draft, url: '/images/error.svg' } 
+              : draft
+          ));
+        }
+      } catch (error) {
+        console.error('Fehler bei der Bildgenerierung:', error);
+        alert('Es ist ein unerwarteter Fehler aufgetreten.');
+        
+        // Setze das Bild auf ein Fehlerbild
+        setImageDrafts(prev => prev.map(draft => 
+          draft.id === id 
+            ? { ...draft, url: '/images/error.svg' } 
+            : draft
+        ));
+      }
     }
   };
 
