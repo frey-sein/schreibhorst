@@ -74,48 +74,23 @@ export default function StockImagePanel() {
     setSearchQuery(prompt);
   };
   
-  const handleSearch = async (page: number = 1, overrideQuery?: string) => {
-    const queryToUse = overrideQuery || searchQuery;
-    
-    if (!queryToUse.trim()) {
-      setErrorMessage('Bitte gib einen Suchbegriff ein');
-      return;
-    }
-    
-    if (!selectedProvider) {
-      setErrorMessage('Kein aktiver Anbieter verfügbar');
-      return;
-    }
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) return;
     
     setIsLoading(true);
     setErrorMessage('');
     
     try {
-      const response = await searchStockImages(queryToUse, selectedProvider.id, page, resultsPerPage);
+      const response = await searchStockImages(query, selectedProvider.id);
       
       if (response.success) {
         setSearchResults(response.results);
-        setCurrentPage(page);
-        
-        // Setze Metainformationen zur Paginierung, falls vorhanden
-        if (response.totalResults) {
-          setTotalResults(response.totalResults);
-          setTotalPages(Math.ceil(response.totalResults / resultsPerPage));
-        } else {
-          setTotalResults(response.results.length);
-          setTotalPages(1);
-        }
-        
-        if (response.results.length === 0) {
-          setErrorMessage('Keine Bilder gefunden. Versuche es mit einem anderen Suchbegriff.');
-        }
       } else {
         setErrorMessage(response.error || 'Bei der Suche ist ein Fehler aufgetreten');
         setSearchResults([]);
       }
     } catch (error) {
-      console.error('Fehler bei der Bildsuche:', error);
-      setErrorMessage('Bei der Suche ist ein unerwarteter Fehler aufgetreten');
+      setErrorMessage('Bei der Suche ist ein Fehler aufgetreten');
       setSearchResults([]);
     } finally {
       setIsLoading(false);
@@ -124,7 +99,7 @@ export default function StockImagePanel() {
   
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleSearch(1); // Bei neuer Suche immer auf Seite 1 starten
+      handleSearch(searchQuery);
     }
   };
   
@@ -192,7 +167,7 @@ export default function StockImagePanel() {
   
   const handlePageChange = (newPage: number) => {
     if (newPage < 1 || newPage > totalPages) return;
-    handleSearch(newPage);
+    handleSearch(searchQuery);
   };
   
   return (
@@ -233,7 +208,7 @@ export default function StockImagePanel() {
           )}
           
           <button
-            onClick={() => handleSearch(1)}
+            onClick={() => handleSearch(searchQuery)}
             disabled={isLoading || isSimplifying || !selectedProvider}
             className="px-6 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
@@ -241,44 +216,46 @@ export default function StockImagePanel() {
           </button>
         </div>
         
-        {/* KI-Prompt Vorschläge */}
-        {aiPrompts.length > 0 && (
-          <div className="mt-2 p-3 bg-gray-50 border border-gray-100 rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <SparklesIcon className="h-4 w-4 text-gray-500" />
-              <p className="text-sm text-gray-700 font-medium">Prompts von KI-Bildern</p>
+        {/* Prompt-Vorschläge Sektion */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <div className="flex items-center gap-2 mb-4">
+            <SparklesIcon className="h-5 w-5 text-gray-600" />
+            <h3 className="text-gray-800 font-medium">Prompts von KI-Bildern</h3>
+          </div>
+          
+          <div className="flex flex-wrap gap-2">
+            {aiPrompts.map((prompt, index) => (
+              <div key={index} className="flex items-center gap-1">
+                <button
+                  onClick={() => setSearchQuery(prompt)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-l-full text-sm text-gray-700 hover:bg-gray-50 transition-colors truncate max-w-[200px]"
+                  title={prompt}
+                >
+                  <ArrowPathIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  {prompt.length > 25 ? `${prompt.substring(0, 25)}...` : prompt}
+                </button>
+                <button
+                  onClick={() => handleSimplifyPrompt(prompt)}
+                  className="flex items-center px-2 py-1.5 bg-white border-y border-r border-gray-200 rounded-r-full text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  title="Prompt vereinfachen und suchen"
+                  disabled={isSimplifying}
+                >
+                  <StarIcon className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* Anzeige während der Prompt-Vereinfachung */}
+        {isSimplifying && (
+          <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin">
+                <StarIcon className="h-4 w-4 text-gray-600" />
+              </div>
+              <p className="text-sm text-gray-700">Vereinfache den Prompt für die Stockbildsuche...</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {aiPrompts.map((prompt, index) => (
-                <div key={index} className="flex items-center gap-1">
-                  <button
-                    onClick={() => applyPromptSuggestion(prompt)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-l-full text-xs text-gray-700 hover:bg-gray-50 transition-colors truncate max-w-[200px]"
-                    title={prompt}
-                  >
-                    <ArrowPathIcon className="h-3 w-3 text-gray-500 flex-shrink-0" />
-                    {prompt.length > 25 ? `${prompt.substring(0, 25)}...` : prompt}
-                  </button>
-                  <button
-                    onClick={() => handleSimplifyPrompt(prompt)}
-                    className="flex items-center px-2 py-1.5 bg-white border-y border-r border-gray-200 rounded-r-full text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                    title="Prompt vereinfachen und suchen"
-                    disabled={isSimplifying}
-                  >
-                    <StarIcon className="h-3.5 w-3.5 text-purple-500" />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-gray-500">
-              <span className="inline-flex items-center">
-                <ArrowPathIcon className="h-3 w-3 mr-1" /> Direkt mit Prompt suchen
-              </span>
-              <span className="mx-2">•</span>
-              <span className="inline-flex items-center">
-                <StarIcon className="h-3 w-3 mr-1 text-purple-500" /> Prompt vereinfachen und suchen
-              </span>
-            </p>
           </div>
         )}
         
@@ -292,18 +269,6 @@ export default function StockImagePanel() {
         {errorMessage && (
           <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
             {errorMessage}
-          </div>
-        )}
-        
-        {/* Anzeige während der Prompt-Vereinfachung */}
-        {isSimplifying && (
-          <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl">
-            <div className="flex items-center gap-2">
-              <div className="animate-spin">
-                <StarIcon className="h-4 w-4 text-purple-600" />
-              </div>
-              <p className="text-sm text-purple-700">Vereinfache den Prompt für die Stockbildsuche...</p>
-            </div>
           </div>
         )}
         
