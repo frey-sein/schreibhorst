@@ -28,34 +28,69 @@ interface AnalyzerMessage {
 // Verfügbare OpenRouter Modelle
 const AVAILABLE_MODELS = [
   // OpenAI Modelle
+  { id: 'openai/gpt-4o', name: 'GPT-4o' },
+  { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
   { id: 'openai/gpt-4-turbo-preview', name: 'GPT-4 Turbo' },
   { id: 'openai/gpt-4', name: 'GPT-4' },
   { id: 'openai/gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
   
   // Anthropic Modelle
-  { id: 'anthropic/claude-3-opus-20240229', name: 'Claude 3 Opus' },
-  { id: 'anthropic/claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
+  { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
+  { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus' },
+  { id: 'anthropic/claude-3-sonnet', name: 'Claude 3 Sonnet' },
+  { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku' },
   { id: 'anthropic/claude-2.1', name: 'Claude 2.1' },
   { id: 'anthropic/claude-2', name: 'Claude 2' },
   
   // Google Modelle
+  { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5' },
+  { id: 'google/gemini-flash-1.5', name: 'Gemini Flash 1.5' },
   { id: 'google/gemini-pro', name: 'Gemini Pro' },
   { id: 'google/gemini-ultra', name: 'Gemini Ultra' },
   
   // Meta Modelle
+  { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B' },
+  { id: 'meta-llama/llama-3.1-8b-instruct', name: 'Llama 3.1 8B' },
+  { id: 'meta-llama/llama-3-70b-instruct', name: 'Llama 3 70B' },
+  { id: 'meta-llama/llama-3-8b-instruct', name: 'Llama 3 8B' },
   { id: 'meta-llama/llama-2-70b-chat', name: 'Llama 2 70B' },
   { id: 'meta-llama/llama-2-13b-chat', name: 'Llama 2 13B' },
   { id: 'meta-llama/codellama-70b-instruct', name: 'CodeLlama 70B' },
   
   // Mistral Modelle
+  { id: 'mistralai/mistral-nemo', name: 'Mistral Nemo' },
+  { id: 'mistralai/codestral-2501', name: 'Codestral 2501' },
+  { id: 'mistralai/mistral-8b', name: 'Mistral 8B' },
   { id: 'mistralai/mistral-7b-instruct', name: 'Mistral 7B' },
   { id: 'mistralai/mixtral-8x7b-instruct', name: 'Mixtral 8x7B' },
   
   // Perplexity Modelle
-  { id: 'perplexity/pplx-7b-online', name: 'Perplexity 7B Online' },
-  { id: 'perplexity/pplx-70b-online', name: 'Perplexity 70B Online' },
-  { id: 'perplexity/pplx-7b-chat', name: 'Perplexity 7B Chat' },
-  { id: 'perplexity/pplx-70b-chat', name: 'Perplexity 70B Chat' }
+  { id: 'perplexity/sonar', name: 'Perplexity Sonar' },
+  { id: 'perplexity/llama-3.1-sonar-8b', name: 'Perplexity Llama 3.1 Sonar 8B' },
+  { id: 'perplexity/llama-3.1-sonar-70b', name: 'Perplexity Llama 3.1 Sonar 70B' },
+  { id: 'perplexity/llama-3.1-sonar-8b-online', name: 'Perplexity Llama 3.1 Sonar 8B Online' },
+  { id: 'perplexity/llama-3.1-sonar-70b-online', name: 'Perplexity Llama 3.1 Sonar 70B Online' },
+  { id: 'perplexity/llama-3.1-sonar-405b-online', name: 'Perplexity Llama 3.1 Sonar 405B Online' },
+  { id: 'perplexity/sonar-reasoning', name: 'Perplexity Sonar Reasoning' },
+  { id: 'perplexity/r1-1776', name: 'Perplexity R1 1776' },
+  
+  // Microsoft Modelle
+  { id: 'microsoft/phi-4', name: 'Microsoft Phi-4' },
+  
+  // Qwen Modelle
+  { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B' },
+  { id: 'qwen/qwen-2.5-7b-instruct', name: 'Qwen 2.5 7B' },
+  { id: 'qwen/qwen-2.5-coder-32b-instruct', name: 'Qwen 2.5 Coder 32B' },
+  
+  // Amazon Modelle
+  { id: 'amazon/nova-lite-v1', name: 'Amazon Nova Lite' },
+  { id: 'amazon/nova-micro-v1', name: 'Amazon Nova Micro' },
+  
+  // Deepseek Modelle
+  { id: 'deepseek/deepseek-r1', name: 'Deepseek R1' },
+  
+  // Cohere Modelle
+  { id: 'cohere/command-r-08-2024', name: 'Cohere Command R' }
 ];
 
 const formatTime = (date: Date) => {
@@ -102,14 +137,14 @@ export default function ChatPanel() {
   const [selectedModel, setSelectedModel] = useState<string>(process.env.NEXT_PUBLIC_DEFAULT_MODEL || 'openai/gpt-4-turbo-preview');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [currentChatId, setCurrentChatId] = useState<string>(uuidv4());
+  const [currentChatId, setCurrentChatId] = useState<string>('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedSuggestions, setSelectedSuggestions] = useState<AnalysisResult[]>([]);
 
   // Get prompt store functions
   const { addPrompt } = usePromptStore();
-  const { addChat, updateChat, getChat } = useChatHistoryStore();
+  const { addChat, updateChat, getChat, getAllChats } = useChatHistoryStore();
 
   const chatService = ChatService.getInstance();
   const analyzerService = new ChatAnalyzer();
@@ -123,17 +158,75 @@ export default function ChatPanel() {
     scrollToBottom();
   }, [messages]);
 
+  // Laden des letzten aktiven Chats oder Erstellen eines neuen Chats
   useEffect(() => {
-    // Setze die Willkommensnachricht nach dem Mounten
-    setMessages([
-      {
-        id: 'welcome',
-        text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
-        sender: 'assistant',
-        timestamp: new Date().toISOString()
+    const loadChat = () => {
+      // Versuche aus dem localStorage den letzten aktiven Chat zu laden
+      const lastActiveChatId = localStorage.getItem('lastActiveChatId');
+      
+      if (lastActiveChatId) {
+        const chat = getChat(lastActiveChatId);
+        if (chat) {
+          // Wenn der Chat existiert, stelle ihn wieder her
+          setCurrentChatId(lastActiveChatId);
+          const convertedMessages: ChatMessage[] = chat.messages.map(msg => ({
+            id: msg.id,
+            text: msg.content,
+            sender: msg.role,
+            timestamp: msg.timestamp
+          }));
+          setMessages(convertedMessages);
+          return true;
+        }
       }
-    ]);
-  }, []);
+      
+      // Wenn kein Chat geladen wurde, prüfe ob es bereits Chats gibt
+      const allChats = getAllChats();
+      if (allChats.length > 0) {
+        // Wenn es Chats gibt, lade den neuesten
+        const newestChat = allChats.sort((a: ChatHistory, b: ChatHistory) => 
+          new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
+        )[0];
+        
+        setCurrentChatId(newestChat.id);
+        const convertedMessages: ChatMessage[] = newestChat.messages.map((msg: HistoryMessage) => ({
+          id: msg.id,
+          text: msg.content,
+          sender: msg.role,
+          timestamp: msg.timestamp
+        }));
+        setMessages(convertedMessages);
+        // Speicher die Chat-ID im localStorage
+        localStorage.setItem('lastActiveChatId', newestChat.id);
+        return true;
+      }
+      
+      return false;
+    };
+    
+    // Wenn kein bestehender Chat geladen werden konnte, erstelle einen neuen
+    if (!loadChat()) {
+      const newChatId = uuidv4();
+      setCurrentChatId(newChatId);
+      setMessages([
+        {
+          id: 'welcome',
+          text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
+          sender: 'assistant',
+          timestamp: new Date().toISOString()
+        }
+      ]);
+      // Speicher die neue Chat-ID im localStorage
+      localStorage.setItem('lastActiveChatId', newChatId);
+    }
+  }, [getChat, getAllChats]);
+
+  // Speichere die aktuelle Chat-ID im localStorage, wenn sie sich ändert
+  useEffect(() => {
+    if (currentChatId) {
+      localStorage.setItem('lastActiveChatId', currentChatId);
+    }
+  }, [currentChatId]);
 
   // Lade Chat aus der Historie
   const handleSelectChat = (chatId: string) => {
@@ -149,6 +242,8 @@ export default function ChatPanel() {
       }));
       setMessages(convertedMessages);
       setIsHistoryOpen(false);
+      // Speicher die Chat-ID im localStorage
+      localStorage.setItem('lastActiveChatId', chatId);
     }
   };
 
@@ -452,9 +547,9 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-8 pt-24 space-y-6 pb-36">
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 space-y-4">
-          <div className="space-y-4">
+      <div className="flex-1 overflow-y-auto p-6 pt-20 space-y-3 pb-36">
+        <div className="bg-white rounded-2xl p-4 border border-gray-100 space-y-2">
+          <div className="space-y-2">
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -463,14 +558,14 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
                 }`}
               >
                 <div
-                  className={`max-w-[80%] rounded-2xl p-4 ${
+                  className={`max-w-[80%] rounded-2xl p-3 ${
                     message.sender === 'user'
                       ? 'bg-[#2c2c2c] text-white'
                       : 'bg-gray-100 text-gray-800'
                   }`}
                 >
                   <div 
-                    className="whitespace-pre-wrap text-sm prose prose-sm max-w-none"
+                    className="whitespace-pre-wrap text-sm prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2"
                     onClick={(e) => {
                       const target = e.target as HTMLElement;
                       if (target.tagName === 'A') {
@@ -482,10 +577,10 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
                     <ReactMarkdown
                       components={{
                         h3: ({ children }: { children: ReactNode }) => (
-                          <h3 className="text-xl font-semibold mb-4 bg-gray-50 p-4 rounded-lg">{children}</h3>
+                          <h3 className="text-lg font-semibold mb-2 bg-gray-50 p-2 rounded-lg">{children}</h3>
                         ),
                         p: ({ children }: { children: ReactNode }) => (
-                          <p className="mb-3 leading-relaxed">{children}</p>
+                          <p className="mb-1 leading-snug">{children}</p>
                         ),
                         strong: ({ children }: { children: ReactNode }) => (
                           <strong className="font-semibold text-gray-700">{children}</strong>
@@ -494,7 +589,7 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
                           <a
                             href={href}
                             onClick={onClick}
-                            className={`inline-flex items-center px-5 py-2.5 rounded-full transition-colors text-sm font-medium ${
+                            className={`inline-flex items-center px-3 py-1.5 rounded-full transition-colors text-sm font-medium ${
                               selectedSuggestions.some(s => s.prompt === children?.toString().match(/\((\d+)\)/)?.[1])
                                 ? 'bg-[#2c2c2c] text-white hover:bg-[#1a1a1a]'
                                 : 'bg-[#2c2c2c] text-white hover:bg-[#1a1a1a]'
@@ -506,14 +601,14 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
                           </a>
                         ),
                         hr: () => (
-                          <hr className="my-4 border-gray-200" />
+                          <hr className="my-2 border-gray-200" />
                         )
                       }}
                     >
                       {message.text}
                     </ReactMarkdown>
                   </div>
-                  <span className="text-xs opacity-70 mt-2 block">
+                  <span className="text-xs opacity-70 mt-1 block">
                     {new Date(message.timestamp).toLocaleTimeString()}
                   </span>
                 </div>

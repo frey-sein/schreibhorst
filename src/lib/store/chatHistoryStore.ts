@@ -22,6 +22,7 @@ interface ChatHistoryStore {
   updateChat: (id: string, chat: Partial<ChatHistory>) => void;
   deleteChat: (id: string) => void;
   getChat: (id: string) => ChatHistory | undefined;
+  getAllChats: () => ChatHistory[];
 }
 
 export const useChatHistoryStore = create<ChatHistoryStore>()(
@@ -40,6 +41,7 @@ export const useChatHistoryStore = create<ChatHistoryStore>()(
           chats: state.chats.filter((c) => c.id !== id),
         })),
       getChat: (id) => get().chats.find((c) => c.id === id),
+      getAllChats: () => get().chats,
     }),
     {
       name: 'chat-history-storage',
