@@ -3,6 +3,7 @@ import { FileItem } from '@/types/files';
 import { ChevronLeftIcon, FolderPlusIcon, PencilIcon, TrashIcon, EyeIcon, ArrowDownTrayIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { useState, useEffect, useRef } from 'react';
 import ConfirmDialog from './ConfirmDialog';
+import PDFViewer from './PDFViewer';
 
 export default function FileList() {
   const { 
@@ -139,6 +140,165 @@ export default function FileList() {
     logState();
   }, [currentPath, logState]);
 
+  // Funktion zum Zurücksetzen des Speichers (für Notfälle)
+  const resetStorage = () => {
+    // Alle dateirelevanten Einträge aus dem localStorage löschen
+    if (typeof window !== 'undefined') {
+      console.log('Lösche alle Dateisystem-Daten aus dem localStorage');
+      window.localStorage.removeItem('filemanager_files');
+      window.localStorage.removeItem('filemanager_state');
+      
+      // Weitere verwandte Einträge, die möglicherweise existieren
+      const localStorageKeys = Object.keys(window.localStorage);
+      localStorageKeys.forEach(key => {
+        if (key.includes('file') || key.includes('upload') || key.includes('folder')) {
+          console.log('Lösche zusätzlichen Eintrag:', key);
+          window.localStorage.removeItem(key);
+        }
+      });
+      
+      // Seite neu laden, um den Zustand komplett zurückzusetzen
+      alert('Dateisystem-Daten wurden zurückgesetzt. Die Seite wird neu geladen.');
+      window.location.reload();
+    }
+  };
+
+  // Verbesserte Funktion für den direkten Dateizugriff mit spezieller PDF-Behandlung
+  const getDirectFileUrl = (item: FileItem): string => {
+    if (!item.url) return '';
+    
+    // URL für die API-Route erstellen
+    let apiUrl = '';
+    let queryParams = '';
+    
+    // Prüfen ob es sich um eine PDF handelt (für bessere Anzeige)
+    const isPdf = item.name.toLowerCase().endsWith('.pdf') || 
+                (item.mimeType && item.mimeType.includes('pdf'));
+    
+    // Für PDFs keine Download-Parameter hinzufügen, es sei denn es wird explizit angefordert
+    const needsForceDownload = !isPdf;
+    
+    // Fall 1: URL enthält bereits einen Zeitstempel (format: /uploads/1234567890-filename.ext)
+    const timestampMatch = item.url.match(/\/uploads\/(\d+)-(.+)$/i);
+    if (timestampMatch) {
+      const timestamp = timestampMatch[1];
+      const filename = timestampMatch[2];
+      apiUrl = `/api/files/${timestamp}-${filename}`;
+      console.log(`Timestamp-basierte URL erkannt: ${timestamp}-${filename}`);
+    }
+    // Fall 2: URL enthält eine UUID (format: /uploads/uuid/filename.ext)
+    else if (item.url.includes('/uploads/')) {
+      // Extrahiere den Dateinamen aus dem URL-Pfad
+      const parts = item.url.split('/');
+      const filename = parts[parts.length - 1];
+      
+      // Verwende den Dateinamen als Identifikator
+      apiUrl = `/api/files/${filename}`;
+      console.log(`URL mit Pfad erkannt, extrahiere Dateinamen: ${filename}`);
+    }
+    // Fall 3: Spezielle URLs für DSGVO-Dokumente
+    else if (item.name.toLowerCase().includes('datenschutz') || 
+             item.name.toLowerCase().includes('dsgvo') ||
+             item.name.toLowerCase().includes('promt')) {
+      
+      // Für DSGVO-Dokumente: Verwende exakt den Namen mit der richtigen Groß-/Kleinschreibung
+      // Ersetze "datenschutz" mit "Datenschutz" für den Dokument-Namen
+      let fixedName = item.name;
+      if (item.name.toLowerCase().includes('datenschutz') && !item.name.includes('Datenschutz')) {
+        fixedName = item.name.replace(/datenschutz/i, 'Datenschutz');
+        console.log(`Korrigiere Groß-/Kleinschreibung: "${item.name}" -> "${fixedName}"`);
+      }
+      
+      // Ebenso "anonymisierung" mit "Anonymisierung"
+      if (fixedName.toLowerCase().includes('anonymisierung') && !fixedName.includes('Anonymisierung')) {
+        fixedName = fixedName.replace(/anonymisierung/i, 'Anonymisierung');
+        console.log(`Korrigiere Groß-/Kleinschreibung: "${item.name}" -> "${fixedName}"`);
+      }
+      
+      apiUrl = `/api/files/${fixedName}`;
+      console.log(`DSGVO-Dokument erkannt: ${fixedName}`);
+    }
+    // Fall 4: Fallback für unbekannte Formate
+    else {
+      apiUrl = `/api/files/${item.name}`;
+      console.log(`Unbekanntes URL-Format, verwende Dateiname: ${item.name}`);
+    }
+    
+    // Füge Query-Parameter hinzu, falls benötigt
+    if (needsForceDownload) {
+      queryParams = '?download=1&forceDownload=true';
+    }
+    
+    return apiUrl + queryParams;
+  };
+
+  // Spezielle Funktion für die PDF-Vorschau
+  const getPdfPreviewUrl = (item: FileItem): string => {
+    if (!item.url) return '';
+    
+    // Basisurl ohne Download-Parameter erstellen
+    let baseUrl = '';
+    
+    // Fall 1: URL enthält bereits einen Zeitstempel (format: /uploads/1234567890-filename.ext)
+    const timestampMatch = item.url.match(/\/uploads\/(\d+)-(.+)$/i);
+    if (timestampMatch) {
+      const timestamp = timestampMatch[1];
+      const filename = timestampMatch[2];
+      baseUrl = `/api/files/${timestamp}-${filename}`;
+    }
+    // Fall 2: URL enthält eine UUID oder anderen Pfad
+    else if (item.url.includes('/uploads/')) {
+      // Extrahiere den Dateinamen aus dem URL-Pfad
+      const parts = item.url.split('/');
+      const filename = parts[parts.length - 1];
+      baseUrl = `/api/files/${filename}`;
+    }
+    // Fall 3: Direkter Dateiname
+    else {
+      baseUrl = `/api/files/${item.name}`;
+    }
+    
+    console.log('PDF-Vorschau URL:', baseUrl);
+    return baseUrl;
+  };
+
+  // Modifizierte Funktion zum Herunterladen einer Datei
+  const handleDownload = (item: FileItem) => {
+    if (!item.url) {
+      console.error('Download fehlgeschlagen: Keine URL vorhanden');
+      return;
+    }
+    
+    console.log('Starte Download für:', item.name, 'URL:', item.url);
+    
+    // API-basierte URL generieren für den direkten Dateizugriff
+    const directFileUrl = getDirectFileUrl(item);
+    console.log('Verwende API-basierte URL für direkten Dateizugriff:', directFileUrl);
+    
+    // Bestimme den Dateityp
+    const fileName = item.name.toLowerCase();
+    const isOfficeDoc = fileName.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i) !== null;
+    
+    // Für Office-Dokumente: Zusätzliche Parameter für erzwungenen Download
+    const downloadUrl = directFileUrl;
+    
+    // Download-Link erstellen und klicken
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.setAttribute('download', item.name);
+    link.setAttribute('target', '_blank');
+    link.style.display = 'none';
+    
+    // Zum DOM hinzufügen und klicken
+    document.body.appendChild(link);
+    link.click();
+    
+    // Nach dem Download aufräumen
+    setTimeout(() => {
+      document.body.removeChild(link);
+    }, 100);
+  };
+
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
     
@@ -239,6 +399,9 @@ export default function FileList() {
   const handlePreview = (item: any) => {
     if (!item.url) return;
     console.log('Vorschau URL:', item.url);
+    
+    // Speichere das ausgewählte Item für die Vorschau
+    setSelectedItem(item);
     
     // Frühzeitige Überprüfung des Dateinamens - besonders für die problematische PNG-Datei
     const fileName = item.name.toLowerCase();
@@ -355,98 +518,53 @@ export default function FileList() {
       return url;
     }
 
-    // Für den spezifischen Fehlerfall
-    if (url === '/uploads/d063c17f-49be-4d19-957d-738ed68aba84/unique-akademie-logo-rgb-300dpi.jpg') {
-      console.log('Bekannte problematische URL erkannt, verwende direkte Alternative');
-      return `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`;
+    // Bekannte funktionierende Logo-URL
+    const funktionierendeLogoUrl = `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`;
+    
+    // Für alle problematischen Logo-URLs
+    if (url.includes('unique-akademie-logo-rgb-300dpi')) {
+      console.log('Bekannte problematische Logo-URL erkannt, verwende direkte Alternative');
+      return funktionierendeLogoUrl;
+    }
+    
+    // Prüfe, ob es sich um eine URL mit UUIDs handelt und korrigiere diese
+    const uuidRegex = /\/uploads\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i;
+    const uuidMatch = url.match(uuidRegex);
+    
+    if (uuidMatch) {
+      // Extrahiere den Dateinamen
+      const filename = uuidMatch[2];
+      console.log('URL mit UUID erkannt, verwende vereinfachten Pfad für:', filename);
+      
+      // Erstelle einen vereinfachten Pfad ohne UUID
+      const simplifiedUrl = `/uploads/${filename}`;
+      
+      // Standard-Fall: Füge den Origin hinzu
+      const baseUrl = window.location.origin;
+      return `${baseUrl}${simplifiedUrl}`;
+    }
+    
+    // Überprüfe auf Zeitstempel-Format (für Office-Dokumente)
+    const timestampRegex = /\/uploads\/(\d+)-(.+)$/i;
+    const timestampMatch = url.match(timestampRegex);
+    
+    if (timestampMatch) {
+      // Extrahiere Zeitstempel und Dateinamen
+      const timestamp = timestampMatch[1];
+      const filename = timestampMatch[2];
+      
+      console.log(`Zeitstempel-URL erkannt: ${timestamp}-${filename}`);
+      
+      // Verwende die vollständige URL mit Zeitstempel
+      const fullUrl = `${window.location.origin}/uploads/${timestamp}-${filename}`;
+      console.log('Verwende vollständige URL:', fullUrl);
+      return fullUrl;
     }
 
     // Standard-Fall: Füge einfach den Origin hinzu
     const baseUrl = window.location.origin;
     const path = url.startsWith('/') ? url : `/${url}`;
     return `${baseUrl}${path}`;
-  };
-
-  // Funktion zum Herunterladen einer Datei
-  const handleDownload = (item: FileItem) => {
-    if (!item.url) {
-      console.error('Download fehlgeschlagen: Keine URL vorhanden');
-      setError('Download fehlgeschlagen: Keine URL vorhanden');
-      return;
-    }
-    
-    console.log('Starte Download für:', item.name, 'URL:', item.url);
-    
-    // Prüfen, ob es sich um einen bekannten problematischen Dateinamen handelt
-    const fileName = item.name.toLowerCase();
-    let downloadUrl = item.url;
-    
-    // Bekannte problematische PNG-Datei mit funktionierender JPG ersetzen
-    if (fileName.includes('unique-akademie-logo-rgb-300dpi.png')) {
-      console.log('Bekannte problematische PNG-Datei beim Download erkannt, verwende JPG-Alternative');
-      downloadUrl = '/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg';
-    }
-    
-    // Volle URL erzeugen
-    const fullUrl = getFullUrl(downloadUrl);
-    console.log('Vollständige Download-URL:', fullUrl);
-    
-    try {
-      // Methode 1: Standard-Download über Fetch und Blob
-      fetch(fullUrl)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Netzwerkantwort war nicht ok');
-          }
-          return response.blob();
-        })
-        .then(blob => {
-          // Blob-URL erstellen
-          const blobUrl = window.URL.createObjectURL(blob);
-          
-          // Download-Element erstellen
-          const link = document.createElement('a');
-          link.href = blobUrl;
-          link.setAttribute('download', item.name || 'download');
-          link.setAttribute('target', '_blank');
-          link.style.display = 'none';
-          
-          // Link zum DOM hinzufügen und klicken
-          document.body.appendChild(link);
-          link.click();
-          
-          // Nach dem Download aufräumen
-          setTimeout(() => {
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(blobUrl);
-          }, 1000);
-          
-          console.log('Download erfolgreich gestartet');
-        })
-        .catch(error => {
-          console.error('Download mit Fetch fehlgeschlagen, versuche Fallback-Methode:', error);
-          
-          // Methode 2: Fallback mit direktem Link
-          const link = document.createElement('a');
-          link.href = fullUrl;
-          link.setAttribute('download', item.name || 'download');
-          link.setAttribute('target', '_blank');
-          
-          // Link zum DOM hinzufügen und klicken
-          document.body.appendChild(link);
-          link.click();
-          
-          // Nach dem Download aufräumen
-          setTimeout(() => {
-            document.body.removeChild(link);
-          }, 1000);
-        });
-    } catch (error) {
-      console.error('Download fehlgeschlagen:', error);
-      
-      // Letzter Fallback: Öffne in neuem Tab
-      window.open(fullUrl, '_blank');
-    }
   };
 
   // Funktion zum Ersetzen einer Datei
@@ -509,6 +627,31 @@ export default function FileList() {
       setShowActionDialog(true);
     }
   };
+
+  // Verwende die getDirectFileUrl-Funktion auch für Vorschaubilder
+  useEffect(() => {
+    if (previewUrl && selectedItem) {
+      // Verwende die neue direkte API-Route für Dateizugriffe
+      console.log('Aktualisiere Vorschau-URL mit direktem API-Zugriff');
+      const directUrl = getDirectFileUrl(selectedItem);
+      console.log('Direkte API-URL für Vorschau:', directUrl);
+      
+      // Aktualisiere alle relevanten DOM-Elemente mit der neuen URL
+      const previewImages = document.querySelectorAll('[data-preview-element="true"]');
+      previewImages.forEach(element => {
+        if (element instanceof HTMLImageElement || element instanceof HTMLIFrameElement) {
+          // Keine leeren Strings als src setzen
+          if (directUrl) {
+            element.src = directUrl;
+          } else {
+            element.src = 'about:blank';
+          }
+        } else if (element instanceof HTMLAnchorElement) {
+          element.href = directUrl || '#';
+        }
+      });
+    }
+  }, [previewUrl, selectedItem]);
 
   return (
     <div className="space-y-4">
@@ -644,8 +787,8 @@ export default function FileList() {
 
       {/* Fehleranzeige */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">
-          {error}
+        <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100"
+             dangerouslySetInnerHTML={{ __html: error }}>
         </div>
       )}
 
@@ -657,91 +800,109 @@ export default function FileList() {
               // Bilder (inkl. Bitmap und SVG)
               <>
                 <div className="relative bg-[#f9f9f9] flex items-center justify-center p-4 rounded-t-lg">
-                  <img 
-                    src={getFullUrl(previewUrl)} 
-                    alt="Vorschau" 
-                    className="max-w-full max-h-[70vh] object-contain bg-white" 
-                    onLoad={() => console.log('Bild erfolgreich geladen:', previewUrl)}
-                    onError={(e) => {
-                      // Fallback für fehlgeschlagene Bilder
-                      console.error('Fehler beim Laden des Bildes:', previewUrl);
-                      
-                      // Direkte Alternativ-Zuordnung für problematische Dateien
-                      const knownAlternatives: Record<string, string> = {
-                        '/uploads/d063c17f-49be-4d19-957d-738ed68aba84/unique-akademie-logo-rgb-300dpi.jpg': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
-                        '/uploads/1742850977929-unique-akademie-logo-rgb-300dpi.png': `${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
-                      };
-                      
-                      if (knownAlternatives[previewUrl]) {
-                        console.log('Verwende direkte Alternative für problematisches Bild:', knownAlternatives[previewUrl]);
-                        e.currentTarget.src = knownAlternatives[previewUrl];
-                        return;
-                      }
-                      
-                      // Extrahiere den Dateinamen aus dem Pfad für andere Fälle
-                      const filename = previewUrl.split('/').pop() || '';
-                      const filenameWithoutTimestamp = filename.replace(/^\d+-/, '');
-                      
-                      // Versuche bekannte Dateien mit Zeitstempeln
-                      const knownFiles: Record<string, string[]> = {
-                        'unique-akademie-logo-rgb-300dpi.jpg': [
-                          "1742834060248-unique-akademie-logo-rgb-300dpi.jpg",
-                          "1742834069695-unique-akademie-logo-rgb-300dpi.jpg"
-                        ],
-                        'unique-akademie-logo-rgb-300dpi.png': [
-                          "1742834060248-unique-akademie-logo-rgb-300dpi.jpg" // JPG-Alternative für PNG
-                        ]
-                      };
-                      
-                      // Prüfe alle bekannten Basis-Dateinamen
-                      for (const [baseFilename, alternatives] of Object.entries(knownFiles)) {
-                        if (filename.includes(baseFilename) || filenameWithoutTimestamp.includes(baseFilename)) {
-                          // Probiere alle bekannten Alternativen
-                          for (const alternative of alternatives) {
-                            const alternativePath = `${window.location.origin}/uploads/${alternative}`;
-                            console.log('Versuche Alternative:', alternativePath);
-                            
-                            // Wenn die aktuelle src nicht bereits die Alternative ist, versuche sie
-                            if (e.currentTarget.src !== alternativePath) {
-                              e.currentTarget.src = alternativePath;
-                              return;
-                            }
-                          }
+                  <div className="max-h-[80vh] overflow-auto">
+                    <img 
+                      data-preview-element="true"
+                      src={selectedItem ? getDirectFileUrl(selectedItem) : ''}
+                      alt={selectedItem ? selectedItem.name : 'Vorschau'}
+                      className="w-full h-auto object-contain bg-white"
+                      onError={(e) => {
+                        const target = e.currentTarget as HTMLImageElement;
+                        const parent = target.parentElement;
+                        
+                        // Entferne das Bild und zeige eine Fehlermeldung an
+                        if (parent && selectedItem) {
+                          target.style.display = 'none';
+                          
+                          // Erstelle eine Fehlermeldung mit einem Link zur Datei
+                          const errorDiv = document.createElement('div');
+                          errorDiv.className = 'text-center p-4 bg-red-50 rounded-lg';
+                          const fullUrl = getDirectFileUrl(selectedItem);
+                          errorDiv.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="96" height="96" class="mx-auto mb-4">
+                              <path fill="#F44336" d="M21.8,30.2L24,32.4l2.2-2.2L30.2,34l1.8-1.8l-3.8-3.8l2.2-2.2l-2.2-2.2l-2.2,2.2L22.2,22.4L20.4,24l3.8,3.8 L21.8,30.2z"/>
+                              <path fill="#E0E0E0" d="M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z"/>
+                              <path fill="#FFFFFF" d="M40,13H30V3L40,13z"/>
+                            </svg>
+                            <p class="text-gray-800 text-lg font-medium">Bild konnte nicht geladen werden</p>
+                            <a 
+                              href="${fullUrl}" 
+                              data-preview-element="true"
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              class="mt-4 inline-block px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] transition-colors"
+                            >
+                              Bild öffnen
+                            </a>
+                          `;
+                          parent.appendChild(errorDiv);
                         }
-                      }
-                      
-                      // Wenn keine Alternativen funktionieren, zeige die Fehlermeldung
-                      e.currentTarget.style.display = 'none';
-                      const parent = e.currentTarget.parentElement;
-                      if (parent) {
-                        const errorDiv = document.createElement('div');
-                        errorDiv.className = "p-4 text-center";
-                        const fullUrl = getFullUrl(previewUrl);
-                        errorDiv.innerHTML = `
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="96" height="96" class="mx-auto mb-4">
-                            <path fill="#F44336" d="M21.8,30.2L24,32.4l2.2-2.2L30.2,34l1.8-1.8l-3.8-3.8l2.2-2.2l-2.2-2.2l-2.2,2.2L22.2,22.4L20.4,24l3.8,3.8 L21.8,30.2z"/>
-                            <path fill="#E0E0E0" d="M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z"/>
-                            <path fill="#FFFFFF" d="M40,13H30V3L40,13z"/>
-                          </svg>
-                          <p class="text-gray-800 text-lg font-medium">Bild konnte nicht geladen werden</p>
-                          <a 
-                            href="${fullUrl}" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            class="mt-4 inline-block px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] transition-colors"
-                          >
-                            Bild öffnen
-                          </a>
-                        `;
-                        parent.appendChild(errorDiv);
-                      }
-                    }}
-                  />
+                      }}
+                    />
+                  </div>
                 </div>
               </>
             ) : previewUrl.match(/\.(pdf)$/i) ? (
-              // PDF-Dateien
-              <iframe src={getFullUrl(previewUrl)} className="w-full h-[80vh]" title="PDF Vorschau" />
+              // PDF-Dateien mit unserem eigenen PDF.js-basierten Viewer anzeigen
+              <div className="w-full h-[80vh] relative bg-gray-100 rounded-lg overflow-hidden">
+                {selectedItem ? (
+                  <>
+                    {/* PDF.js-basierter Viewer */}
+                    <PDFViewer 
+                      fileUrl={getPdfPreviewUrl(selectedItem)} 
+                      fileName={selectedItem.name}
+                    />
+                    
+                    {/* Fallback-Links für direkte Ansicht und Download */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gray-800 bg-opacity-75 text-white p-2 text-sm flex justify-center space-x-4">
+                      <a 
+                        href={getPdfPreviewUrl(selectedItem)} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="hover:underline flex items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                          <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                        </svg>
+                        In neuem Tab öffnen
+                      </a>
+                      <a 
+                        href={getDirectFileUrl(selectedItem) + (getDirectFileUrl(selectedItem).includes('?') ? '&' : '?') + 'forceDownload=true'} 
+                        className="hover:underline flex items-center"
+                        download
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        Herunterladen
+                      </a>
+                      <a 
+                        href="/assets/temp-pdf-viewer.html" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="hover:underline flex items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                        </svg>
+                        Alternative Vorschau
+                      </a>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center p-6 bg-red-50 rounded-lg">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="96" height="96" className="mx-auto mb-4">
+                        <path fill="#F44336" d="M21.8,30.2L24,32.4l2.2-2.2L30.2,34l1.8-1.8l-3.8-3.8l2.2-2.2l-2.2-2.2l-2.2,2.2L22.2,22.4L20.4,24l3.8,3.8 L21.8,30.2z"/>
+                        <path fill="#E0E0E0" d="M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z"/>
+                        <path fill="#FFFFFF" d="M40,13H30V3L40,13z"/>
+                      </svg>
+                      <p className="text-gray-800 text-lg font-medium">Keine PDF-Vorschau verfügbar</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : previewUrl.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i) ? (
               // Office-Dokumente
               <div className="p-6 text-center">
@@ -782,7 +943,8 @@ export default function FileList() {
                 
                 <div className="flex justify-center gap-4">
                   <a 
-                    href={getFullUrl(previewUrl)} 
+                    data-preview-element="true"
+                    href={selectedItem ? getDirectFileUrl(selectedItem) : '#'} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="px-5 py-2.5 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] transition-colors font-medium"
@@ -791,7 +953,8 @@ export default function FileList() {
                     Herunterladen
                   </a>
                   <a 
-                    href={getFullUrl(previewUrl)} 
+                    data-preview-element="true"
+                    href={selectedItem ? getDirectFileUrl(selectedItem) : '#'} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
@@ -805,7 +968,8 @@ export default function FileList() {
               <div className="p-4 text-center">
                 <p className="text-gray-800 text-lg font-medium">Keine direkte Vorschau verfügbar</p>
                 <a 
-                  href={getFullUrl(previewUrl)} 
+                  data-preview-element="true"
+                  href={selectedItem ? getDirectFileUrl(selectedItem) : '#'} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="mt-2 inline-block px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a] transition-colors"
@@ -848,6 +1012,21 @@ export default function FileList() {
           </button>
         </div>
       )}
+
+      {/* Kopfzeile mit Reset-Knopf (nur für Notfälle) */}
+      <div className="mb-2 flex justify-end">
+        <button
+          onClick={() => {
+            if (window.confirm('ACHTUNG: Dies wird alle Dateisystem-Daten zurücksetzen. Fortfahren?')) {
+              resetStorage();
+            }
+          }}
+          className="text-xs text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-md"
+          title="Nur im Notfall verwenden - setzt alle Dateisystem-Daten zurück"
+        >
+          Dateisystem zurücksetzen
+        </button>
+      </div>
 
       {/* Datei- und Ordnerliste */}
       <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
@@ -1041,7 +1220,7 @@ export default function FileList() {
                 </div>
               </button>
               
-              {/* Herunterladen */}
+              {/* Herunterladen - für alle Dateitypen gleich behandeln */}
               <button 
                 onClick={() => {
                   handleDownload(selectedItem);

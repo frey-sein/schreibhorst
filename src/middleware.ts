@@ -1,41 +1,40 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { URL } from 'url';
 
 export function middleware(request: NextRequest) {
-  // Hole den User-ID Cookie
-  const userIdCookie = request.cookies.get('user-id');
-  const isLoggedIn = !!userIdCookie;
-
-  // Pfade, die ohne Login zugänglich sind
-  const publicPaths = ['/login', '/logo-nuetzlich.svg'];
-  const isPublicPath = publicPaths.some(path => request.nextUrl.pathname === path);
-
-  // Wenn der Benutzer nicht eingeloggt ist und versucht, eine geschützte Route aufzurufen
-  if (!isLoggedIn && !isPublicPath) {
-    const loginUrl = new URL('/login', request.url);
-    return NextResponse.redirect(loginUrl);
+  const url = request.nextUrl.clone();
+  const { pathname } = url;
+  
+  // Debugging: Logge alle Anfragen an die Middleware
+  console.log('Middleware: Anfrage für Pfad:', pathname);
+  
+  // Behandle spezifische Uploads-Anfragen
+  if (pathname.startsWith('/uploads/')) {
+    console.log('Uploads-Pfad erkannt:', pathname);
+    
+    try {
+      // Erlaube den Zugriff auf das Uploads-Verzeichnis
+      return NextResponse.next({
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET',
+          'X-Content-Type-Options': 'nosniff',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+      });
+    } catch (error) {
+      console.error('Middleware-Fehler bei Uploads-Anfrage:', error);
+    }
   }
-
-  // Wenn der Benutzer eingeloggt ist und versucht, die Login-Seite aufzurufen
-  if (isLoggedIn && request.nextUrl.pathname === '/login') {
-    const homeUrl = new URL('/', request.url);
-    return NextResponse.redirect(homeUrl);
-  }
-
+  
+  // Bei allen anderen Pfaden: normal weiterleiten
   return NextResponse.next();
 }
 
-// Konfiguriere die Middleware für alle Routen außer API und statische Dateien
+// Konfiguriere, für welche Pfade die Middleware ausgeführt werden soll
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files (including images)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/uploads/:path*',
+    '/api/files/:path*',
   ],
 }; 
