@@ -35,6 +35,21 @@ export const apiConfig = {
   // Konfigurationen für weitere APIs können hier hinzugefügt werden
 };
 
+export const stockImageConfig = {
+  pixabay: {
+    apiKey: process.env.PIXABAY_API_KEY || '',
+    isEnabled: Boolean(process.env.PIXABAY_API_KEY),
+    baseUrl: 'https://pixabay.com/api/',
+    searchUrl: 'https://pixabay.com/images/search/'
+  },
+  unsplash: {
+    apiKey: process.env.UNSPLASH_API_KEY || '',
+    isEnabled: true, // Temporär auf true gesetzt
+    baseUrl: 'https://api.unsplash.com/',
+    searchUrl: 'https://unsplash.com/s/'
+  }
+};
+
 /**
  * Hilfsfunktion zur Verwendung auf der Serverseite, um den API-Schlüssel zu bekommen
  */

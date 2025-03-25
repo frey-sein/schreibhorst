@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiConfig, getServerApiKey, isServiceEnabled } from '@/lib/config/apiConfig';
+import { stockImageConfig } from '@/lib/config/apiConfig';
 
 // Umgebungsvariablen Diagnose
 console.log('API-Route geladen:');
@@ -65,6 +66,8 @@ export async function GET(
     // Je nach Provider die entsprechende Suchfunktion aufrufen
     if (provider === 'pixabay') {
       return await searchPixabay(query, page, perPage);
+    } else if (provider === 'istock') {
+      return await searchIstock(query, page, perPage);
     }
     
     // Falls wir hierher kommen, ist etwas schiefgelaufen
@@ -180,5 +183,74 @@ async function searchPixabay(
       { success: false, error: 'Bei der Suche ist ein Fehler aufgetreten' },
       { status: 500 }
     );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { query, provider = 'pixabay', page = 1, perPage = 20 } = await request.json();
+
+    if (!query) {
+      return NextResponse.json({ error: 'Suchbegriff fehlt' }, { status: 400 });
+    }
+
+    let response;
+    
+    switch (provider) {
+      case 'pixabay':
+        const pixabayConfig = stockImageConfig.pixabay;
+        if (!pixabayConfig.isEnabled) {
+          return NextResponse.json({ error: 'Pixabay API ist nicht konfiguriert' }, { status: 500 });
+        }
+        // Pixabay API-Aufruf...
+        break;
+        
+      case 'istock':
+        const istockConfig = stockImageConfig.istock;
+        if (!istockConfig.isEnabled) {
+          return NextResponse.json({ error: 'iStock API ist nicht konfiguriert' }, { status: 500 });
+        }
+
+        // Authentifizierung
+        const authResponse = await fetch('https://api.gettyimages.com/oauth2/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: `grant_type=client_credentials&client_id=${istockConfig.apiKey}&client_secret=${istockConfig.apiSecret}`
+        });
+
+        const authData = await authResponse.json();
+        
+        if (!authResponse.ok) {
+          return NextResponse.json({ error: 'iStock Authentifizierung fehlgeschlagen' }, { status: 500 });
+        }
+
+        // Bildsuche
+        response = await fetch(
+          `${istockConfig.baseUrl}search/images?phrase=${encodeURIComponent(query)}&page=${page}&page_size=${perPage}&fields=id,title,preview,referral_destinations,keywords`, 
+          {
+            headers: {
+              'Api-Key': istockConfig.apiKey,
+              'Authorization': `Bearer ${authData.access_token}`
+            }
+          }
+        );
+        break;
+
+      default:
+        return NextResponse.json({ error: 'Ungültiger Provider' }, { status: 400 });
+    }
+
+    if (!response?.ok) {
+      return NextResponse.json({ error: 'API-Fehler' }, { status: 500 });
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data);
+
+  } catch (error) {
+    console.error('Fehler bei der Bildsuche:', error);
+    return NextResponse.json({ error: 'Serverfehler' }, { status: 500 });
   }
 } 

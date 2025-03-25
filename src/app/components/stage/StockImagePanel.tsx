@@ -9,9 +9,10 @@ import { simplifyPrompt, simplifyPromptLocally } from '@/lib/services/promptSimp
 
 export default function StockImagePanel() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedProvider, setSelectedProvider] = useState(
-    activeStockImageProviders.find(p => p.id === 'pixabay')?.id || activeStockImageProviders[0]?.id || ''
-  );
+  const [selectedProvider, setSelectedProvider] = useState(() => {
+    const pixabayProvider = activeStockImageProviders.find(p => p.id === 'pixabay');
+    return pixabayProvider || activeStockImageProviders[0];
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [isSimplifying, setIsSimplifying] = useState(false);
   const [searchResults, setSearchResults] = useState<StockImageResult[]>([]);
@@ -90,7 +91,7 @@ export default function StockImagePanel() {
     setErrorMessage('');
     
     try {
-      const response = await searchStockImages(queryToUse, selectedProvider, page, resultsPerPage);
+      const response = await searchStockImages(queryToUse, selectedProvider.id, page, resultsPerPage);
       
       if (response.success) {
         setSearchResults(response.results);
@@ -215,8 +216,8 @@ export default function StockImagePanel() {
           
           {activeStockImageProviders.length > 0 ? (
             <select
-              value={selectedProvider}
-              onChange={(e) => setSelectedProvider(e.target.value)}
+              value={selectedProvider.id}
+              onChange={(e) => setSelectedProvider(activeStockImageProviders.find(p => p.id === e.target.value) || activeStockImageProviders[0])}
               className="bg-white border border-gray-200 text-gray-700 py-2 px-4 pr-8 rounded-full appearance-none focus:outline-none focus:border-gray-400"
             >
               {activeStockImageProviders.map((provider) => (
@@ -317,7 +318,7 @@ export default function StockImagePanel() {
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => openProviderSearch(selectedProvider)}
+                onClick={() => openProviderSearch(selectedProvider.id)}
                 className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 Auf Provider-Seite suchen

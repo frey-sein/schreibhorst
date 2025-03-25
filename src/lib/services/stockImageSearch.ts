@@ -3,6 +3,7 @@
  */
 
 import { apiConfig, isServiceEnabled } from '@/lib/config/apiConfig';
+import { stockImageConfig } from '../config/apiConfig';
 
 export interface StockImageProvider {
   id: string;
@@ -44,41 +45,25 @@ const forceEnablePixabay = process.env.NEXT_PUBLIC_ENABLE_PIXABAY === 'true';
 // Verfügbare Bildanbieter
 export const stockImageProviders: StockImageProvider[] = [
   {
-    id: 'unsplash',
-    name: 'Unsplash',
-    logo: 'https://unsplash.com/assets/core/logo-black-df2168ed0c378fa5506b1816e75eb379d06cfcd0af01e07a2eb813ae9b5d7405.svg',
-    baseUrl: 'https://unsplash.com/s/photos/',
-    description: 'Kostenlose hochwertige Bilder',
-    isActive: true
-  },
-  {
     id: 'pixabay',
     name: 'Pixabay',
     logo: 'https://pixabay.com/static/img/logo.svg',
-    baseUrl: 'https://pixabay.com/images/search/',
+    baseUrl: stockImageConfig.pixabay.searchUrl,
     description: 'Kostenlose Bilder und Royalty-free Stock',
-    isActive: forceEnablePixabay || isPixabayEnabled
+    isActive: true
   },
   {
-    id: 'istockphoto',
-    name: 'iStock Photo',
-    logo: 'https://www.istockphoto.com/istockphoto_logo.svg',
-    baseUrl: 'https://www.istockphoto.com/de/search/2/image?phrase=',
-    description: 'Premium Stockfotos von Getty Images',
-    isActive: false
-  },
-  {
-    id: 'adobestock',
-    name: 'Adobe Stock',
-    logo: 'https://www.adobe.com/content/dam/cc/icons/Adobe_Corporate_Horizontal_Red_HEX.svg',
-    baseUrl: 'https://stock.adobe.com/de/search?k=',
-    description: 'Große Auswahl an Stockfotos, Vektoren und Videos',
+    id: 'unsplash',
+    name: 'Unsplash',
+    logo: 'https://unsplash.com/assets/core/logo-black.svg',
+    baseUrl: 'https://unsplash.com/s/',
+    description: 'Hochwertige freie Bilder',
     isActive: false
   }
 ];
 
 // Nur aktive Anbieter anzeigen
-export const activeStockImageProviders = stockImageProviders.filter(provider => provider.isActive);
+export const activeStockImageProviders = stockImageProviders;
 
 // Beispiel-Tags für verschiedene Suchbegriffe
 const tagsByKeyword: Record<string, string[]> = {
@@ -242,6 +227,81 @@ async function searchMockProvider(
   }
 }
 
+// iStock-Suchfunktion
+async function searchIStock(query: string, page: number = 1, perPage: number = 20): Promise<SearchStockImagesResponse> {
+  const config = stockImageConfig.istock;
+  
+  if (!config.isEnabled) {
+    return {
+      success: false,
+      error: 'iStock API ist nicht konfiguriert',
+      results: [],
+      provider: 'istock'
+    };
+  }
+
+  try {
+    // Authentifizierung
+    const authResponse = await fetch('https://api.gettyimages.com/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: `grant_type=client_credentials&client_id=${config.apiKey}&client_secret=${config.apiSecret}`
+    });
+
+    const authData = await authResponse.json();
+    
+    if (!authResponse.ok) {
+      throw new Error('Authentifizierung fehlgeschlagen');
+    }
+
+    // Bildsuche
+    const searchResponse = await fetch(`${config.baseUrl}search/images?phrase=${encodeURIComponent(query)}&page=${page}&page_size=${perPage}&fields=id,title,preview,referral_destinations,keywords`, {
+      headers: {
+        'Api-Key': config.apiKey,
+        'Authorization': `Bearer ${authData.access_token}`
+      }
+    });
+
+    const data = await searchResponse.json();
+
+    if (!searchResponse.ok) {
+      throw new Error(data.error || 'Fehler bei der Suche');
+    }
+
+    // Formatiere die Ergebnisse
+    const results: StockImageResult[] = data.images.map((image: any) => ({
+      id: image.id,
+      title: image.title,
+      thumbnailUrl: image.preview.url,
+      fullSizeUrl: image.referral_destinations[0].uri,
+      downloadUrl: image.referral_destinations[0].uri,
+      provider: stockImageProviders.find(p => p.id === 'istock')!,
+      tags: image.keywords || [],
+      licenseInfo: 'iStock Lizenz erforderlich',
+      author: image.artist || undefined
+    }));
+
+    return {
+      success: true,
+      results,
+      provider: 'istock',
+      totalResults: data.total_count,
+      page
+    };
+
+  } catch (error) {
+    console.error('iStock API Fehler:', error);
+    return {
+      success: false,
+      error: 'Fehler bei der iStock-Suche',
+      results: [],
+      provider: 'istock'
+    };
+  }
+}
+
 /**
  * Sucht nach Stockbildern
  * @param query Suchbegriff
@@ -249,7 +309,7 @@ async function searchMockProvider(
  * @returns Promise mit den Suchergebnissen
  */
 export async function searchStockImages(
-  query: string, 
+  query: string,
   providerId: string = 'pixabay',
   page: number = 1,
   perPage: number = 20
@@ -264,23 +324,27 @@ export async function searchStockImages(
       provider: providerId
     };
   }
-  
-  // Prüfe, ob der Anbieter aktiv ist
-  if (!provider.isActive) {
-    return {
-      success: false,
-      results: [],
-      error: 'Dieser Anbieter ist derzeit nicht aktiviert',
-      provider: providerId
-    };
-  }
-  
-  // Je nach Anbieter die entsprechende Suchfunktion aufrufen
+
   switch (providerId) {
     case 'pixabay':
       return searchPixabay(query, page, perPage);
+    case 'unsplash':
+      // Temporärer Mock für Unsplash
+      return {
+        success: false,
+        results: [],
+        error: 'Unsplash API noch nicht konfiguriert',
+        provider: 'unsplash'
+      };
+    case 'istock':
+      return searchIStock(query, page, perPage);
     default:
-      return searchMockProvider(query, providerId);
+      return {
+        success: false,
+        error: 'Unbekannter Provider',
+        results: [],
+        provider: providerId
+      };
   }
 }
 
