@@ -19,6 +19,7 @@ interface Agent {
   topics: string[];
   avatar?: string;
   status: 'active' | 'inactive';
+  prompt: string;
 }
 
 interface PageProps {
@@ -63,7 +64,8 @@ export default function EditAgentPage({ params }: PageProps) {
             },
             topics: ['AZAV'],
             avatar: '/images/avatars/male-writer.png',
-            status: 'active'
+            status: 'active',
+            prompt: ''
           };
           setAgent(mockAgent);
           setFormData(mockAgent);
@@ -173,7 +175,7 @@ export default function EditAgentPage({ params }: PageProps) {
                     <button
                       type="button"
                       onClick={() => setShowAvatarModal(true)}
-                      className="text-sm text-blue-600 hover:text-blue-700"
+                      className="text-sm text-[#2c2c2c] hover:text-[#1a1a1a]"
                     >
                       Avatar ändern
                     </button>
@@ -307,6 +309,25 @@ export default function EditAgentPage({ params }: PageProps) {
                       <option value="inactive">Inaktiv</option>
                     </select>
                   </div>
+
+                  {/* Prompt */}
+                  <div>
+                    <label htmlFor="prompt" className="block text-sm font-medium text-gray-700">
+                      Aufgabenbeschreibung
+                    </label>
+                    <textarea
+                      id="prompt"
+                      value={formData.prompt || ''}
+                      onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
+                      rows={4}
+                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="Beschreiben Sie hier die Aufgaben und das Verhalten des Agenten..."
+                      required
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Definieren Sie hier, wie der Agent sich verhalten und welche Aufgaben er übernehmen soll.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Aktionen */}
@@ -314,13 +335,13 @@ export default function EditAgentPage({ params }: PageProps) {
                   <button
                     type="button"
                     onClick={() => router.push('/agents')}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                    className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-full hover:bg-gray-50"
                   >
                     Abbrechen
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
+                    className="px-4 py-2.5 text-sm font-medium text-white bg-[#2c2c2c] border border-transparent rounded-full hover:bg-[#1a1a1a]"
                   >
                     Speichern
                   </button>
@@ -357,7 +378,7 @@ export default function EditAgentPage({ params }: PageProps) {
                     <button
                       type="button"
                       onClick={() => setShowAvatarModal(false)}
-                      className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                      className="mt-3 w-full inline-flex justify-center rounded-full border border-gray-200 shadow-sm px-4 py-2.5 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#2c2c2c] sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                     >
                       Schließen
                     </button>

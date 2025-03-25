@@ -17,6 +17,7 @@ interface Agent {
   topics: string[];
   avatar?: string;
   status: 'active' | 'inactive';
+  prompt: string;
 }
 
 const MOCK_AGENTS: Agent[] = [
@@ -30,7 +31,8 @@ const MOCK_AGENTS: Agent[] = [
     },
     topics: ['AZAV'],
     avatar: '/images/avatars/male-writer.png',
-    status: 'active'
+    status: 'active',
+    prompt: 'Ich bin ein AZAV-Experte und helfe bei der Zertifizierung von Bildungsträgern.'
   },
   // Weitere Agenten hier...
 ];
@@ -106,7 +108,7 @@ export default function AgentsPage() {
               </div>
               <button
                 onClick={() => router.push('/agents/new')}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 transition-colors"
+                className="px-4 py-2.5 text-sm font-medium text-white bg-[#2c2c2c] border border-transparent rounded-full hover:bg-[#1a1a1a] transition-colors"
               >
                 Neuer Agent
               </button>
@@ -141,7 +143,7 @@ export default function AgentsPage() {
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <h3 className="text-lg font-medium text-gray-900">{agent.name}</h3>
-                        <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-700">
+                        <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">
                           {agent.role}
                         </span>
                       </div>
@@ -163,6 +165,9 @@ export default function AgentsPage() {
                           </span>
                         ))}
                       </div>
+                      <p className="text-sm text-gray-600 mt-3 line-clamp-2">
+                        {agent.prompt}
+                      </p>
                     </div>
                   </div>
 
@@ -170,7 +175,7 @@ export default function AgentsPage() {
                   <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end gap-2">
                     <button 
                       onClick={() => handleEditAgent(agent.id)}
-                      className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                      className="p-2 text-gray-400 hover:text-[#2c2c2c] transition-colors"
                       title="Agent bearbeiten"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
