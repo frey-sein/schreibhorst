@@ -7,6 +7,22 @@ import Header from '../components/Header';
 import AvatarSelector from '../components/agents/AvatarSelector';
 import Image from 'next/image';
 
+interface Agent {
+  id: string;
+  name: string;
+  imageUrl?: string;
+  role?: string;
+  schedule?: {
+    frequency: string;
+    time: string;
+  };
+  status: string;
+  prompt?: string;
+  sources?: string[];
+  watchedFolders?: string[];
+  knowledgeCategories?: string[];
+}
+
 export default function AdminPage() {
   const { user, isAdmin, isLoading } = useUser();
   const router = useRouter();
@@ -15,9 +31,38 @@ export default function AdminPage() {
   const [selectedAvatar, setSelectedAvatar] = useState<string | undefined>(undefined);
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<'male' | 'female'>('male');
+  const [isResetting, setIsResetting] = useState(false);
+  const [isUploadingAvatars, setIsUploadingAvatars] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+
+    // Stelle die vorhandenen Avatar-Bilder aus den Agenten-Profilen wieder her
+    const restoreAvatars = () => {
+      const storedAgents = localStorage.getItem('agents');
+      if (!storedAgents) return;
+
+      try {
+        const agents: Agent[] = JSON.parse(storedAgents);
+        const existingAvatars = agents
+          .map((agent: Agent) => agent.imageUrl)
+          .filter((url: string | undefined) => url && url !== '');
+
+        if (existingAvatars.length > 0) {
+          // Speichere die wiederhergestellten Avatare
+          localStorage.setItem('avatars', JSON.stringify(existingAvatars));
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error('Fehler beim Wiederherstellen der Avatare:', error);
+      }
+    };
+
+    // Prüfe, ob bereits Avatare existieren
+    const existingAvatars = localStorage.getItem('avatars');
+    if (!existingAvatars) {
+      restoreAvatars();
+    }
   }, []);
 
   useEffect(() => {
@@ -48,30 +93,52 @@ export default function AdminPage() {
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files) return;
 
+    setIsUploadingAvatars(true);
     try {
-      setUploadStatus('Wird hochgeladen...');
-      const formData = new FormData();
-      formData.append('avatar', file);
-      formData.append('category', selectedCategory);
-
-      const response = await fetch('/api/upload-avatar', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Upload fehlgeschlagen');
+      // Lade die vorhandenen Avatare
+      let existingAvatars: string[] = [];
+      const storedAvatars = localStorage.getItem('avatars');
+      if (storedAvatars) {
+        try {
+          existingAvatars = JSON.parse(storedAvatars);
+        } catch (e) {
+          console.error('Fehler beim Parsen der vorhandenen Avatare:', e);
+          existingAvatars = [];
+        }
       }
 
-      const data = await response.json();
-      setUploadStatus('Avatar erfolgreich hochgeladen!');
-      setSelectedAvatar(data.avatarPath);
+      // Konvertiere die Bilder in Base64
+      const newAvatars: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) continue;
+
+        const reader = new FileReader();
+        const base64 = await new Promise<string>((resolve) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+        
+        newAvatars.push(base64);
+      }
+
+      // Speichere die Avatare im localStorage
+      localStorage.setItem('avatars', JSON.stringify([...existingAvatars, ...newAvatars]));
+      window.location.reload();
     } catch (error) {
-      setUploadStatus('Fehler beim Hochladen des Avatars');
-      console.error('Upload error:', error);
+      console.error('Fehler beim Hochladen der Avatare:', error);
+    } finally {
+      setIsUploadingAvatars(false);
+    }
+  };
+
+  const handleClearAvatars = () => {
+    if (window.confirm('Sind Sie sicher, dass Sie alle Avatare löschen möchten?')) {
+      localStorage.removeItem('avatars');
+      window.location.reload();
     }
   };
 
@@ -139,19 +206,19 @@ export default function AdminPage() {
                       <input
                         type="file"
                         accept="image/*"
+                        multiple
                         onChange={handleAvatarUpload}
-                        className="block w-full text-sm text-gray-500
-                          file:mr-4 file:py-2 file:px-4
-                          file:rounded-full file:border-0
-                          file:text-sm file:font-semibold
-                          file:bg-blue-50 file:text-blue-700
-                          hover:file:bg-blue-100"
+                        className="hidden"
+                        id="avatar-upload"
                       />
-                      {uploadStatus && (
-                        <p className={`mt-2 text-sm ${uploadStatus.includes('erfolgreich') ? 'text-green-600' : 'text-gray-600'}`}>
-                          {uploadStatus}
-                        </p>
-                      )}
+                      <label
+                        htmlFor="avatar-upload"
+                        className={`w-full px-4 py-2 text-sm text-center border border-gray-300 rounded-full cursor-pointer hover:bg-gray-50 transition-colors ${
+                          isUploadingAvatars ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        {isUploadingAvatars ? 'Wird hochgeladen...' : 'Avatare auswählen'}
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -163,12 +230,14 @@ export default function AdminPage() {
                 <div>
                   <h4 className="text-base font-semibold text-gray-800">Verfügbare Avatare</h4>
                   <p className="text-gray-600 text-sm mt-2">
-                    Hier sehen Sie alle hochgeladenen Avatare und können sie nach Geschlecht filtern.
+                    Hier sehen Sie alle verfügbaren Avatare. Die Standard-Avatare können nicht gelöscht werden. 
+                    Benutzerdefinierte Avatare können über das Lösch-Symbol entfernt werden.
                   </p>
                   <div className="mt-6">
                     <AvatarSelector
                       selectedAvatar={selectedAvatar}
                       onSelect={(avatar) => setSelectedAvatar(avatar)}
+                      isAdminView={true}
                     />
                   </div>
                 </div>
