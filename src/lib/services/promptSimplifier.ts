@@ -29,29 +29,26 @@ export async function simplifyPrompt(originalPrompt: string): Promise<SimplifyPr
   }
   
   try {
-    // Für die Entwicklung können wir entweder die OpenRouter API verwenden
-    // oder direkt die Server-API-Route, die wir gleich erstellen werden
     const endpoint = `/api/prompt/simplify`;
-    
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ prompt: originalPrompt }),
+      body: JSON.stringify({ prompt: originalPrompt })
     });
-    
+
     if (!response.ok) {
-      throw new Error(`HTTP-Fehler: ${response.status}`);
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const data = await response.json();
     
     if (!data.success) {
-      throw new Error(data.error || 'Unbekannter Fehler beim Vereinfachen des Prompts');
+      throw new Error(data.error || 'Unbekannter Fehler bei der Prompt-Vereinfachung');
     }
-    
-    // Speichere im Cache für zukünftige Verwendung
+
+    // Cache das Ergebnis
     promptCache[originalPrompt] = data.simplifiedPrompt;
     
     return {
@@ -59,10 +56,12 @@ export async function simplifyPrompt(originalPrompt: string): Promise<SimplifyPr
       simplifiedPrompt: data.simplifiedPrompt
     };
   } catch (error) {
-    console.error('Fehler beim Vereinfachen des Prompts:', error);
+    console.error('Fehler bei der Prompt-Vereinfachung:', error);
+    
+    // Fallback zur lokalen Vereinfachung
     return {
-      success: false,
-      simplifiedPrompt: '',
+      success: true,
+      simplifiedPrompt: simplifyPromptLocally(originalPrompt),
       error: error instanceof Error ? error.message : 'Unbekannter Fehler'
     };
   }

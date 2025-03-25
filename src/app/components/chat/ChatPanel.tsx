@@ -149,6 +149,7 @@ export default function ChatPanel() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [currentChatId, setCurrentChatId] = useState<string>('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedSuggestions, setSelectedSuggestions] = useState<AnalysisResult[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -169,6 +170,44 @@ export default function ChatPanel() {
 
   useEffect(() => {
     scrollToBottom();
+  }, [messages]);
+
+  // Lade gespeicherte Nachrichten beim Start
+  useEffect(() => {
+    const savedMessages = localStorage.getItem('chatMessages');
+    if (savedMessages) {
+      const parsedMessages = JSON.parse(savedMessages);
+      if (parsedMessages.length > 0) {
+        setMessages(parsedMessages);
+      } else {
+        // Nur wenn keine Nachrichten vorhanden sind, zeige die Willkommensnachricht
+        setMessages([
+          {
+            id: 'welcome',
+            text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
+            sender: 'assistant',
+            timestamp: new Date().toISOString()
+          }
+        ]);
+      }
+    } else {
+      // Nur wenn keine gespeicherten Nachrichten existieren, zeige die Willkommensnachricht
+      setMessages([
+        {
+          id: 'welcome',
+          text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
+          sender: 'assistant',
+          timestamp: new Date().toISOString()
+        }
+      ]);
+    }
+  }, []);
+
+  // Speichere Nachrichten bei Änderungen
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem('chatMessages', JSON.stringify(messages));
+    }
   }, [messages]);
 
   // Laden des letzten aktiven Chats oder Erstellen eines neuen Chats
@@ -295,7 +334,14 @@ export default function ChatPanel() {
 
   // Function to manually trigger chat analysis
   const analyzeChat = async () => {
-    if (messages.length < 2) {
+    if (messages.length < 15) {
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: '❌ Es werden mindestens 15 Nachrichten für eine sinnvolle Analyse benötigt.',
+        sender: 'assistant',
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
       return;
     }
     
@@ -308,31 +354,83 @@ export default function ChatPanel() {
       })) as AnalyzerMessage[];
       
       const results = await analyzerService.analyzeConversation(analyzerMessages);
+      
+      // Wenn keine gültigen Ergebnisse vorhanden sind, zeige Feedback
+      if (results.length === 1 && !results[0].prompt) {
+        const feedbackMessage: ChatMessage = {
+          id: Date.now().toString(),
+          text: `📝 Analyse-Feedback:
+
+### Aktueller Status
+- EEAT-Score: ${Math.round((results[0].eeatScore || 0) * 100)}%
+- Geschätzte Wortanzahl: ${results[0].wordEstimate || 0} Wörter
+
+### Fehlende Informationen
+${results[0].requiredContext?.map(ctx => `- ${ctx}`).join('\n') || 'Keine spezifischen Anforderungen'}
+
+### Empfehlungen
+- Vertiefen Sie die Diskussion mit mehr Fachdetails
+- Fügen Sie konkrete Beispiele hinzu
+- Beschreiben Sie den Kontext genauer
+- Stellen Sie sicher, dass alle wichtigen Aspekte behandelt werden
+
+Sobald diese Punkte erfüllt sind, können wir hochwertigen Content generieren.`,
+          sender: 'assistant',
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, feedbackMessage]);
+        return;
+      }
+
+      // Wenn gültige Ergebnisse vorhanden sind, zeige sie an
       if (results.length > 0) {
         const analysisMessage: ChatMessage = {
           id: Date.now().toString(),
-          text: `✨ Basierend auf unserer Konversation habe ich folgende Vorschläge für die Weiterarbeit:
+          text: `✨ Basierend auf unserer Konversation habe ich folgende Vorschläge für die Content-Generierung:
 
 ${results.map((result, index) => `
-### ${result.type === 'text' ? '📝' : '🎨'} Vorschlag ${index + 1}
----
+<div class="bg-gray-50 rounded-lg p-4 my-4">
+  <div class="flex items-center justify-between mb-3">
+    <div class="flex items-center space-x-2">
+      ${result.type === 'text' 
+        ? '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
+        : '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>'}
+      <span class="font-medium">${result.contentType || (result.type === 'text' ? 'Textvorschlag' : 'Bildvorschlag')} ${index + 1}</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <span class="text-sm text-gray-500">${Math.round((result.eeatScore || 0) * 100)}% EEAT</span>
+      <span class="text-sm text-gray-500">${result.wordEstimate || 0} Wörter</span>
+    </div>
+  </div>
 
-**Typ:** ${result.type === 'text' ? 'Text' : 'Bild'}
+  <div class="mb-3">
+    <div class="text-sm text-gray-700 whitespace-pre-wrap">${result.prompt}</div>
+  </div>
 
-**Prompt:**
-${result.prompt}
+  <div class="flex flex-wrap gap-2 mb-3">
+    ${result.tags.map(tag => `
+      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+        #${tag}
+      </span>
+    `).join('')}
+  </div>
 
-**Kontext:**
-${result.sourceContext}
-
-**Tags:**
-${result.tags.map(tag => `#${tag}`).join(' ')}
-
-[Auswählen](${index})
-
----`).join('\n\n')}
-
-💡 Wähle die Vorschläge aus, die du auf die Stage übertragen möchtest.`,
+  <div class="flex items-center justify-between mt-4">
+    <div class="text-sm text-gray-500">
+      <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      Kontext: ${result.sourceContext}
+    </div>
+    <button onclick="selectSuggestion(${index})" class="select-suggestion-btn inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-full text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#2c2c2c]">
+      <span class="suggestion-text">Auswählen</span>
+      <svg class="suggestion-check ml-1.5 w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+      </svg>
+    </button>
+  </div>
+</div>
+`).join('')}`,
           sender: 'assistant',
           timestamp: new Date().toISOString()
         };
@@ -344,7 +442,7 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
       console.error('Analysis error:', error);
       const errorMessage: ChatMessage = {
         id: Date.now().toString(),
-        text: '❌ Entschuldigung, bei der Analyse ist ein Fehler aufgetreten. Bitte versuche es später erneut.',
+        text: '❌ Bei der Analyse ist ein Fehler aufgetreten. Bitte versuche es später erneut.',
         sender: 'assistant',
         timestamp: new Date().toISOString()
       };
@@ -353,34 +451,46 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
   };
 
   // Funktion zum Verarbeiten von Klicks auf Links in Nachrichten
-  const handleMessageClick = (message: ChatMessage, linkText: string) => {
-    if (linkText.startsWith('Auswählen')) {
-      const index = parseInt(linkText.match(/\((\d+)\)/)?.[1] || '');
+  const handleMessageClick = (message: ChatMessage, element: HTMLElement) => {
+    if (element.classList.contains('select-suggestion-btn')) {
+      const index = parseInt(element.getAttribute('data-index') || '');
       if (!isNaN(index)) {
-        const results = message.text
-          .split('\n\n')
-          .filter(line => line.match(/^\d+\./))
-          .map(line => {
-            const type = line.includes('Text') ? 'text' : 'image';
-            const prompt = line.split(': ')[1].split('\n')[0];
-            const sourceContext = line.split('Kontext: ')[1].split('\n')[0];
-            const tags = line.split('Tags: ')[1].split('\n')[0].split(', ');
+        const suggestion = message.text
+          .split('Vorschlag')
+          .slice(1)
+          .map(section => {
+            const type = section.includes('Textvorschlag') ? 'text' : 'image';
+            const promptMatch = section.match(/whitespace-pre-wrap">(.*?)<\/div>/s);
+            const sourceContextMatch = section.match(/Kontext: (.*?)<\/div>/);
+            const tagsMatch = section.match(/#(\w+)/g);
+            
             return {
               type,
-              prompt,
-              sourceContext,
-              tags,
-              confidence: 0.8 // Standardwert für die Konfidenz
+              prompt: promptMatch ? promptMatch[1].trim() : '',
+              sourceContext: sourceContextMatch ? sourceContextMatch[1].trim() : '',
+              tags: tagsMatch ? tagsMatch.map(tag => tag.slice(1)) : [],
+              confidence: 0.8
             } as AnalysisResult;
-          });
+          })[index];
 
-        if (results[index]) {
-          const suggestion = results[index];
+        if (suggestion) {
           setSelectedSuggestions(prev => {
             const isSelected = prev.some(s => s.prompt === suggestion.prompt);
             if (isSelected) {
+              element.classList.remove('bg-[#2c2c2c]', 'text-white');
+              element.classList.add('bg-white', 'text-gray-700');
+              const checkIcon = element.querySelector('.suggestion-check');
+              const text = element.querySelector('.suggestion-text');
+              if (checkIcon) checkIcon.classList.add('hidden');
+              if (text) text.textContent = 'Auswählen';
               return prev.filter(s => s.prompt !== suggestion.prompt);
             } else {
+              element.classList.remove('bg-white', 'text-gray-700');
+              element.classList.add('bg-[#2c2c2c]', 'text-white');
+              const checkIcon = element.querySelector('.suggestion-check');
+              const text = element.querySelector('.suggestion-text');
+              if (checkIcon) checkIcon.classList.remove('hidden');
+              if (text) text.textContent = 'Ausgewählt';
               return [...prev, suggestion];
             }
           });
@@ -412,6 +522,11 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
       handleSubmit(e);
     }
   };
+
+  // Setze initialen Fokus auf das Input-Feld
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -467,6 +582,10 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
       );
     } finally {
       setIsLoading(false);
+      // Verzögerung hinzufügen, um sicherzustellen, dass der Fokus gesetzt wird
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
     }
   }, [input, isLoading, isUploading, selectedModel, chatService]);
 
@@ -488,6 +607,8 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
       }
     ]);
     setInput('');
+    // Lösche die gespeicherten Nachrichten
+    localStorage.removeItem('chatMessages');
   };
 
   // Diese Funktion ist für die direkte Textnachrichtenverarbeitung
@@ -805,7 +926,7 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
                       const target = e.target as HTMLElement;
                       if (target.tagName === 'A') {
                         e.preventDefault();
-                        handleMessageClick(message, target.textContent || '');
+                        handleMessageClick(message, target);
                       }
                     }}
                   >
@@ -860,6 +981,7 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
           <div className="flex gap-3">
             <form onSubmit={handleSubmit} className="flex-1 flex items-center space-x-2">
               <input
+                ref={inputRef}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -906,12 +1028,13 @@ ${result.tags.map(tag => `#${tag}`).join(' ')}
             <button
               onClick={analyzeChat}
               className={`px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100 flex items-center space-x-2 ${
-                messages.length < 2 ? 'opacity-50 cursor-not-allowed' : ''
+                messages.length < 15 ? 'opacity-50 cursor-not-allowed' : ''
               }`}
-              disabled={messages.length < 2}
+              disabled={messages.length < 15}
+              title={messages.length < 15 ? 'Mindestens 15 Nachrichten erforderlich' : 'Chat analysieren'}
             >
               <SparklesIcon className="w-4 h-4" />
-              <span>Analysieren</span>
+              <span>Analysieren{messages.length < 15 ? ` (${messages.length}/15)` : ''}</span>
             </button>
             {selectedSuggestions.length > 0 && (
               <button

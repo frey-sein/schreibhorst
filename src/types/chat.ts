@@ -11,4 +11,6 @@ export interface ChatMessage {
   text: string;
   sender: 'user' | 'assistant';
   timestamp: string;
+  role?: 'user' | 'assistant';
+  content?: string;
 } 

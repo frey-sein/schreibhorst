@@ -143,4 +143,72 @@ export class OpenRouterClient {
       throw error;
     }
   }
+
+  async streamChat(
+    messages: Message[],
+    model: string,
+    onChunk: (chunk: string) => void,
+    onError: (error: Error) => void
+  ): Promise<void> {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+          'HTTP-Referer': 'https://schreibhorst.de',
+          'X-Title': 'Schreibhorst'
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: true,
+          temperature: 0.7,
+          max_tokens: 1000
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`OpenRouter API Fehler: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Keine Antwort vom Server erhalten');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              continue;
+            }
+
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.choices?.[0]?.delta?.content) {
+                onChunk(parsed.choices[0].delta.content);
+              }
+            } catch (e) {
+              console.error('Fehler beim Parsen der Chunk-Daten:', e);
+              onError(new Error(`Fehler beim Verarbeiten der Server-Antwort: ${e.message}`));
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('OpenRouter API Fehler:', error);
+      onError(new Error(`Verbindungsfehler zur OpenRouter API: ${error.message}`));
+    }
+  }
 } 

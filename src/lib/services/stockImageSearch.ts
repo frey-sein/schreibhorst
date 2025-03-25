@@ -95,44 +95,49 @@ async function searchPixabay(
   perPage: number = 20
 ): Promise<SearchStockImagesResponse> {
   try {
-    // Verwende die sichere Server-API-Route statt direkter API-Aufrufe
-    const endpoint = `/api/stockimages/search?query=${encodeURIComponent(query)}&provider=pixabay&page=${page}&perPage=${perPage}`;
+    const pixabayApiKey = process.env.NEXT_PUBLIC_PIXABAY_API_KEY;
     
-    console.log('Sende Anfrage an Server-Endpunkt:', endpoint);
-    
-    const response = await fetch(endpoint);
-    
-    // Hole den Antworttext für bessere Fehlerbehandlung
-    const responseText = await response.text();
-    
-    // Wenn die Antwort leer ist, handle es als Fehler
-    if (!responseText || responseText.trim() === '') {
-      console.error('Leere Antwort vom Server erhalten');
-      throw new Error('Der Server hat eine leere Antwort zurückgegeben');
+    if (!pixabayApiKey) {
+      throw new Error('Pixabay API-Key nicht konfiguriert');
     }
-    
-    let responseData;
-    try {
-      // Versuche die Antwort als JSON zu parsen
-      responseData = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Fehler beim Parsen der JSON-Antwort:', parseError);
-      console.error('Erhaltener Text:', responseText);
-      throw new Error('Ungültiges Antwortformat vom Server');
-    }
-    
+
+    const response = await fetch(
+      `https://pixabay.com/api/?key=${pixabayApiKey}&q=${encodeURIComponent(query)}&page=${page}&per_page=${perPage}&lang=de`
+    );
+
     if (!response.ok) {
-      console.error('Server-Fehler:', responseData.error || response.statusText);
-      throw new Error(responseData.error || `HTTP-Fehler: ${response.status}`);
+      throw new Error(`Pixabay API Fehler: ${response.status}`);
     }
+
+    const data = await response.json();
     
-    return responseData;
+    if (!data.hits) {
+      throw new Error('Ungültige Antwort von Pixabay API');
+    }
+
+    return {
+      success: true,
+      results: data.hits.map((hit: any) => ({
+        id: hit.id.toString(),
+        thumbnailUrl: hit.previewURL,
+        fullSizeUrl: hit.largeImageURL,
+        downloadUrl: hit.largeImageURL,
+        title: hit.tags.split(', ')[0] || 'Stockbild',
+        provider: stockImageProviders.find(p => p.id === 'pixabay')!,
+        tags: hit.tags.split(', '),
+        licenseInfo: 'Pixabay Lizenz',
+        author: hit.user
+      })),
+      totalResults: data.totalHits,
+      page,
+      provider: 'pixabay'
+    };
   } catch (error) {
     console.error('Fehler bei der Pixabay-Suche:', error);
     return {
       success: false,
       results: [],
-      error: error instanceof Error ? error.message : 'Bei der Suche ist ein Fehler aufgetreten',
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler bei der Pixabay-Suche',
       provider: 'pixabay'
     };
   }

@@ -4,6 +4,7 @@ import { ChatMessage } from '@/types/chat';
 export class ChatService {
   private static instance: ChatService;
   private client: OpenRouterClient | null = null;
+  private messageHistory: ChatMessage[] = [];
 
   private constructor() {
     // Der Client wird erst bei Bedarf initialisiert
@@ -75,55 +76,39 @@ export class ChatService {
     onError: (error: Error) => void
   ): Promise<void> {
     try {
-      const client = this.getClient();
-      const response = await client.streamChatCompletion({
-        messages: [{ role: 'user', content: message }],
-        model,
-        temperature: 0.7,
-        stream: true
-      });
+      // Hole die letzten 10 Nachrichten aus dem Verlauf
+      const conversationHistory = this.messageHistory.slice(-10).map(msg => ({
+        role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
+        content: msg.text
+      }));
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`API error response: ${JSON.stringify(errorData)}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body available');
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
-              return;
-            }
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.choices?.[0]?.delta?.content) {
-                onChunk(parsed.choices[0].delta.content);
-              }
-            } catch (e) {
-              console.error('Error parsing chunk:', e);
-            }
-          }
+      // Füge die aktuelle Nachricht hinzu
+      const messages = [
+        ...conversationHistory,
+        {
+          role: 'user' as const,
+          content: message
         }
-      }
+      ];
+
+      // Sende die Nachricht an die API
+      await this.getClient().streamChat(
+        messages,
+        model,
+        onChunk,
+        onError
+      );
+
+      // Speichere die Nachricht im Verlauf
+      this.messageHistory.push({
+        id: Date.now().toString(),
+        text: message,
+        sender: 'user',
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
-      console.error('Chat service error:', error);
-      onError(error instanceof Error ? error : new Error('Unknown error occurred'));
+      console.error('Stream error:', error);
+      onError(error as Error);
     }
   }
 
@@ -161,81 +146,12 @@ export class ChatService {
       if (!imageTypes.includes(file.type)) {
         throw new Error(`Dateiformat ${file.type} wird nicht unterstützt. Nur Bilder (JPEG, PNG, GIF, WEBP) werden derzeit unterstützt.`);
       }
-      
-      const response = await client.sendFileMessage(message, file, model);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`API error response: ${JSON.stringify(errorData)}`);
-      }
+      // ... rest of the method ...
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body available');
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
-              return;
-            }
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.choices?.[0]?.delta?.content) {
-                onChunk(parsed.choices[0].delta.content);
-              }
-            } catch (e) {
-              console.error('Error parsing chunk:', e);
-            }
-          }
-        }
-      }
     } catch (error) {
-      console.error('File chat service error:', error);
-      onError(error instanceof Error ? error : new Error('Unknown error occurred'));
+      console.error('Stream error:', error);
+      onError(error as Error);
     }
   }
-  
-  // Hilfsmethode zum Senden einer Datei, die ein Promise zurückgibt
-  async sendFile(message: string, file: File, model: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      let fullResponse = '';
-      let hasReceivedContent = false;
-      
-      this.sendFileMessage(
-        message,
-        file,
-        model,
-        (chunk) => {
-          if (chunk) {
-            hasReceivedContent = true;
-            fullResponse += chunk;
-          }
-        },
-        (error) => {
-          reject(error);
-        }
-      ).then(() => {
-        if (!hasReceivedContent) {
-          reject(new Error('Keine Antwort vom Server erhalten'));
-        } else {
-          resolve(fullResponse);
-        }
-      }).catch((error) => {
-        reject(error);
-      });
-    });
-  }
-} 
+}
