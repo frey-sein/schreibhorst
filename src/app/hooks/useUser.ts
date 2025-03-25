@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUserStore } from '@/lib/store/userStore';
+import { useUserStore } from '../../lib/store/userStore';
 
 // Diese Schnittstelle muss mit der in userStore übereinstimmen
 interface User {

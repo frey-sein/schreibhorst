@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import Header from '@/app/components/Header';
-import { useUserStore } from '@/lib/store/userStore';
+import Header from '../components/Header';
+import { useUserStore } from '../../lib/store/userStore';
 import * as XLSX from 'xlsx';
 
 interface FAQItem {

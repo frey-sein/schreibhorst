@@ -4,12 +4,17 @@ import { useEffect, useState } from 'react';
 import { useUser } from '../hooks/useUser';
 import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
+import AvatarSelector from '../components/agents/AvatarSelector';
+import Image from 'next/image';
 
 export default function AdminPage() {
   const { user, isAdmin, isLoading } = useUser();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [showClearConfirmation, setShowClearConfirmation] = useState(false);
+  const [selectedAvatar, setSelectedAvatar] = useState<string | undefined>(undefined);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<'male' | 'female'>('male');
 
   useEffect(() => {
     setMounted(true);
@@ -42,6 +47,34 @@ export default function AdminPage() {
     alert('Die Wissensdatenbank wurde erfolgreich geleert.');
   };
 
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadStatus('Wird hochgeladen...');
+      const formData = new FormData();
+      formData.append('avatar', file);
+      formData.append('category', selectedCategory);
+
+      const response = await fetch('/api/upload-avatar', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload fehlgeschlagen');
+      }
+
+      const data = await response.json();
+      setUploadStatus('Avatar erfolgreich hochgeladen!');
+      setSelectedAvatar(data.avatarPath);
+    } catch (error) {
+      setUploadStatus('Fehler beim Hochladen des Avatars');
+      console.error('Upload error:', error);
+    }
+  };
+
   // Nicht rendern, wenn die Komponente noch nicht geladen ist oder der Benutzer kein Admin ist
   if (isLoading || !mounted || !isAdmin) {
     return null;
@@ -66,6 +99,82 @@ export default function AdminPage() {
 
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto p-8 pt-24 space-y-12 pb-24">
+            {/* Avatar-Verwaltung */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-medium text-gray-900">Avatar-Verwaltung</h3>
+              
+              <div className="p-6 rounded-2xl bg-white border border-gray-100 hover:border-gray-200 hover:shadow-md space-y-8">
+                {/* Upload-Bereich */}
+                <div>
+                  <h4 className="text-base font-semibold text-gray-800">Avatar hochladen</h4>
+                  <p className="text-gray-600 text-sm mt-2">
+                    Laden Sie hier neue Avatare für die Agenten hoch. Unterstützte Formate: JPG, PNG, GIF
+                  </p>
+                  <div className="mt-4 space-y-4">
+                    <div className="flex gap-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="category"
+                          value="male"
+                          checked={selectedCategory === 'male'}
+                          onChange={(e) => setSelectedCategory(e.target.value as 'male' | 'female')}
+                          className="mr-2 text-blue-600"
+                        />
+                        <span className="text-sm text-gray-700">Männlich</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="category"
+                          value="female"
+                          checked={selectedCategory === 'female'}
+                          onChange={(e) => setSelectedCategory(e.target.value as 'male' | 'female')}
+                          className="mr-2 text-blue-600"
+                        />
+                        <span className="text-sm text-gray-700">Weiblich</span>
+                      </label>
+                    </div>
+                    <div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                        className="block w-full text-sm text-gray-500
+                          file:mr-4 file:py-2 file:px-4
+                          file:rounded-full file:border-0
+                          file:text-sm file:font-semibold
+                          file:bg-blue-50 file:text-blue-700
+                          hover:file:bg-blue-100"
+                      />
+                      {uploadStatus && (
+                        <p className={`mt-2 text-sm ${uploadStatus.includes('erfolgreich') ? 'text-green-600' : 'text-gray-600'}`}>
+                          {uploadStatus}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Trennlinie */}
+                <div className="border-t border-gray-200"></div>
+
+                {/* Avatar-Übersicht */}
+                <div>
+                  <h4 className="text-base font-semibold text-gray-800">Verfügbare Avatare</h4>
+                  <p className="text-gray-600 text-sm mt-2">
+                    Hier sehen Sie alle hochgeladenen Avatare und können sie nach Geschlecht filtern.
+                  </p>
+                  <div className="mt-6">
+                    <AvatarSelector
+                      selectedAvatar={selectedAvatar}
+                      onSelect={(avatar) => setSelectedAvatar(avatar)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Dateisystem-Verwaltung */}
             <div className="space-y-6">
               <h3 className="text-lg font-medium text-gray-900">Dateisystem-Verwaltung</h3>

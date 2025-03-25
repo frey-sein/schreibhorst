@@ -1,5 +1,5 @@
-import { useFileStore } from '@/lib/store/fileStore';
-import { FileItem } from '@/types/files';
+import { useFileStore } from '../../lib/store/fileStore';
+import { FileItem } from '../../types/files';
 import { ChevronLeftIcon, FolderPlusIcon, PencilIcon, TrashIcon, EyeIcon, ArrowDownTrayIcon, ArrowPathIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useState, useEffect, useRef } from 'react';
 import ConfirmDialog from './ConfirmDialog';

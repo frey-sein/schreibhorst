@@ -1,10 +1,31 @@
 /** @type {import('next').NextConfig} */
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const nextConfig = {
-  webpack: function(config) {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'cdn.pixabay.com',
+        port: '',
+        pathname: '/photo/**',
+      },
+    ],
+  },
+
+  webpack: (config) => {
     config.module.rules.push({
       test: /\.svg$/,
       use: ['@svgr/webpack']
     });
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': path.resolve(__dirname, 'src'),
+    };
     return config;
   },
 
@@ -42,11 +63,17 @@ const nextConfig = {
 
   // Setze höhere Timeout-Werte für langsamere Verbindungen
   serverRuntimeConfig: {
-    staticPageGenerationTimeout: 120,
+    timeout: 30000,
   },
   
   // Deaktiviere strict mode für Entwicklung
   reactStrictMode: false,
+
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['localhost:3000'],
+    },
+  },
 };
 
-module.exports = nextConfig;
+export default nextConfig;

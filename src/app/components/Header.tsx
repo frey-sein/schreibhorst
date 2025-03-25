@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useUserStore } from '@/lib/store/userStore';
-import { UsersIcon, ArrowRightOnRectangleIcon, FolderIcon, BookOpenIcon } from '@heroicons/react/24/outline';
+import { useUserStore } from '../../lib/store/userStore';
+import { UsersIcon, ArrowRightOnRectangleIcon, FolderIcon, BookOpenIcon, BeakerIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 
 export default function Header() {
@@ -21,6 +21,7 @@ export default function Header() {
 
   const isDateimanager = pathname.startsWith('/dateimanager');
   const isWissen = pathname.startsWith('/wissen');
+  const isAgents = pathname.startsWith('/agents');
   const isProfile = pathname.startsWith('/profil');
   const isUsers = pathname.startsWith('/benutzer');
   const isAdmin = pathname.startsWith('/admin');
@@ -76,6 +77,17 @@ export default function Header() {
           >
             <BookOpenIcon className={`h-5 w-5 ${isWissen ? 'text-gray-800' : 'text-gray-600'}`} />
             <span className={`${isWissen ? 'text-gray-800' : 'text-gray-700'}`}>Wissen</span>
+          </Link>
+          <Link 
+            href="/agents"
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
+              isAgents 
+                ? 'border-[#2c2c2c] bg-gray-200 font-medium shadow-sm' 
+                : 'bg-white border-gray-100'
+            }`}
+          >
+            <BeakerIcon className={`h-5 w-5 ${isAgents ? 'text-gray-800' : 'text-gray-600'}`} />
+            <span className={`${isAgents ? 'text-gray-800' : 'text-gray-700'}`}>Agenten</span>
           </Link>
           {currentUser.role === 'admin' && (
             <Link 

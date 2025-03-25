@@ -1,7 +1,7 @@
-import { useFileStore } from '@/lib/store/fileStore';
+import { useFileStore } from '../../lib/store/fileStore';
 import { FolderIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
-import { FileItem } from '@/types/files';
+import { FileItem } from '../../types/files';
 
 export default function FolderTree() {
   const { files, currentPath, navigateToFolder } = useFileStore();

@@ -5,7 +5,7 @@ import FolderTree from '../components/FolderTree';
 import FileList from '../components/FileList';
 import FileUploader from '../components/FileUploader';
 import { useState, useEffect } from 'react';
-import { useFileStore } from '@/lib/store/fileStore';
+import { useFileStore } from '../../lib/store/fileStore';
 
 export default function DateimanagerPage() {
   const { loadFiles, initializePath, uploadFile } = useFileStore();
