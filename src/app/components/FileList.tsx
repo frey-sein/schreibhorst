@@ -263,15 +263,41 @@ export default function FileList({ className }: { className?: string }) {
     // Bestimme den Dateityp
     const fileName = item.name.toLowerCase();
     const isOfficeDoc = fileName.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i) !== null;
+    const isWordDoc = fileName.match(/\.(doc|docx)$/i) !== null;
     
-    // Für Office-Dokumente: Zusätzliche Parameter für erzwungenen Download
-    const downloadUrl = directFileUrl;
+    // Für Office-Dokumente verwenden wir eine andere Strategie, da der Download-Attribut
+    // bei diesen oft Probleme verursacht
+    if (isOfficeDoc) {
+      console.log('Office-Dokument erkannt, öffne in neuem Tab:', item.name);
+      
+      // Genaue URL-Parameter abhängig vom Dateityp festlegen
+      let downloadUrl = directFileUrl;
+      
+      // Für Word-Dokumente: Sicherstellen, dass der Zeitstempel korrekt ist
+      if (isWordDoc && !directFileUrl.includes('?')) {
+        // Überprüfen, ob die URL bereits einen Zeitstempel hat
+        if (!directFileUrl.match(/\/\d+-/)) {
+          // Wenn nicht, füge einen Zeitstempel hinzu
+          const now = Date.now();
+          const parts = directFileUrl.split('/');
+          const filename = parts.pop();
+          downloadUrl = [...parts, `${now}-${filename}`].join('/');
+          console.log('Füge Zeitstempel zur Word-Dokument-URL hinzu:', downloadUrl);
+        }
+        
+        // Füge Download-Parameter hinzu
+        downloadUrl += '?download=1&forceDownload=true';
+      }
+      
+      console.log('Finale Download-URL für Office-Dokument:', downloadUrl);
+      window.open(downloadUrl, '_blank');
+      return;
+    }
     
-    // Download-Link erstellen und klicken
+    // Standard-Download-Link für alle anderen Dateien
     const link = document.createElement('a');
-    link.href = downloadUrl;
+    link.href = directFileUrl;
     link.setAttribute('download', item.name);
-    link.setAttribute('target', '_blank');
     link.style.display = 'none';
     
     // Zum DOM hinzufügen und klicken
