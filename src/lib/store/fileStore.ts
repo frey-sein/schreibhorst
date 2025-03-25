@@ -158,11 +158,9 @@ export const useFileStore = create<FileStore>((set, get) => ({
       // Erstelle FormData für den Upload
       const formData = new FormData();
       formData.append('file', newFile);
-      formData.append('fileId', fileId);
-      formData.append('originalName', originalName); // Behalte den originalen Dateinamen
 
       // Sende die Datei an den Server
-      const response = await fetch('/api/files/replace', {
+      const response = await fetch(`/api/files/${fileId}/replace`, {
         method: 'POST',
         body: formData,
       });

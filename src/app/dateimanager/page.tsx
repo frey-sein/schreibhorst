@@ -3,13 +3,15 @@
 import Header from '../components/Header';
 import FolderTree from '../components/FolderTree';
 import FileList from '../components/FileList';
+import FileUploader from '../components/FileUploader';
 import { useState, useEffect } from 'react';
 import { useFileStore } from '@/lib/store/fileStore';
 
 export default function DateimanagerPage() {
-  const { loadFiles, initializePath } = useFileStore();
+  const { loadFiles, initializePath, uploadFile } = useFileStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     const loadFilesystem = async () => {
@@ -29,8 +31,24 @@ export default function DateimanagerPage() {
     loadFilesystem();
   }, [loadFiles, initializePath]);
 
+  const handleUpload = async (files: File[]) => {
+    try {
+      setIsUploading(true);
+      for (const file of files) {
+        await uploadFile(file);
+      }
+      // Nach dem Upload die Dateiliste aktualisieren
+      await loadFiles();
+    } catch (err) {
+      console.error('Fehler beim Hochladen:', err);
+      setError('Dateien konnten nicht hochgeladen werden.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
-    <main className="min-h-screen bg-[#f9f9f9] flex flex-col">
+    <div className="flex flex-col min-h-screen bg-[#f9f9f9]">
       <Header />
       
       {/* Header - angepasst an StagePanel */}
@@ -50,7 +68,7 @@ export default function DateimanagerPage() {
         </div>
       </div>
       
-      <div className="flex-1 px-6 py-8 md:px-8 lg:px-12 max-w-screen-2xl mx-auto w-full mt-8">
+      <div className="flex-1 px-6 py-8 md:px-8 lg:px-12 max-w-screen-2xl mx-auto w-full">
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#2c2c2c]"></div>
@@ -62,7 +80,7 @@ export default function DateimanagerPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-            <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm h-[calc(100vh-16rem)] overflow-auto">
+            <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
               <div className="flex items-center mb-6">
                 <span className="bg-gray-100 p-1.5 rounded-lg mr-3">
                   <svg className="h-5 w-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -71,7 +89,9 @@ export default function DateimanagerPage() {
                 </span>
                 <h2 className="text-xl font-semibold text-gray-900 tracking-tight">Ordner</h2>
               </div>
-              <FolderTree />
+              <div className="h-[calc(100vh-26rem)] overflow-auto">
+                <FolderTree />
+              </div>
               <div className="mt-6 pt-6 border-t border-gray-200">
                 <div className="text-sm text-gray-600">
                   <p className="mb-1">Speichernutzung</p>
@@ -83,12 +103,20 @@ export default function DateimanagerPage() {
               </div>
             </div>
             
-            <div className="lg:col-span-4 h-[calc(100vh-16rem)]">
-              <FileList className="h-full" />
+            <div className="lg:col-span-4 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+              {/* Datei-Upload-Bereich */}
+              <div className="mb-6 pb-6 border-b border-gray-200">
+                <FileUploader onUpload={handleUpload} isUploading={isUploading} />
+              </div>
+              
+              {/* Dateiliste */}
+              <div className="h-[calc(100vh-28rem)]">
+                <FileList className="h-full" />
+              </div>
             </div>
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 } 

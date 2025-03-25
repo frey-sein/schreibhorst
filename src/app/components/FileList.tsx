@@ -1,10 +1,11 @@
 import { useFileStore } from '@/lib/store/fileStore';
 import { FileItem } from '@/types/files';
-import { ChevronLeftIcon, FolderPlusIcon, PencilIcon, TrashIcon, EyeIcon, ArrowDownTrayIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, FolderPlusIcon, PencilIcon, TrashIcon, EyeIcon, ArrowDownTrayIcon, ArrowPathIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useState, useEffect, useRef } from 'react';
 import ConfirmDialog from './ConfirmDialog';
 import PDFViewer from './PDFViewer';
 import { useUser } from '../hooks/useUser';
+import { DocumentIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 
 export default function FileList({ className }: { className?: string }) {
   const { 
@@ -39,6 +40,9 @@ export default function FileList({ className }: { className?: string }) {
   const [itemToDelete, setItemToDelete] = useState<FileItem | null>(null);
   const [showActionDialog, setShowActionDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<FileItem | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewType, setPreviewType] = useState<'image' | 'pdf' | 'office' | null>(null);
+  const [previewItem, setPreviewItem] = useState<FileItem | null>(null);
   
   const currentItems = getCurrentItems();
   const breadcrumbPath = getBreadcrumbPath();
@@ -377,119 +381,26 @@ export default function FileList({ className }: { className?: string }) {
     }
   };
 
-  const handlePreview = (item: any) => {
-    if (!item.url) return;
-    console.log('Vorschau URL:', item.url);
+  const handlePreview = (item: FileItem) => {
+    if (item.type !== 'file') return;
     
-    // Speichere das ausgewählte Item für die Vorschau
-    setSelectedItem(item);
+    setPreviewItem(item);
+    setPreviewError(null);
     
-    // Frühzeitige Überprüfung des Dateinamens - besonders für die problematische PNG-Datei
-    const fileName = item.name.toLowerCase();
-    if (fileName.includes('unique-akademie-logo-rgb-300dpi.png')) {
-      console.log('PNG-Logo erkannt, ersetze direkt mit JPG-Version für Vorschau');
-      setPreviewUrl(`${window.location.origin}/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`);
-      return;
-    }
-    
-    // Prüfen, ob es sich um ein Bild handelt
-    const isImage = isImageFile(item);
-    
-    // Bekannte problematische Dateien direkt mit Alternativen behandeln
-    if (isImage) {
-      // Bekannte problematische Dateien und ihre Alternativen
-      const knownProblematicFiles: Record<string, string> = {
-        '/uploads/d063c17f-49be-4d19-957d-738ed68aba84/unique-akademie-logo-rgb-300dpi.jpg': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
-        '/uploads/1742850977929-unique-akademie-logo-rgb-300dpi.png': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg` // JPG-Alternative
-      };
-      
-      // Direkte Zuordnung für bekannte problematische URLs
-      if (knownProblematicFiles[item.url]) {
-        console.log('Bekannte problematische URL erkannt, verwende direkte Alternative:', knownProblematicFiles[item.url]);
-        setPreviewUrl(knownProblematicFiles[item.url]);
-        return;
-      }
-      
-      // Prüfen auf bekannte Dateinamen
-      const itemFilename = item.name.toLowerCase();
-      const baseFilenames = {
-        'unique-akademie-logo-rgb-300dpi.jpg': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
-        'unique-akademie-logo-rgb-300dpi.png': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
-      };
-      
-      for (const [problematicName, alternativePath] of Object.entries(baseFilenames)) {
-        if (itemFilename.includes(problematicName)) {
-          console.log(`Bekannte problematische Datei erkannt (${problematicName}), verwende Alternative:`, alternativePath);
-          setPreviewUrl(alternativePath);
-          return;
-        }
-      }
-    }
-    
-    // Wenn es sich um eine URL mit einer UUID im Pfad handelt (/uploads/uuid/filename),
-    // korrigiere sie sofort statt erst beim Fehler
-    const url = item.url;
-    const uuidPathPattern = /^\/uploads\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i;
-    const match = url.match(uuidPathPattern);
-    
-    if (match) {
-      // Extrahiere den Dateinamen
-      const filename = match[2];
-      console.log('Erkannte alte URL-Struktur, extrahierter Dateiname:', filename);
-      
-      // Wenn es sich um ein Bild handelt, versuche bekannte Alternativen
-      if (isImage) {
-        // Bekannte Dateinamen mit funktionierenden Alternativen
-        const knownFileMappings: Record<string, string> = {
-          'unique-akademie-logo-rgb-300dpi.jpg': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`,
-          'unique-akademie-logo-rgb-300dpi.png': `/uploads/1742834060248-unique-akademie-logo-rgb-300dpi.jpg`
-        };
-        
-        // Prüfe auf bekannte Dateinamen
-        for (const [baseFilename, alternativePath] of Object.entries(knownFileMappings)) {
-          if (filename.includes(baseFilename)) {
-            console.log(`Bekannter Dateiname in UUID-Pfad gefunden (${baseFilename}), verwende Alternative:`, alternativePath);
-            setPreviewUrl(alternativePath);
-            return;
-          }
-        }
-        
-        // Durchsuche localStorage nach Dateien mit ähnlichem Namen
-        try {
-          const storedFiles = localStorage.getItem('filemanager_files');
-          if (storedFiles) {
-            const files = JSON.parse(storedFiles);
-            if (Array.isArray(files)) {
-              // Suche nach Dateien mit gleichem Namen (aber möglicherweise Zeitstempel)
-              const matchingFiles = files.filter(file => 
-                file.url && 
-                file.url.includes(filename) && 
-                file.url.startsWith('/uploads/') &&
-                !file.url.includes(match[1]) // Aber nicht die gleiche UUID
-              );
-              
-              if (matchingFiles.length > 0) {
-                // Verwende die neueste Variante
-                console.log('Gefundene alternative URLs:', matchingFiles.map(f => f.url));
-                setPreviewUrl(matchingFiles[0].url);
-                return;
-              }
-            }
-          }
-        } catch (e) {
-          console.error('Fehler beim Suchen alternativer Dateien:', e);
-        }
-        
-        // Versuche es ohne das UUID-Segment
-        const simplifiedUrl = `/uploads/${filename}`;
-        console.log('Verwende vereinfachte URL:', simplifiedUrl);
-        setPreviewUrl(simplifiedUrl);
-        return;
-      }
-    }
-    
-    // Normale Behandlung, wenn keine Korrektur nötig ist
+    // URL für die Vorschau festlegen
+    const url = getDirectFileUrl(item);
     setPreviewUrl(url);
+    
+    // Typ der Vorschau basierend auf der Dateierweiterung festlegen
+    if (isBitmapImage(item) || isSvgImage(item)) {
+      setPreviewType('image');
+    } else if (item.name.match(/\.(pdf)$/i)) {
+      setPreviewType('pdf');
+    } else if (item.name.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)) {
+      setPreviewType('office');
+    } else {
+      setPreviewType(null);
+    }
   };
 
   // Vereinfachte Funktion zum Konstruieren von absoluten URLs
@@ -633,6 +544,21 @@ export default function FileList({ className }: { className?: string }) {
       });
     }
   }, [previewUrl, selectedItem]);
+
+  useEffect(() => {
+    if (previewUrl && previewType === 'pdf') {
+      // Errichte einen Timeout, um zu überprüfen, ob das PDF geladen wurde
+      const timeoutId = setTimeout(() => {
+        // Prüfe, ob im PDF-Container ein Fehler auftritt
+        const pdfContainer = document.querySelector('.pdf-container');
+        if (!pdfContainer || pdfContainer.querySelector('.pdf-error')) {
+          setPreviewError('PDF konnte nicht geladen werden. Bitte versuchen Sie, es herunterzuladen.');
+        }
+      }, 5000); // 5 Sekunden Timeout
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [previewUrl, previewType]);
 
   return (
     <div className={`w-full h-full flex flex-col ${className}`}>
@@ -948,6 +874,138 @@ export default function FileList({ className }: { className?: string }) {
           )}
         </div>
       </div>
+
+      {/* Verstecktes Datei-Input für Dateiersetzung */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        className="hidden" 
+        onChange={handleFileSelected}
+      />
+
+      {/* Vorschau-Modal */}
+      {previewUrl && (
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 overflow-hidden">
+          <div className="bg-white rounded-lg overflow-auto max-w-5xl w-[95%] max-h-[95vh] relative">
+            <div className="sticky top-0 z-10 bg-white px-4 py-3 flex justify-between items-center border-b">
+              <h3 className="text-lg font-medium text-gray-800">
+                Vorschau: {previewItem?.name}
+              </h3>
+              <button
+                onClick={() => setPreviewUrl(null)}
+                className="p-2 rounded-full hover:bg-gray-100"
+              >
+                <XMarkIcon className="h-5 w-5 text-gray-600" />
+              </button>
+            </div>
+            
+            <div className="p-4">
+              {/* Bildvorschau */}
+              {previewType === 'image' && (
+                <div className="flex flex-col items-center">
+                  <img
+                    src={previewUrl}
+                    alt={previewItem?.name || 'Vorschau'}
+                    className="max-w-full max-h-[70vh] object-contain"
+                    onError={() => setPreviewError('Bild konnte nicht geladen werden.')}
+                  />
+                  {previewError && (
+                    <div className="mt-4 p-3 bg-red-50 text-red-800 rounded-lg">
+                      {previewError}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* PDF-Vorschau */}
+              {previewType === 'pdf' && (
+                <div className="flex flex-col">
+                  <div className="h-[70vh]">
+                    <PDFViewer
+                      fileUrl={previewUrl}
+                      fileName={previewItem?.name || 'Dokument'}
+                    />
+                  </div>
+                  
+                  {previewError && (
+                    <div className="mt-4 p-3 bg-red-50 text-red-800 rounded-lg">
+                      {previewError}
+                      <div className="mt-2">
+                        <a 
+                          href={previewUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          PDF direkt öffnen
+                        </a>
+                        {' oder '}
+                        <a 
+                          href={previewUrl} 
+                          download
+                          className="text-blue-600 hover:underline"
+                        >
+                          herunterladen
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Office-Dokument oder andere nicht unterstützte Vorschau */}
+              {previewType === 'office' && (
+                <div className="p-6 text-center">
+                  <div className="mb-4">
+                    <DocumentIcon className="h-16 w-16 text-gray-400 mx-auto" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-800 mb-2">
+                    Vorschau nicht verfügbar
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    Leider ist für diese Datei keine Vorschau verfügbar.
+                  </p>
+                  <div className="flex justify-center gap-4">
+                    <a
+                      href={previewUrl}
+                      download
+                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
+                    >
+                      <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
+                      Herunterladen
+                    </a>
+                  </div>
+                </div>
+              )}
+              
+              {/* Unbekannte Datei */}
+              {!previewType && (
+                <div className="p-6 text-center">
+                  <div className="mb-4">
+                    <QuestionMarkCircleIcon className="h-16 w-16 text-gray-400 mx-auto" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-800 mb-2">
+                    Unbekannter Dateityp
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    Diese Datei kann nicht angezeigt werden.
+                  </p>
+                  <div className="flex justify-center gap-4">
+                    <a
+                      href={previewUrl}
+                      download
+                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
+                    >
+                      <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
+                      Herunterladen
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Aktionsdialog für Dateien */}
       {showActionDialog && selectedItem && selectedItem.type === 'file' && (
