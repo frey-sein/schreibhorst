@@ -18,6 +18,7 @@ interface Agent {
   avatar?: string;
   status: 'active' | 'inactive';
   prompt: string;
+  sources: string[]; // URLs für die Recherche
 }
 
 const MOCK_AGENTS: Agent[] = [
@@ -32,7 +33,8 @@ const MOCK_AGENTS: Agent[] = [
     topics: ['AZAV'],
     avatar: '/images/avatars/male-writer.png',
     status: 'active',
-    prompt: 'Ich bin ein AZAV-Experte und helfe bei der Zertifizierung von Bildungsträgern.'
+    prompt: 'Ich bin ein AZAV-Experte und helfe bei der Zertifizierung von Bildungsträgern.',
+    sources: ['https://www.azav.de/zertifizierung', 'https://www.bildungstraeger.info/azav']
   },
   // Weitere Agenten hier...
 ];
@@ -140,34 +142,41 @@ export default function AgentsPage() {
                     </div>
 
                     {/* Agent Info */}
-                    <div className="flex-1">
+                    <div className="flex flex-col flex-1">
                       <div className="flex items-center justify-between">
                         <h3 className="text-lg font-medium text-gray-900">{agent.name}</h3>
-                        <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">
+                        <span className="px-3 py-1 text-sm text-gray-600 bg-gray-100 rounded-full">
                           {agent.role}
                         </span>
                       </div>
                       <p className="text-sm text-gray-500 mt-1">
                         {agent.schedule.frequency === 'daily' 
                           ? `Täglich um ${agent.schedule.time}`
-                          : `${agent.schedule.frequency} um ${agent.schedule.time}${
+                          : `${agent.schedule.frequency === 'weekly' ? 'Wöchentlich' : 'Monatlich'} um ${agent.schedule.time}${
                               agent.schedule.days ? ` (${agent.schedule.days.join(', ')})` : ''
-                            }`
-                        }
+                            }`}
                       </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {agent.topics.map((topic) => (
-                          <span
-                            key={topic}
-                            className="px-2 py-1 text-xs rounded-md bg-gray-100 text-gray-600"
-                          >
-                            {topic}
-                          </span>
-                        ))}
-                      </div>
                       <p className="text-sm text-gray-600 mt-3 line-clamp-2">
                         {agent.prompt}
                       </p>
+                      {agent.sources && agent.sources.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs font-medium text-gray-500 mb-1">Datenquellen:</p>
+                          <div className="space-y-1">
+                            {agent.sources.map((url, index) => (
+                              <a
+                                key={index}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block text-xs text-[#2c2c2c] hover:text-[#1a1a1a] truncate"
+                              >
+                                {url}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 

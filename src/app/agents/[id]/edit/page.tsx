@@ -20,6 +20,7 @@ interface Agent {
   avatar?: string;
   status: 'active' | 'inactive';
   prompt: string;
+  sources?: string[];
 }
 
 interface PageProps {
@@ -65,7 +66,8 @@ export default function EditAgentPage({ params }: PageProps) {
             topics: ['AZAV'],
             avatar: '/images/avatars/male-writer.png',
             status: 'active',
-            prompt: ''
+            prompt: '',
+            sources: []
           };
           setAgent(mockAgent);
           setFormData(mockAgent);
@@ -310,23 +312,70 @@ export default function EditAgentPage({ params }: PageProps) {
                     </select>
                   </div>
 
-                  {/* Prompt */}
-                  <div>
+                  {/* Prompt Eingabe */}
+                  <div className="col-span-6">
                     <label htmlFor="prompt" className="block text-sm font-medium text-gray-700">
-                      Aufgabenbeschreibung
+                      Prompt
                     </label>
                     <textarea
                       id="prompt"
-                      value={formData.prompt || ''}
+                      name="prompt"
+                      rows={3}
+                      className="mt-1 block w-full rounded-lg border border-gray-300 shadow-sm focus:border-[#2c2c2c] focus:ring-[#2c2c2c] sm:text-sm p-2 text-gray-900"
+                      placeholder="Beschreiben Sie die Aufgabe des Agenten..."
+                      value={formData.prompt}
                       onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
-                      rows={4}
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="Beschreiben Sie hier die Aufgaben und das Verhalten des Agenten..."
-                      required
                     />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Definieren Sie hier, wie der Agent sich verhalten und welche Aufgaben er übernehmen soll.
+                  </div>
+
+                  {/* Datenquellen */}
+                  <div className="col-span-6">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Datenquellen
+                    </label>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Fügen Sie URLs hinzu, die der Agent für die Recherche nutzen soll
                     </p>
+                    <div className="space-y-2">
+                      {formData.sources?.map((url, index) => (
+                        <div key={index} className="flex gap-2">
+                          <input
+                            type="url"
+                            value={url}
+                            onChange={(e) => {
+                              const newSources = [...(formData.sources || [])];
+                              newSources[index] = e.target.value;
+                              setFormData({ ...formData, sources: newSources });
+                            }}
+                            className="flex-1 rounded-lg border border-gray-300 shadow-sm focus:border-[#2c2c2c] focus:ring-[#2c2c2c] sm:text-sm p-2 text-gray-900"
+                            placeholder="https://..."
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newSources = [...(formData.sources || [])];
+                              newSources.splice(index, 1);
+                              setFormData({ ...formData, sources: newSources });
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-600 transition-colors rounded-full"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ 
+                          ...formData, 
+                          sources: [...(formData.sources || []), ''] 
+                        })}
+                        className="mt-2 px-4 py-2 text-sm text-[#2c2c2c] border border-gray-200 rounded-full hover:bg-gray-50 transition-colors"
+                      >
+                        + Neue Quelle hinzufügen
+                      </button>
+                    </div>
                   </div>
                 </div>
 
