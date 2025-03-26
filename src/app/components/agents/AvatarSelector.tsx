@@ -10,10 +10,10 @@ interface AvatarSelectorProps {
 
 // Standard-Avatare, die immer verfügbar sind
 const DEFAULT_AVATARS = [
-  '/images/avatars/male-writer.png',
-  '/images/avatars/female-worker.png',
-  '/images/avatars/male-soldier.png',
-  '/images/avatars/female-doctor.png'
+  '/avatars/male-writer.png',
+  '/avatars/female-worker.png',
+  '/avatars/male-soldier.png',
+  '/avatars/female-doctor.png'
 ];
 
 export default function AvatarSelector({ selectedAvatar, onSelect, isAdminView = false }: AvatarSelectorProps) {
@@ -22,24 +22,20 @@ export default function AvatarSelector({ selectedAvatar, onSelect, isAdminView =
 
   useEffect(() => {
     const loadAvatars = () => {
-      // Beginne mit den Standard-Avataren
-      const defaultImages = [...DEFAULT_AVATARS];
-      
-      // Versuche, benutzerdefinierte Avatare aus dem localStorage zu laden
+      // Wir verwenden nur die benutzerdefinierten Avatare aus dem localStorage
       try {
         const storedAvatars = localStorage.getItem('avatars');
         if (storedAvatars) {
           const parsed = JSON.parse(storedAvatars);
-          // Kombiniere die Standard-Avatare mit den benutzerdefinierten Avataren
-          setAvatars([...defaultImages, ...parsed]);
+          setAvatars(parsed);
           return;
         }
       } catch (error) {
         console.error('Fehler beim Laden der Avatare aus dem localStorage:', error);
       }
       
-      // Fallback: Nur Standard-Avatare anzeigen
-      setAvatars(defaultImages);
+      // Keine Avatare vorhanden
+      setAvatars([]);
     };
     
     loadAvatars();
@@ -47,82 +43,24 @@ export default function AvatarSelector({ selectedAvatar, onSelect, isAdminView =
 
   const handleDeleteAvatar = (indexToDelete: number, avatar: string) => {
     if (window.confirm('Möchten Sie diesen Avatar wirklich löschen?')) {
-      // Wenn es sich um einen Standard-Avatar handelt, können wir ihn nicht löschen
-      if (DEFAULT_AVATARS.includes(avatar)) {
-        alert('Standard-Avatare können nicht gelöscht werden.');
-        return;
-      }
-      
       // Entferne den Avatar aus der Anzeige
-      const newAvatars = avatars.filter(a => a !== avatar);
+      const newAvatars = avatars.filter((_, index) => index !== indexToDelete);
       setAvatars(newAvatars);
       
       // Entferne den Avatar aus dem localStorage
       try {
-        const storedAvatars = localStorage.getItem('avatars');
-        if (storedAvatars) {
-          const customAvatars = JSON.parse(storedAvatars).filter((a: string) => a !== avatar);
-          localStorage.setItem('avatars', JSON.stringify(customAvatars));
-        }
+        localStorage.setItem('avatars', JSON.stringify(newAvatars));
       } catch (error) {
         console.error('Fehler beim Aktualisieren der Avatare im localStorage:', error);
       }
     }
   };
 
-  // Filterung der Avatare basierend auf der ausgewählten Kategorie
-  const filteredAvatars = filter === 'all' 
-    ? avatars 
-    : avatars.filter(avatar => {
-        // Standard-Avatare können nach Dateinamen gefiltert werden
-        if (avatar.startsWith('/')) {
-          if (filter === 'male') {
-            return avatar.toLowerCase().includes('male');
-          } else if (filter === 'female') {
-            return avatar.toLowerCase().includes('female');
-          }
-        }
-        // Base64-kodierte Bilder können wir nicht nach Geschlecht filtern
-        return true;
-      });
+  // Filterung ist nicht mehr notwendig, da wir keine Standard-Avatare haben
+  const filteredAvatars = avatars;
 
   return (
     <div className="space-y-4">
-      {isAdminView && (
-        <div className="flex gap-4 mb-4">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-4 py-2 text-sm rounded-full ${
-              filter === 'all'
-                ? 'bg-[#2c2c2c] text-white'
-                : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            Alle
-          </button>
-          <button
-            onClick={() => setFilter('male')}
-            className={`px-4 py-2 text-sm rounded-full ${
-              filter === 'male'
-                ? 'bg-[#2c2c2c] text-white'
-                : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            Männlich
-          </button>
-          <button
-            onClick={() => setFilter('female')}
-            className={`px-4 py-2 text-sm rounded-full ${
-              filter === 'female'
-                ? 'bg-[#2c2c2c] text-white'
-                : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            Weiblich
-          </button>
-        </div>
-      )}
-      
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {filteredAvatars.map((avatar, index) => (
           <div key={index} className="relative group">
@@ -164,9 +102,7 @@ export default function AvatarSelector({ selectedAvatar, onSelect, isAdminView =
                     handleDeleteAvatar(index, avatar);
                   }}
                   className="p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/20"
-                  title={DEFAULT_AVATARS.includes(avatar) ? 'Standard-Avatar (kann nicht gelöscht werden)' : 'Avatar löschen'}
-                  disabled={DEFAULT_AVATARS.includes(avatar)}
-                  style={{ opacity: DEFAULT_AVATARS.includes(avatar) ? 0.5 : 1 }}
+                  title="Avatar löschen"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -180,7 +116,7 @@ export default function AvatarSelector({ selectedAvatar, onSelect, isAdminView =
       
       {filteredAvatars.length === 0 && (
         <div className="text-center p-8 text-gray-500 bg-gray-50 rounded-lg">
-          Keine Avatare in dieser Kategorie gefunden
+          Keine Avatare vorhanden. Bitte laden Sie Avatare hoch.
         </div>
       )}
     </div>

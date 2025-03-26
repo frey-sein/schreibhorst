@@ -70,7 +70,7 @@ export default function EditAgentPage({ params }: PageProps) {
               time: '09:00'
             },
             topics: ['AZAV'],
-            avatar: '/images/avatars/male-writer.png',
+            avatar: '/avatars/male-writer.png',
             status: 'active',
             prompt: '',
             sources: [],

@@ -230,8 +230,7 @@ export default function AdminPage() {
                 <div>
                   <h4 className="text-base font-semibold text-gray-800">Verfügbare Avatare</h4>
                   <p className="text-gray-600 text-sm mt-2">
-                    Hier sehen Sie alle verfügbaren Avatare. Die Standard-Avatare können nicht gelöscht werden. 
-                    Benutzerdefinierte Avatare können über das Lösch-Symbol entfernt werden.
+                    Hier sehen Sie alle verfügbaren Avatar-Bilder. Über das Lösch-Symbol können Sie einzelne Avatare entfernen.
                   </p>
                   <div className="mt-6">
                     <AvatarSelector

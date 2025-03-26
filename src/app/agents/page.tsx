@@ -33,7 +33,7 @@ const MOCK_AGENTS: Agent[] = [
       time: '09:00'
     },
     topics: ['AZAV'],
-    avatar: '/images/avatars/male-writer.png',
+    avatar: '/avatars/male-writer.png',
     status: 'active',
     prompt: 'Der Agent liest einmal täglich die tagesschau ;-)',
     sources: ['https://www.tagesschau.de'],
