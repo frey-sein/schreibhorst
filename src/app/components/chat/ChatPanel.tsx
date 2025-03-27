@@ -24,6 +24,10 @@ interface ChatMessage {
   text: string;
   sender: 'user' | 'assistant' | 'system';
   timestamp: string;
+  promptsData?: {
+    textPrompts: AnalysisResult[];
+    imagePrompts: AnalysisResult[];
+  };
 }
 
 interface AnalyzerMessage {
@@ -147,6 +151,32 @@ const processFile = async (file: File): Promise<string> => {
   }
 };
 
+// Vordefinierte Komponenten für MDX-Content
+const components = {
+  h1: (props: any) => <h1 className="text-2xl font-bold mb-4 mt-6" {...props} />,
+  h2: (props: any) => <h2 className="text-xl font-bold mb-3 mt-5" {...props} />,
+  h3: (props: any) => <h3 className="text-lg font-bold mb-2 mt-4" {...props} />,
+  p: (props: any) => <p className="mb-4" {...props} />,
+  ul: (props: any) => <ul className="list-disc pl-5 mb-4 space-y-1" {...props} />,
+  ol: (props: any) => <ol className="list-decimal pl-5 mb-4 space-y-1" {...props} />,
+  li: (props: any) => <li className="mb-1" {...props} />,
+  blockquote: (props: any) => <blockquote className="border-l-4 border-gray-200 pl-4 italic my-4 text-gray-600" {...props} />,
+  code: (props: any) => <code className="bg-gray-100 rounded px-1 py-0.5 font-mono text-sm" {...props} />,
+  pre: (props: any) => <pre className="bg-gray-100 rounded p-4 overflow-x-auto my-4 font-mono text-sm" {...props} />,
+};
+
+/**
+ * Chat-Panel-Komponente
+ * 
+ * Diese Komponente implementiert die Chat-Oberfläche, die folgende Funktionen bietet:
+ * - Text- und Bild-basierte Konversation mit verschiedenen KI-Modellen
+ * - Analyse der Konversation zur Generierung von Text- und Bild-Prompts
+ * - Deep Research Modus für umfangreichere Antworten
+ * - Chat-Historie und Speicherung der Nachrichten
+ * 
+ * Bekannte Typprobleme: Die ChatMessage-Interface verwendet 'sender', während Message-Interface 'role' verwendet.
+ * Diese Diskrepanz führt zu Typfehlern bei der Konvertierung zwischen den beiden Formaten.
+ */
 export default function ChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -431,12 +461,164 @@ export default function ChatPanel() {
     }
   }, [messages, currentChatId, addChat, updateChat, getChat]);
 
+  // Neue PromptSelectionView-Komponente mit Korrektur des null-Parameters
+  const PromptSelectionView = ({ 
+    textPrompts = [], 
+    imagePrompts = [], 
+    selectedPrompts = [], 
+    onPromptSelect 
+  }: { 
+    textPrompts: AnalysisResult[],
+    imagePrompts: AnalysisResult[],
+    selectedPrompts: AnalysisResult[],
+    onPromptSelect: (prompt: AnalysisResult | { sendAll: true }) => void
+  }) => {
+    const [filter, setFilter] = useState<'all' | 'text' | 'image'>('all');
+    const [expandedPrompts, setExpandedPrompts] = useState<string[]>([]);
+    
+    const togglePromptExpand = (promptId: string) => {
+      setExpandedPrompts(prev => 
+        prev.includes(promptId) 
+          ? prev.filter(id => id !== promptId)
+          : [...prev, promptId]
+      );
+    };
+    
+    const filteredPrompts = filter === 'all' 
+      ? [...textPrompts, ...imagePrompts]
+      : filter === 'text' 
+        ? textPrompts
+        : imagePrompts;
+    
+    return (
+      <div className="space-y-4 bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+        <h3 className="font-medium text-lg">Generierte Prompts</h3>
+        
+        <div className="flex space-x-2 mb-4">
+          <button 
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              filter === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+            }`}
+            onClick={() => setFilter('all')}
+          >
+            Alle ({textPrompts.length + imagePrompts.length})
+          </button>
+          <button 
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              filter === 'text' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+            }`}
+            onClick={() => setFilter('text')}
+          >
+            Text ({textPrompts.length})
+          </button>
+          <button 
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              filter === 'image' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+            }`}
+            onClick={() => setFilter('image')}
+          >
+            Bild ({imagePrompts.length})
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-1 gap-4">
+          {filteredPrompts.map(prompt => {
+            const isSelected = selectedPrompts.some(p => p.id === prompt.id);
+            const isExpanded = expandedPrompts.includes(prompt.id);
+            
+            return (
+              <div key={prompt.id} className="border rounded-lg p-4 hover:shadow-sm transition-all bg-gray-50 prompt-card">
+                <div className="flex items-start">
+                  <div className="mt-1 mr-3">
+                    <input 
+                      type="checkbox" 
+                      id={`prompt-${prompt.id}`}
+                      checked={isSelected}
+                      onChange={() => onPromptSelect({ sendAll: false, ...prompt } as any)}
+                      className="h-5 w-5 rounded border-gray-300 text-gray-900 focus:ring-gray-500 prompt-checkbox"
+                    />
+                  </div>
+                  
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          {prompt.type === 'text' ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                          )}
+                        </svg>
+                        <h4 className="font-medium text-gray-900">{prompt.title}</h4>
+                      </div>
+                      {prompt.format && (
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-600">
+                          {prompt.format}{prompt.estimatedLength ? ` • ca. ${prompt.estimatedLength} Wörter` : ''}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className={`text-sm text-gray-700 whitespace-pre-wrap ${!isExpanded ? 'line-clamp-3' : ''} mb-2`}>
+                      {prompt.prompt}
+                    </div>
+                    
+                    <button 
+                      className="text-xs text-gray-600 hover:text-gray-900 mb-3 flex items-center"
+                      onClick={() => togglePromptExpand(prompt.id)}
+                    >
+                      {isExpanded ? (
+                        <>
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7"></path>
+                          </svg>
+                          Weniger anzeigen
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                          </svg>
+                          Vollständigen Prompt anzeigen
+                        </>
+                      )}
+                    </button>
+                    
+                    <div className="flex flex-wrap gap-1">
+                      {prompt.tags.map(tag => (
+                        <span key={tag} className="prompt-tag">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {selectedPrompts.length > 0 && (
+          <div className="flex justify-end mt-4 sticky bottom-4">
+            <div className="bg-white shadow-md border border-gray-200 rounded-full px-4 py-2">
+              <button 
+                className="prompt-submit-button"
+                onClick={() => onPromptSelect({ sendAll: true } as any)}
+              >
+                Ausgewählte Prompts übertragen ({selectedPrompts.length})
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Function to manually trigger chat analysis
   const analyzeChat = async () => {
-    if (messages.length < 15) {
+    if (messages.length < 3) {
       const errorMessage: ChatMessage = {
         id: Date.now().toString(),
-        text: '❌ Es werden mindestens 15 Nachrichten für eine sinnvolle Analyse benötigt.',
+        text: '❌ Es werden mindestens 3 Nachrichten für eine sinnvolle Analyse benötigt.',
         sender: 'assistant',
         timestamp: new Date().toISOString()
       };
@@ -448,32 +630,19 @@ export default function ChatPanel() {
       const analyzerMessages = messages.map(msg => ({
         id: parseInt(msg.id),
         text: msg.text,
-        sender: msg.sender === 'user' ? 'user' : 'ai' as const,
+        sender: msg.sender === 'user' ? 'user' : 'ai' as 'user' | 'ai',
         timestamp: new Date(msg.timestamp)
       })) as AnalyzerMessage[];
       
       const results = await analyzerService.analyzeConversation(analyzerMessages);
       
-      // Wenn keine gültigen Ergebnisse vorhanden sind, zeige Feedback
-      if (results.length === 1 && !results[0].prompt) {
+      // Wenn keine Ergebnisse vorhanden sind
+      if (results.length === 0) {
         const feedbackMessage: ChatMessage = {
           id: Date.now().toString(),
-          text: `📝 Analyse-Feedback:
+          text: `📝 Nicht genügend Kontext für sinnvolle Prompt-Vorschläge vorhanden.
 
-### Aktueller Status
-- EEAT-Score: ${Math.round((results[0].eeatScore || 0) * 100)}%
-- Geschätzte Wortanzahl: ${results[0].wordEstimate || 0} Wörter
-
-### Fehlende Informationen
-${results[0].requiredContext?.map(ctx => `- ${ctx}`).join('\n') || 'Keine spezifischen Anforderungen'}
-
-### Empfehlungen
-- Vertiefen Sie die Diskussion mit mehr Fachdetails
-- Fügen Sie konkrete Beispiele hinzu
-- Beschreiben Sie den Kontext genauer
-- Stellen Sie sicher, dass alle wichtigen Aspekte behandelt werden
-
-Sobald diese Punkte erfüllt sind, können wir hochwertigen Content generieren.`,
+Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
           sender: 'assistant',
           timestamp: new Date().toISOString()
         };
@@ -481,62 +650,26 @@ Sobald diese Punkte erfüllt sind, können wir hochwertigen Content generieren.`
         return;
       }
 
-      // Wenn gültige Ergebnisse vorhanden sind, zeige sie an
-      if (results.length > 0) {
-        const analysisMessage: ChatMessage = {
-          id: Date.now().toString(),
-          text: `✨ Basierend auf unserer Konversation habe ich folgende Vorschläge für die Content-Generierung:
+      // Gruppiere Ergebnisse nach Typ
+      const textPrompts = results.filter(result => result.type === 'text');
+      const imagePrompts = results.filter(result => result.type === 'image');
 
-${results.map((result, index) => `
-<div class="bg-gray-50 rounded-lg p-4 my-4">
-  <div class="flex items-center justify-between mb-3">
-    <div class="flex items-center space-x-2">
-      ${result.type === 'text' 
-        ? '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
-        : '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>'}
-      <span class="font-medium">${result.contentType || (result.type === 'text' ? 'Textvorschlag' : 'Bildvorschlag')} ${index + 1}</span>
-    </div>
-    <div class="flex items-center space-x-2">
-      <span class="text-sm text-gray-500">${Math.round((result.eeatScore || 0) * 100)}% EEAT</span>
-      <span class="text-sm text-gray-500">${result.wordEstimate || 0} Wörter</span>
-    </div>
-  </div>
+      // Erzeuge eine JSX-Komponente als String für die Chat-Nachricht
+      const analysisMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: `✨ Aufgrund unserer Konversation habe ich folgende Prompt-Vorschläge erstellt:
 
-  <div class="mb-3">
-    <div class="text-sm text-gray-700 whitespace-pre-wrap">${result.prompt}</div>
-  </div>
+<PromptSelectionView />`,
+        sender: 'assistant',
+        timestamp: new Date().toISOString(),
+        promptsData: {
+          textPrompts,
+          imagePrompts
+        }
+      };
 
-  <div class="flex flex-wrap gap-2 mb-3">
-    ${result.tags.map(tag => `
-      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-        #${tag}
-      </span>
-    `).join('')}
-  </div>
-
-  <div class="flex items-center justify-between mt-4">
-    <div class="text-sm text-gray-500">
-      <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-      </svg>
-      Kontext: ${result.sourceContext}
-    </div>
-    <button onclick="selectSuggestion(${index})" class="select-suggestion-btn inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-full text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#2c2c2c]">
-      <span class="suggestion-text">Auswählen</span>
-      <svg class="suggestion-check ml-1.5 w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-      </svg>
-    </button>
-  </div>
-</div>
-`).join('')}`,
-          sender: 'assistant',
-          timestamp: new Date().toISOString()
-        };
-
-        setMessages(prev => [...prev, analysisMessage]);
-        setSelectedSuggestions([]);
-      }
+      setMessages(prev => [...prev, analysisMessage]);
+      setSelectedSuggestions([]);
     } catch (error) {
       console.error('Analysis error:', error);
       const errorMessage: ChatMessage = {
@@ -552,40 +685,36 @@ ${results.map((result, index) => `
   // Funktion zum Verarbeiten von Klicks auf Links in Nachrichten
   const handleMessageClick = (message: ChatMessage, element: HTMLElement) => {
     if (element.classList.contains('select-suggestion-btn')) {
-      const index = parseInt(element.getAttribute('data-index') || '');
-      if (!isNaN(index)) {
-        const suggestion = message.text
-          .split('Vorschlag')
-          .slice(1)
-          .map(section => {
-            const type = section.includes('Textvorschlag') ? 'text' : 'image';
-            const promptMatch = section.match(/whitespace-pre-wrap">(.*?)<\/div>/s);
-            const sourceContextMatch = section.match(/Kontext: (.*?)<\/div>/);
-            const tagsMatch = section.match(/#(\w+)/g);
-            
-            return {
-              type,
-              prompt: promptMatch ? promptMatch[1].trim() : '',
-              sourceContext: sourceContextMatch ? sourceContextMatch[1].trim() : '',
-              tags: tagsMatch ? tagsMatch.map(tag => tag.slice(1)) : [],
-              confidence: 0.8
-            } as AnalysisResult;
-          })[index];
-
+      const id = element.getAttribute('data-id');
+      const type = element.getAttribute('data-type');
+      const index = parseInt(element.getAttribute('data-index') || '0');
+      
+      // Finde das passende Suggestion basierend auf ID, Typ und Index
+      const analyzerMessages = messages.map(msg => ({
+        id: parseInt(msg.id),
+        text: msg.text,
+        sender: msg.sender === 'user' ? 'user' : 'ai' as 'user' | 'ai',
+        timestamp: new Date(msg.timestamp)
+      })) as AnalyzerMessage[];
+      
+      analyzerService.analyzeConversation(analyzerMessages).then(results => {
+        const typeResults = results.filter(r => r.type === type);
+        const suggestion = typeResults[index];
+        
         if (suggestion) {
           setSelectedSuggestions(prev => {
-            const isSelected = prev.some(s => s.prompt === suggestion.prompt);
+            const isSelected = prev.some(s => s.id === suggestion.id);
             if (isSelected) {
-              element.classList.remove('bg-[#2c2c2c]', 'text-white');
+              element.classList.remove('bg-gray-900', 'text-white');
               element.classList.add('bg-white', 'text-gray-700');
               const checkIcon = element.querySelector('.suggestion-check');
               const text = element.querySelector('.suggestion-text');
               if (checkIcon) checkIcon.classList.add('hidden');
               if (text) text.textContent = 'Auswählen';
-              return prev.filter(s => s.prompt !== suggestion.prompt);
+              return prev.filter(s => s.id !== suggestion.id);
             } else {
               element.classList.remove('bg-white', 'text-gray-700');
-              element.classList.add('bg-[#2c2c2c]', 'text-white');
+              element.classList.add('bg-gray-900', 'text-white');
               const checkIcon = element.querySelector('.suggestion-check');
               const text = element.querySelector('.suggestion-text');
               if (checkIcon) checkIcon.classList.remove('hidden');
@@ -594,7 +723,7 @@ ${results.map((result, index) => `
             }
           });
         }
-      }
+      });
     }
   };
 
@@ -625,6 +754,23 @@ ${results.map((result, index) => `
   // Setze initialen Fokus auf das Input-Feld
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  // Füge CSS-Stile zum Dokument hinzu
+  useEffect(() => {
+    // Erstelle ein Link-Element für die externe CSS-Datei
+    const linkElement = document.createElement('link');
+    linkElement.rel = 'stylesheet';
+    linkElement.type = 'text/css';
+    linkElement.href = '/styles/message-styles.css';
+    
+    // Füge es zum Dokument-Head hinzu
+    document.head.appendChild(linkElement);
+    
+    // Clean-up Funktion
+    return () => {
+      document.head.removeChild(linkElement);
+    };
   }, []);
 
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {
@@ -1176,67 +1322,56 @@ ${results.map((result, index) => `
       <div className="flex-1 overflow-y-auto p-6 pt-20 space-y-3 pb-36">
         <div className="bg-white rounded-2xl p-4 border border-gray-100 space-y-2">
           <div className="space-y-2">
-            {messages.map((message) => (
+            {messages.map((message, index) => (
               <div
                 key={message.id}
-                className={`flex ${
-                  message.sender === 'user' ? 'justify-end' : 'justify-start'
-                }`}
+                ref={index === messages.length - 1 ? messagesEndRef : null}
+                className={`message-container ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[80%] rounded-2xl p-3 ${
+                  className={`message relative ${
                     message.sender === 'user'
-                      ? 'bg-[#2c2c2c] text-white'
-                      : 'bg-gray-100 text-gray-800'
+                      ? 'message-user'
+                      : message.sender === 'system'
+                        ? 'message-system'
+                        : 'message-assistant'
                   }`}
                 >
-                  <div 
-                    className="whitespace-pre-wrap text-sm prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2"
-                    onClick={(e) => {
-                      const target = e.target as HTMLElement;
-                      if (target.tagName === 'A') {
-                        e.preventDefault();
-                        handleMessageClick(message, target);
-                      }
-                    }}
-                  >
-                    <ReactMarkdown
-                      components={{
-                        h3: ({ children }: { children: ReactNode }) => (
-                          <h3 className="text-lg font-semibold mb-2 bg-gray-50 p-2 rounded-lg">{children}</h3>
-                        ),
-                        p: ({ children }: { children: ReactNode }) => (
-                          <p className="mb-1 leading-snug">{children}</p>
-                        ),
-                        strong: ({ children }: { children: ReactNode }) => (
-                          <strong className="font-semibold text-gray-700">{children}</strong>
-                        ),
-                        a: ({ children, href, onClick }: { children: ReactNode; href?: string; onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void }) => (
-                          <a
-                            href={href}
-                            onClick={onClick}
-                            className={`inline-flex items-center px-3 py-1.5 rounded-full transition-colors text-sm font-medium ${
-                              selectedSuggestions.some(s => s.prompt === children?.toString().match(/\((\d+)\)/)?.[1])
-                                ? 'bg-[#2c2c2c] text-white hover:bg-[#1a1a1a]'
-                                : 'bg-[#2c2c2c] text-white hover:bg-[#1a1a1a]'
-                            } focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20`}
-                          >
-                            {selectedSuggestions.some(s => s.prompt === children?.toString().match(/\((\d+)\)/)?.[1])
-                              ? '✓ Ausgewählt'
-                              : '+ Auswählen'}
-                          </a>
-                        ),
-                        hr: () => (
-                          <hr className="my-2 border-gray-200" />
-                        )
-                      }}
-                    >
-                      {message.text}
-                    </ReactMarkdown>
+                  <div className="message-header">
+                    <span className="timestamp">{formatTime(new Date(message.timestamp))}</span>
                   </div>
-                  <span className="text-xs opacity-70 mt-1 block">
-                    {new Date(message.timestamp).toLocaleTimeString()}
-                  </span>
+                  <div 
+                    className="message-content" 
+                    onClick={(e) => handleMessageClick(message, e.target as HTMLElement)}
+                  >
+                    {message.text.includes('<PromptSelectionView />') && message.promptsData ? (
+                      <PromptSelectionView
+                        textPrompts={message.promptsData.textPrompts}
+                        imagePrompts={message.promptsData.imagePrompts}
+                        selectedPrompts={selectedSuggestions}
+                        onPromptSelect={(prompt) => {
+                          if ('sendAll' in prompt) {
+                            // Wenn prompt { sendAll: true } ist, übertrage alle ausgewählten Prompts
+                            handleSendSelectedSuggestions();
+                            return;
+                          }
+                          
+                          setSelectedSuggestions(prev => {
+                            const isSelected = prev.some(s => s.id === prompt.id);
+                            if (isSelected) {
+                              return prev.filter(s => s.id !== prompt.id);
+                            } else {
+                              return [...prev, prompt];
+                            }
+                          });
+                        }}
+                      />
+                    ) : (
+                      <ReactMarkdown components={components}>
+                        {message.text}
+                      </ReactMarkdown>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -1358,13 +1493,13 @@ ${results.map((result, index) => `
             <button
               onClick={analyzeChat}
               className={`px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100 flex items-center space-x-2 ${
-                messages.length < 15 ? 'opacity-50 cursor-not-allowed' : ''
+                messages.length < 3 ? 'opacity-50 cursor-not-allowed' : ''
               }`}
-              disabled={messages.length < 15}
-              title={messages.length < 15 ? 'Mindestens 15 Nachrichten erforderlich' : 'Chat analysieren'}
+              disabled={messages.length < 3}
+              title={messages.length < 3 ? 'Mindestens 3 Nachrichten erforderlich' : 'Chat analysieren'}
             >
               <SparklesIcon className="w-4 h-4" />
-              <span>Analysieren{messages.length < 15 ? ` (${messages.length}/15)` : ''}</span>
+              <span>Analysieren{messages.length < 3 ? ` (${messages.length}/3)` : ''}</span>
             </button>
             {selectedSuggestions.length > 0 && (
               <button

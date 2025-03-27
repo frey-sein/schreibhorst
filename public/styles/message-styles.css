@@ -1,0 +1,84 @@
+.message-container {
+  display: flex;
+  margin-bottom: 1rem;
+}
+
+.message {
+  max-width: 80%;
+  border-radius: 1rem;
+  padding: 0.75rem 1rem;
+  position: relative;
+}
+
+.message-user {
+  background-color: #2c2c2c;
+  color: white;
+}
+
+.message-assistant {
+  background-color: #f3f4f6;
+  color: #1f2937;
+}
+
+.message-system {
+  background-color: #fef3c7;
+  color: #92400e;
+  font-style: italic;
+}
+
+.message-header {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+  opacity: 0.7;
+}
+
+.message-content {
+  white-space: pre-wrap;
+  font-size: 0.875rem;
+}
+
+/* Stile für die PromptSelectionView-Komponente */
+.prompt-card {
+  transition: all 0.2s ease-in-out;
+}
+
+.prompt-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.prompt-checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+}
+
+.prompt-tag {
+  background-color: #f3f4f6;
+  color: #4b5563;
+  border-radius: 9999px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  margin-right: 0.25rem;
+  margin-bottom: 0.25rem;
+  display: inline-block;
+}
+
+.prompt-submit-button {
+  position: sticky;
+  bottom: 1rem;
+  margin-top: 1rem;
+  background-color: #1f2937;
+  color: white;
+  border-radius: 9999px;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+}
+
+.prompt-submit-button:hover {
+  background-color: #111827;
+}

@@ -17,9 +17,9 @@ export async function POST(request: Request) {
       timestamp: new Date(msg.timestamp)
     }));
     
-    // Create analyzer and analyze the conversation holistically
+    // Create analyzer and analyze the conversation
     const analyzer = new ChatAnalyzer();
-    const results = analyzer.analyzeConversation(formattedMessages);
+    const results = await analyzer.analyzeConversation(formattedMessages);
     
     return NextResponse.json({ results });
   } catch (error: any) {
