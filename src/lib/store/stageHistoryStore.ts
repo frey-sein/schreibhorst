@@ -12,64 +12,126 @@ interface StageSnapshot {
 interface StageHistoryStore {
   snapshots: StageSnapshot[];
   currentSnapshotId: string | null;
-  addSnapshot: (textDrafts: TextDraft[], imageDrafts: ImageDraft[]) => void;
-  restoreSnapshot: (id: string) => StageSnapshot | null;
-  getSnapshots: () => StageSnapshot[];
-  clearSnapshots: () => void;
+  addSnapshot: (textDrafts: TextDraft[], imageDrafts: ImageDraft[]) => Promise<void>;
+  restoreSnapshot: (id: string) => Promise<StageSnapshot | null>;
+  getSnapshots: () => Promise<StageSnapshot[]>;
+  clearSnapshots: () => Promise<void>;
 }
 
-export const useStageHistoryStore = create<StageHistoryStore>()(
-  persist(
-    (set, get) => ({
-      snapshots: [],
-      currentSnapshotId: null,
+export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
+  snapshots: [],
+  currentSnapshotId: null,
 
-      addSnapshot: (textDrafts, imageDrafts) => {
-        const newSnapshot: StageSnapshot = {
-          id: new Date().getTime().toString(),
-          timestamp: new Date(),
-          textDrafts: JSON.parse(JSON.stringify(textDrafts)),
-          imageDrafts: JSON.parse(JSON.stringify(imageDrafts))
-        };
+  addSnapshot: async (textDrafts, imageDrafts) => {
+    // Neues Snapshot-Objekt erstellen
+    const newSnapshot: StageSnapshot = {
+      id: new Date().getTime().toString(),
+      timestamp: new Date(),
+      textDrafts: JSON.parse(JSON.stringify(textDrafts)),
+      imageDrafts: JSON.parse(JSON.stringify(imageDrafts))
+    };
 
-        set(state => ({
-          snapshots: [newSnapshot, ...state.snapshots],
-          currentSnapshotId: newSnapshot.id
-        }));
-      },
+    // Im Store aktualisieren
+    set(state => ({
+      snapshots: [newSnapshot, ...state.snapshots],
+      currentSnapshotId: newSnapshot.id
+    }));
 
-      restoreSnapshot: (id) => {
-        const { snapshots } = get();
-        const snapshot = snapshots.find(s => s.id === id);
-        if (snapshot) {
-          set({ currentSnapshotId: id });
-          return {
-            ...snapshot,
-            timestamp: snapshot.timestamp instanceof Date ? snapshot.timestamp : new Date(snapshot.timestamp) // Sicherstellen, dass es ein Date-Objekt ist
-          };
-        }
-        return null;
-      },
-
-      getSnapshots: () => {
-        const { snapshots } = get();
-        return snapshots.map(snapshot => ({
-          ...snapshot,
-          timestamp: snapshot.timestamp instanceof Date ? snapshot.timestamp : new Date(snapshot.timestamp) // Sicherstellen, dass es ein Date-Objekt ist
-        }));
-      },
-
-      clearSnapshots: () => set({ snapshots: [], currentSnapshotId: null }),
-    }),
-    {
-      name: 'stage-history-storage',
-      partialize: (state) => ({
-        snapshots: state.snapshots.map(snapshot => ({
-          ...snapshot,
-          timestamp: snapshot.timestamp instanceof Date ? snapshot.timestamp.toISOString() : snapshot.timestamp // Prüfe, ob timestamp ein Date ist
-        })),
-        currentSnapshotId: state.currentSnapshotId
-      })
+    // Zum Server senden und persistent speichern
+    try {
+      await fetch('/api/stage-history', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id: newSnapshot.id,
+          textDrafts: newSnapshot.textDrafts,
+          imageDrafts: newSnapshot.imageDrafts
+        })
+      });
+    } catch (error) {
+      console.error('Fehler beim Speichern des Snapshots:', error);
     }
-  )
-); 
+  },
+
+  restoreSnapshot: async (id) => {
+    // Zuerst im lokalen Store nachsehen
+    const { snapshots } = get();
+    let snapshot = snapshots.find(s => s.id === id);
+    
+    // Wenn nicht im lokalen Store, vom Server holen
+    if (!snapshot) {
+      try {
+        const response = await fetch(`/api/stage-history?id=${id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.snapshot) {
+            snapshot = {
+              ...data.snapshot,
+              timestamp: new Date(data.snapshot.timestamp)
+            };
+          }
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden des Snapshots vom Server:', error);
+      }
+    }
+    
+    if (snapshot) {
+      set({ currentSnapshotId: id });
+      return {
+        ...snapshot,
+        timestamp: snapshot.timestamp instanceof Date 
+          ? snapshot.timestamp 
+          : new Date(snapshot.timestamp)
+      };
+    }
+    return null;
+  },
+
+  getSnapshots: async () => {
+    // Snapshots vom Server laden
+    try {
+      const response = await fetch('/api/stage-history');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.snapshots && Array.isArray(data.snapshots)) {
+          const serverSnapshots = data.snapshots.map((snapshot: any) => ({
+            ...snapshot,
+            timestamp: new Date(snapshot.timestamp)
+          }));
+          
+          // Im Store aktualisieren
+          set({ snapshots: serverSnapshots });
+          return serverSnapshots;
+        }
+      }
+    } catch (error) {
+      console.error('Fehler beim Laden der Snapshots vom Server:', error);
+    }
+    
+    // Falls Server-Abruf fehlschlägt, lokale Snapshots zurückgeben
+    const { snapshots } = get();
+    return snapshots.map(snapshot => ({
+      ...snapshot,
+      timestamp: snapshot.timestamp instanceof Date 
+        ? snapshot.timestamp 
+        : new Date(snapshot.timestamp)
+    }));
+  },
+
+  clearSnapshots: async () => {
+    // Im lokalen Store löschen
+    set({ snapshots: [], currentSnapshotId: null });
+    
+    // Vom Server löschen
+    try {
+      await fetch('/api/stage-history', {
+        method: 'DELETE'
+      });
+    } catch (error) {
+      console.error('Fehler beim Löschen der Snapshots vom Server:', error);
+    }
+  },
+})); 

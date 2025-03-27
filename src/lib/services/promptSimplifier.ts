@@ -1,6 +1,6 @@
 /**
  * Service zum Vereinfachen von komplexen KI-Bild-Prompts zu suchbaren Begriffen
- * für Stockfoto-Datenbanken. Verwendet ein kostengünstiges KI-Modell via OpenRouter.
+ * für Stockfoto-Datenbanken. Verwendet lokale Vereinfachungsmethoden.
  */
 
 import { apiConfig } from '@/lib/config/apiConfig';
@@ -11,11 +11,12 @@ interface SimplifyPromptResponse {
   error?: string;
 }
 
-// Cache für bereits vereinfachte Prompts, um unnötige API-Aufrufe zu vermeiden
+// Cache für bereits vereinfachte Prompts, um unnötige Verarbeitung zu vermeiden
 const promptCache: Record<string, string> = {};
 
 /**
  * Vereinfacht einen komplexen KI-Prompt zu Suchbegriffen für Stockfoto-Datenbanken
+ * Für mehr Zuverlässigkeit nutzt diese Funktion jetzt nur noch die lokale Vereinfachung
  * @param originalPrompt Der ursprüngliche komplexe Prompt
  * @returns Ein vereinfachter Suchbegriff
  */
@@ -29,47 +30,32 @@ export async function simplifyPrompt(originalPrompt: string): Promise<SimplifyPr
   }
   
   try {
-    const endpoint = `/api/prompt/simplify`;
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ prompt: originalPrompt })
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
+    // Direkt lokale Vereinfachung verwenden, um Netzwerkfehler zu vermeiden
+    const simplifiedPrompt = simplifyPromptLocally(originalPrompt);
     
-    if (!data.success) {
-      throw new Error(data.error || 'Unbekannter Fehler bei der Prompt-Vereinfachung');
-    }
-
     // Cache das Ergebnis
-    promptCache[originalPrompt] = data.simplifiedPrompt;
+    promptCache[originalPrompt] = simplifiedPrompt;
     
     return {
       success: true,
-      simplifiedPrompt: data.simplifiedPrompt
+      simplifiedPrompt: simplifiedPrompt
     };
   } catch (error) {
     console.error('Fehler bei der Prompt-Vereinfachung:', error);
     
-    // Fallback zur lokalen Vereinfachung
+    // Fallback mit einer sehr einfachen Vereinfachung
+    const fallbackSimplified = originalPrompt.split(' ').slice(0, 3).join(' ');
+    
     return {
       success: true,
-      simplifiedPrompt: simplifyPromptLocally(originalPrompt),
+      simplifiedPrompt: fallbackSimplified,
       error: error instanceof Error ? error.message : 'Unbekannter Fehler'
     };
   }
 }
 
 /**
- * Einfache lokale Vereinfachungsfunktion als Fallback,
- * wenn die API nicht verfügbar ist oder fehlschlägt
+ * Einfache lokale Vereinfachungsfunktion
  */
 export function simplifyPromptLocally(originalPrompt: string): string {
   // Entferne typische KI-Prompt-Anweisungen und Parameter

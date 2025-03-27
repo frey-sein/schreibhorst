@@ -17,15 +17,31 @@ const nextConfig = {
     ],
   },
 
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.module.rules.push({
       test: /\.svg$/,
       use: ['@svgr/webpack']
     });
+    
     config.resolve.alias = {
       ...config.resolve.alias,
       '@': path.resolve(__dirname, 'src'),
     };
+    
+    // Wenn es sich um Client-seitigen Code handelt, ignoriere Node.js-spezifische Module
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        os: false,
+        crypto: false,
+        stream: false,
+        net: false,
+        tls: false,
+      };
+    }
+    
     return config;
   },
 

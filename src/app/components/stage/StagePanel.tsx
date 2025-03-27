@@ -27,6 +27,12 @@ export default function StagePanel() {
   const [currentImageId, setCurrentImageId] = useState<number | null>(null);
   const [editingPrompt, setEditingPrompt] = useState("");
   const { addSnapshot, getSnapshots, restoreSnapshot, clearSnapshots } = useStageHistoryStore();
+  const [snapshots, setSnapshots] = useState<Array<{
+    id: string;
+    timestamp: Date;
+    textDrafts: any[];
+    imageDrafts: any[];
+  }>>([]);
 
   // Get prompts from the store
   const { textPrompts, imagePrompts } = usePromptStore();
@@ -152,14 +158,23 @@ export default function StagePanel() {
     }
   };
 
-  const handleSave = () => {
-    // Speichere den aktuellen Zustand im History-Store
-    addSnapshot(textDrafts, imageDrafts);
-    
-    // Der aktuelle Zustand ist bereits im Stage-Store gespeichert
-    // durch die reactive updates in den Funktionen
-    
-    setIsHistoryOpen(false); // Schließe das Verlaufsmenü nach dem Speichern
+  const handleSave = async () => {
+    try {
+      // Speichere den aktuellen Zustand im History-Store
+      await addSnapshot(textDrafts, imageDrafts);
+      
+      // Lade die Snapshots neu
+      const loadedSnapshots = await getSnapshots();
+      setSnapshots(loadedSnapshots);
+      
+      // Der aktuelle Zustand ist bereits im Stage-Store gespeichert
+      // durch die reactive updates in den Funktionen
+      
+      setIsHistoryOpen(false); // Schließe das Verlaufsmenü nach dem Speichern
+    } catch (error) {
+      console.error('Fehler beim Speichern des Snapshots:', error);
+      alert('Fehler beim Speichern des Snapshots. Bitte versuchen Sie es erneut.');
+    }
   };
 
   const handleOpenPromptModal = (id: number) => {
@@ -225,15 +240,37 @@ export default function StagePanel() {
     }
   };
 
-  const handleRestoreSnapshot = (snapshotId: string) => {
-    const snapshot = restoreSnapshot(snapshotId);
-    if (snapshot) {
-      // Aktualisiere beide Stores - History und Stage
-      setTextDrafts(snapshot.textDrafts);
-      setImageDrafts(snapshot.imageDrafts);
-      setIsHistoryOpen(false);
+  const handleRestoreSnapshot = async (snapshotId: string) => {
+    try {
+      const snapshot = await restoreSnapshot(snapshotId);
+      if (snapshot) {
+        // Aktualisiere beide Stores - History und Stage
+        setTextDrafts(snapshot.textDrafts);
+        setImageDrafts(snapshot.imageDrafts);
+        setIsHistoryOpen(false);
+      }
+    } catch (error) {
+      console.error('Fehler beim Wiederherstellen des Snapshots:', error);
+      alert('Fehler beim Wiederherstellen des Snapshots. Bitte versuchen Sie es erneut.');
     }
   };
+
+  // Lade Snapshots beim Öffnen des History-Panels
+  useEffect(() => {
+    if (isHistoryOpen) {
+      const loadSnapshots = async () => {
+        try {
+          const loadedSnapshots = await getSnapshots();
+          setSnapshots(loadedSnapshots);
+        } catch (error) {
+          console.error('Fehler beim Laden der Snapshots:', error);
+          setSnapshots([]);
+        }
+      };
+      
+      loadSnapshots();
+    }
+  }, [isHistoryOpen, getSnapshots]);
 
   return (
     <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0]">
@@ -496,7 +533,7 @@ export default function StagePanel() {
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-3">
                   <h3 className="text-lg font-medium text-gray-900">Verlauf</h3>
-                  {getSnapshots().length > 0 && (
+                  {snapshots.length > 0 && (
                     <button 
                       onClick={() => {
                         if (window.confirm('Möchten Sie wirklich den gesamten Verlauf löschen?')) {
@@ -521,12 +558,12 @@ export default function StagePanel() {
                 </button>
               </div>
               <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                {getSnapshots().length === 0 ? (
+                {snapshots.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-500 text-sm">Keine Snapshots vorhanden!</p>
                   </div>
                 ) : (
-                  getSnapshots().map((snapshot) => (
+                  snapshots.map((snapshot) => (
                     <div
                       key={snapshot.id}
                       className="group flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg cursor-pointer border border-gray-100"

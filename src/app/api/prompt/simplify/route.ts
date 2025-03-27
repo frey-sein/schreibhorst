@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { simplifyPromptLocally } from '@/lib/services/promptSimplifier';
-import { apiConfig } from '@/lib/config/apiConfig';
 
-// OpenRouter API Konfiguration
-const OPENROUTER_API_KEY = apiConfig.openRouter.apiKey;
-const MODEL_ID = 'openai/gpt-3.5-turbo-instruct';
-
+// Vereinfachte API-Route, die nur lokale Vereinfachung nutzt
 export async function POST(request: NextRequest) {
   try {
     const { prompt } = await request.json();
@@ -17,6 +13,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Wir verwenden ausschließlich die lokale Vereinfachung, um Fehler zu vermeiden
     const simplifiedPrompt = simplifyPromptLocally(prompt);
     
     return NextResponse.json({

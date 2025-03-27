@@ -1,4 +1,7 @@
+'use client';
+
 import { v4 as uuidv4 } from 'uuid';
+import { SavedImage, ImageStorageClient } from './imageStorageClient';
 
 export interface ImageModel {
   id: string;
@@ -37,10 +40,36 @@ export const availableModels: ImageModel[] = [
 interface GenerateImageResponse {
   success: boolean;
   imageUrl?: string;
+  image?: SavedImage;
   error?: string;
 }
 
-export async function generateImage(prompt: string, modelId?: string): Promise<GenerateImageResponse> {
+// Hilfsfunktion zum Herunterladen eines Bildes
+async function downloadImage(url: string): Promise<string> {
+  try {
+    // Verwende den Proxy-Endpunkt, um CORS-Probleme zu vermeiden
+    const response = await fetch('/api/proxy/image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Fehler beim Herunterladen des Bildes: ${errorData.error || response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data.imageData;
+  } catch (error) {
+    console.error('Fehler beim Herunterladen des Bildes:', error);
+    throw error;
+  }
+}
+
+export async function generateImage(prompt: string, modelId?: string, title?: string): Promise<GenerateImageResponse> {
   try {
     const apiKey = process.env.NEXT_PUBLIC_TOGETHER_API_KEY;
     
@@ -99,10 +128,39 @@ export async function generateImage(prompt: string, modelId?: string): Promise<G
       };
     }
     
-    return {
-      success: true,
-      imageUrl: imageUrl
-    };
+    // Bild herunterladen und im Filesystem/DB speichern
+    try {
+      const imageData = await downloadImage(imageUrl);
+      
+      // Bild im neuen Storage-Service speichern (client-seitig)
+      const savedImage = await ImageStorageClient.saveImage(imageData, {
+        title: title || prompt.substring(0, 50) + '...',
+        prompt: prompt,
+        modelId: model,
+        width: 1024,
+        height: 1024,
+        meta: {
+          provider: 'togetherAI',
+          generationModel: model
+        }
+      });
+      
+      // Erfolg mit gespeichertem Bild zurückgeben
+      return {
+        success: true,
+        imageUrl: savedImage?.url || imageUrl,
+        image: savedImage || undefined
+      };
+    } catch (saveError) {
+      console.error('Fehler beim Speichern des generierten Bildes:', saveError);
+      
+      // Wir geben trotzdem die Original-URL zurück, damit das Bild angezeigt werden kann
+      return {
+        success: true,
+        imageUrl: imageUrl,
+        error: 'Bild wurde generiert, konnte aber nicht dauerhaft gespeichert werden'
+      };
+    }
   } catch (error) {
     console.error('Fehler bei der Bildgenerierung:', error);
     return {
