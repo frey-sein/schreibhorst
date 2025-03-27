@@ -153,8 +153,8 @@ export default function DatabaseAdminPage() {
           <div className="sticky top-[64px] z-20 h-[120px] p-6 border-b border-gray-100 bg-white/80 backdrop-blur-md">
             <div className="flex justify-between items-start gap-4 w-full">
               <div className="flex-1">
-                <h2 className="text-xl lg:text-2xl font-light text-gray-900 tracking-tight">Datenbank-Verwaltung</h2>
-                <p className="text-xs lg:text-sm text-gray-500 mt-1 break-normal">
+                <h2 className="text-xl lg:text-2xl font-light text-[#1a1a1a] tracking-tight">Datenbank-Verwaltung</h2>
+                <p className="text-xs lg:text-sm text-gray-600 mt-1 break-normal">
                   MySQL-Datenbank direkt aus der Anwendung verwalten
                 </p>
               </div>
@@ -208,7 +208,7 @@ export default function DatabaseAdminPage() {
               <div className="col-span-12 lg:col-span-3">
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 h-full">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-medium text-base">Tabellen</h3>
+                    <h3 className="font-medium text-base text-[#1a1a1a]">Tabellen</h3>
                     {connectionStatus === 'success' && (
                       <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full flex items-center">
                         <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
@@ -259,12 +259,12 @@ export default function DatabaseAdminPage() {
               <div className="col-span-12 lg:col-span-9 space-y-6">
                 {/* Query Editor */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-                  <h3 className="font-medium text-base mb-4">SQL-Abfrage</h3>
+                  <h3 className="font-medium text-base mb-4 text-[#1a1a1a]">SQL-Abfrage</h3>
                   <div className="space-y-4">
                     <textarea
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      className="w-full h-32 p-3 border border-gray-300 rounded-xl text-sm font-mono"
+                      className="w-full h-32 p-3 border border-gray-300 rounded-xl text-sm font-mono text-[#1a1a1a] bg-white"
                       placeholder="SELECT * FROM tabelle LIMIT 10;"
                     />
                     <div className="flex justify-end">
@@ -298,7 +298,7 @@ export default function DatabaseAdminPage() {
                 {/* Ergebnisse */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-medium text-base">Ergebnisse</h3>
+                    <h3 className="font-medium text-base text-[#1a1a1a]">Ergebnisse</h3>
                     {debugInfo && (
                       <div className="text-xs text-gray-500">
                         <span className="mr-2">Ausführungszeit: {debugInfo.executionTime}</span>
@@ -330,7 +330,7 @@ export default function DatabaseAdminPage() {
                             {Object.keys(results[0]).map((key, index) => (
                               <th 
                                 key={`header-${index}-${key || 'empty'}`}
-                                className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"
                               >
                                 {key || '(Ohne Name)'}
                               </th>
@@ -341,9 +341,9 @@ export default function DatabaseAdminPage() {
                           {results.map((row, rowIndex) => (
                             <tr key={`row-${rowIndex}`} className="hover:bg-gray-50">
                               {Object.entries(row).map(([key, value], cellIndex) => (
-                                <td key={`cell-${rowIndex}-${cellIndex}-${key || 'empty'}`} className="px-3 py-2 text-sm text-gray-500">
+                                <td key={`cell-${rowIndex}-${cellIndex}-${key || 'empty'}`} className="px-3 py-2 text-sm text-gray-700">
                                   {value === null ? (
-                                    <span className="text-gray-400 italic">NULL</span>
+                                    <span className="text-gray-500 italic">NULL</span>
                                   ) : typeof value === 'object' ? (
                                     JSON.stringify(value)
                                   ) : (
@@ -361,14 +361,14 @@ export default function DatabaseAdminPage() {
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                       </svg>
-                      <p className="text-gray-500 text-sm">Die Abfrage wurde erfolgreich ausgeführt, aber keine Daten zurückgegeben.</p>
+                      <p className="text-gray-700 text-sm">Die Abfrage wurde erfolgreich ausgeführt, aber keine Daten zurückgegeben.</p>
                     </div>
                   ) : (
                     <div className="text-center py-8">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
                       </svg>
-                      <p className="text-gray-500 text-sm">Führe eine SQL-Abfrage aus, um Ergebnisse zu sehen.</p>
+                      <p className="text-gray-700 text-sm">Führe eine SQL-Abfrage aus, um Ergebnisse zu sehen.</p>
                     </div>
                   )}
                 </div>
