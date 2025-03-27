@@ -209,9 +209,16 @@ export default function StagePanel() {
         // Generiere ein neues Bild mit dem Prompt über die Together API
         const result = await generateImage(image.prompt, selectedModel);
         
-        if (result.success && result.imageUrl) {
-          // Aktualisiere das Bild mit der neuen URL
-          updateImageDraft(id, { url: result.imageUrl as string });
+        if (result.success) {
+          // Verwende die URL vom gespeicherten Bild, falls vorhanden (lokaler Pfad)
+          if (result.image && result.image.url) {
+            updateImageDraft(id, { url: result.image.url });
+          } 
+          // Fallback zur externen URL, falls keine lokale URL vorhanden
+          else if (result.imageUrl) {
+            updateImageDraft(id, { url: result.imageUrl as string });
+            console.warn('Bild wurde generiert, aber ohne lokalen Pfad - verwende externe URL');
+          }
         } else {
           // Fehlerbehandlung
           console.error('Fehler bei der Bildgenerierung:', result.error);
@@ -271,6 +278,170 @@ export default function StagePanel() {
       loadSnapshots();
     }
   }, [isHistoryOpen, getSnapshots]);
+
+  const handleDownloadImage = async (id: number) => {
+    const image = imageDrafts.find(img => img.id === id);
+    if (!image) return;
+    
+    try {
+      console.log('Herunterladen des Bildes:', id);
+      
+      // Versuche zuerst, die Vollqualitätsversion über die neue API zu erhalten
+      try {
+        // Extrahiere die Bild-ID aus der URL, falls es sich um einen lokalen Pfad handelt
+        let imageId = id.toString();
+        
+        if (image.url && image.url.startsWith('/uploads/images/')) {
+          const pathParts = image.url.split('/');
+          const filename = pathParts[pathParts.length - 1];
+          imageId = filename.split('.')[0]; // Entferne die Dateiendung
+        }
+        
+        const response = await fetch(`/api/images/${imageId}/fullquality`);
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${image.prompt ? image.prompt.substring(0, 30).replace(/[^a-z0-9]/gi, '_') : `bild_${id}`}_1600x1200.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          return;
+        }
+      } catch (fullQualityError) {
+        console.log('Vollqualitätsversion nicht verfügbar:', fullQualityError);
+      }
+      
+      // Prüfe, ob die URL ein lokaler Pfad ist (beginnt mit '/' aber nicht mit 'http')
+      const isLocalPath = image.url && image.url.startsWith('/') && !image.url.startsWith('//');
+      
+      // Bei lokalen Pfaden versuche einen direkten Download
+      if (isLocalPath) {
+        try {
+          // Einfacher Fetch der lokalen Datei
+          const response = await fetch(image.url);
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${image.prompt ? image.prompt.substring(0, 30).replace(/[^a-z0-9]/gi, '_') : `bild_${id}`}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            return;
+          }
+        } catch (localError) {
+          console.error('Fehler beim Herunterladen des lokalen Bildes:', localError);
+        }
+      }
+      
+      // Versuche als nächstes, die hochauflösende Version zu erhalten (falls API verfügbar)
+      try {
+        const response = await fetch(`/api/images/${id}/highres`);
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${image.prompt ? image.prompt.substring(0, 30).replace(/[^a-z0-9]/gi, '_') : `bild_${id}`}_highres.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          return;
+        }
+      } catch (highResError) {
+        console.log('Hochauflösende Version nicht verfügbar:', highResError);
+      }
+      
+      // Fallback zur Canvas-Methode für externe URLs
+      if (image.url) {
+        try {
+          // Canvas-Methode zum Umgehen von CORS und temporären URLs
+          const img = new Image();
+          img.crossOrigin = 'anonymous';  // Wichtig für CORS-Kompatibilität
+          
+          // Warte, bis das Bild geladen ist
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = image.url;
+          });
+          
+          // Zeichne das Bild auf einen Canvas mit voller Auflösung
+          const canvas = document.createElement('canvas');
+          
+          // Bestimme die optimale Größe für den Canvas
+          // Um bessere Qualität zu erhalten, skalieren wir auf 2048x2048
+          const targetWidth = 2048;
+          const targetHeight = 2048;
+          
+          // Wenn das Bild stark vom Seitenverhältnis 1:1 abweicht, behalten wir das originale Seitenverhältnis bei
+          const aspectRatio = img.width / img.height;
+          
+          // Setze Canvas-Größe basierend auf dem Seitenverhältnis
+          if (Math.abs(aspectRatio - 1.0) < 0.1) {
+            // Bei nahezu 1:1-Verhältnis setzen wir auf 2048x2048
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+          } else {
+            // Bei anderen Seitenverhältnissen behalten wir das originale Verhältnis bei,
+            // sorgen aber für eine Mindestgröße von 2048 Pixeln auf der längeren Seite
+            if (aspectRatio > 1) {
+              canvas.width = targetWidth;
+              canvas.height = Math.round(targetWidth / aspectRatio);
+            } else {
+              canvas.height = targetHeight;
+              canvas.width = Math.round(targetHeight * aspectRatio);
+            }
+          }
+          
+          console.log(`Originalbild: ${img.width}x${img.height}, Download-Größe: ${canvas.width}x${canvas.height}`);
+          
+          const ctx = canvas.getContext('2d');
+          
+          // Verwende eine bessere Interpolationsmethode für das Upscaling
+          if (ctx) {
+            // Hochwertige Skalierung aktivieren
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            
+            // Zeichne das Bild mit der vollen Auflösung
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          }
+          
+          // Konvertiere den Canvas in einen Blob mit höchster Qualität
+          const dataUrl = canvas.toDataURL('image/png', 1.0);
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = `${image.prompt ? image.prompt.substring(0, 30).replace(/[^a-z0-9]/gi, '_') : `bild_${id}`}_2048x2048.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          return;
+        } catch (canvasError) {
+          console.error('Canvas-Methode fehlgeschlagen, versuche direkte Methode:', canvasError);
+          
+          // Als letzter Ausweg: Direkte Link-Methode
+          const a = document.createElement('a');
+          a.href = image.url;
+          a.download = `${image.prompt ? image.prompt.substring(0, 30).replace(/[^a-z0-9]/gi, '_') : `bild_${id}`}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+      } else {
+        throw new Error('Keine Bild-URL vorhanden');
+      }
+    } catch (error) {
+      console.error('Fehler beim Download:', error);
+      alert('Das Bild konnte nicht heruntergeladen werden. Bitte versuchen Sie es später erneut.');
+    }
+  };
 
   return (
     <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0]">
@@ -476,6 +647,18 @@ export default function StagePanel() {
                           title="Bild neu generieren"
                         >
                           <ArrowPathIcon className="h-4 w-4 text-gray-600" />
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadImage(draft.id);
+                          }}
+                          className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                          title="Bild herunterladen"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
                         </button>
                       </div>
                     </div>

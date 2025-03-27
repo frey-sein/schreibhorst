@@ -101,7 +101,7 @@ export async function generateImage(prompt: string, modelId?: string, title?: st
         model: model,
         prompt: prompt,
         n: 1, // Anzahl der zu generierenden Bilder
-        size: '1024x1024', // Bildgröße
+        size: '1024x1024', // Standard-Bildgröße für Together AI (FLUX akzeptiert scheinbar nur Standard-Größen)
         response_format: 'url' // URL statt Base64
       })
     });
