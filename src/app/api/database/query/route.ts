@@ -3,16 +3,23 @@ import mysql from 'mysql2/promise';
 
 // Hilfsfunktion zum Erstellen einer Datenbankverbindung
 async function getConnection() {
-  return mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'schema',
-    // Zusätzliche Optionen für mehr Stabilität
-    connectTimeout: 10000, // 10 Sekunden
-    waitForConnections: true,
-  });
+  try {
+    const connection = await mysql.createConnection({
+      host: process.env.DB_HOST || 'localhost',
+      port: Number(process.env.DB_PORT) || 3306,
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'schema',
+      // Zusätzliche Optionen für mehr Stabilität
+      connectTimeout: 10000, // 10 Sekunden
+      waitForConnections: true,
+      multipleStatements: false, // Vermeide mehrere Statements, Sicherheitsmaßnahme
+    });
+    return connection;
+  } catch (error) {
+    console.error('Datenbankverbindungsfehler:', error);
+    throw error;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -53,12 +60,28 @@ export async function POST(request: NextRequest) {
     connection = await getConnection();
 
     // Abfrage ausführen mit Timeout
+    const startTime = Date.now();
     const [results] = await connection.execute({
       sql: query,
       timeout: 30000 // 30 Sekunden Timeout für lange Abfragen
     });
+    const endTime = Date.now();
 
-    return NextResponse.json({ results, success: true });
+    // Debug-Informationen hinzufügen
+    const debugInfo = {
+      executionTime: `${endTime - startTime}ms`,
+      timestamp: new Date().toISOString(),
+      query: query.substring(0, 100) + (query.length > 100 ? '...' : '')
+    };
+
+    // Stelle sicher, dass die Verbindung geschlossen wird
+    await connection.end();
+
+    return NextResponse.json({ 
+      results, 
+      debug: debugInfo,
+      success: true 
+    });
   } catch (error: any) {
     console.error('Fehler bei der Abfrage:', error);
     return NextResponse.json(
@@ -71,7 +94,11 @@ export async function POST(request: NextRequest) {
   } finally {
     // Stellen Sie sicher, dass die Verbindung geschlossen wird
     if (connection) {
-      await connection.end();
+      try {
+        await connection.end();
+      } catch (err) {
+        console.error('Fehler beim Schließen der Datenbankverbindung:', err);
+      }
     }
   }
 } 

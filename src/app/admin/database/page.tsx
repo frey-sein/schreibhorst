@@ -17,6 +17,7 @@ export default function DatabaseAdminPage() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [isLoadingTables, setIsLoadingTables] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'success' | 'error' | 'loading'>('loading');
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -38,18 +39,25 @@ export default function DatabaseAdminPage() {
     setError(null);
     
     try {
-      const response = await fetch('/api/database/tables');
+      // Cache-Busting-Parameter hinzufügen, um Browser-Caching zu verhindern
+      const response = await fetch(`/api/database/tables?t=${Date.now()}`);
       const data = await response.json();
+      
+      console.log('Antwort vom Server:', data); // Debug-Ausgabe
       
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'Fehler beim Abrufen der Tabellen');
       }
       
-      setTables(data.tables || []);
+      // Filtere leere oder null Tabellennamen
+      const validTables = (data.tables || []).filter((tableName: string) => !!tableName);
+      console.log('Gültige Tabellen:', validTables); // Debug-Ausgabe
+      
+      setTables(validTables);
       setConnectionStatus('success');
       
-      if (data.tables && data.tables.length > 0 && !selectedTable) {
-        setSelectedTable(data.tables[0]);
+      if (validTables.length > 0 && !selectedTable) {
+        setSelectedTable(validTables[0]);
       }
     } catch (err: any) {
       console.error('Fehler beim Abrufen der Tabellen:', err);
@@ -69,20 +77,23 @@ export default function DatabaseAdminPage() {
   }, [mounted, isAdmin, fetchTables]);
 
   // Funktion zur Ausführung von SQL-Abfragen
-  const executeQuery = useCallback(async () => {
-    if (!query.trim()) return;
+  const executeQuery = useCallback(async (customQuery?: string) => {
+    const queryToExecute = customQuery || query;
+    if (!queryToExecute.trim()) return;
     
     setIsExecuting(true);
     setError(null);
     setResults(null);
+    setDebugInfo(null);
     
     try {
-      const response = await fetch('/api/database/query', {
+      // Cache-Busting-Parameter zur URL hinzufügen
+      const response = await fetch(`/api/database/query?t=${Date.now()}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query: queryToExecute }),
       });
       
       const data = await response.json();
@@ -92,6 +103,11 @@ export default function DatabaseAdminPage() {
       }
       
       setResults(Array.isArray(data.results) ? data.results : []);
+      
+      // Debug-Informationen speichern, wenn vorhanden
+      if (data.debug) {
+        setDebugInfo(data.debug);
+      }
     } catch (err: any) {
       console.error('Fehler bei der Abfrage:', err);
       setError(err.message || 'Ein Fehler ist aufgetreten');
@@ -102,12 +118,25 @@ export default function DatabaseAdminPage() {
 
   // Funktion zur Anzeige einer Tabelle
   const viewTable = useCallback((tableName: string) => {
+    // Prüfe, ob der Tabellenname gültig ist (nicht null oder leer)
+    if (!tableName) {
+      console.error('Ungültiger Tabellenname:', tableName);
+      setError('Ein gültiger Tabellenname muss ausgewählt werden');
+      return;
+    }
+    
+    // Setze die ausgewählte Tabelle
     setSelectedTable(tableName);
-    setQuery(`SELECT * FROM ${tableName} LIMIT 100;`);
-    // Führe die Abfrage nach dem Setzen des Query-Textes aus
-    setTimeout(() => {
-      executeQuery();
-    }, 50);
+    
+    // Erstelle die Abfrage für diese Tabelle
+    const tableQuery = `SELECT * FROM \`${tableName}\` LIMIT 100;`;
+    
+    // Aktualisiere den Abfragetext im State
+    setQuery(tableQuery);
+    
+    // Führe die Abfrage direkt mit dem generierten Query aus
+    // Dies vermeidet Probleme mit asynchronen State-Updates
+    executeQuery(tableQuery);
   }, [executeQuery]);
 
   // Nicht rendern, wenn die Komponente noch nicht geladen ist oder der Benutzer kein Admin ist
@@ -240,7 +269,7 @@ export default function DatabaseAdminPage() {
                     />
                     <div className="flex justify-end">
                       <button
-                        onClick={executeQuery}
+                        onClick={() => executeQuery()}
                         disabled={isExecuting || !query.trim()}
                         className="px-5 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] disabled:bg-gray-400 transition-colors text-sm flex items-center space-x-2"
                       >
@@ -268,7 +297,17 @@ export default function DatabaseAdminPage() {
 
                 {/* Ergebnisse */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-                  <h3 className="font-medium text-base mb-4">Ergebnisse</h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-medium text-base">Ergebnisse</h3>
+                    {debugInfo && (
+                      <div className="text-xs text-gray-500">
+                        <span className="mr-2">Ausführungszeit: {debugInfo.executionTime}</span>
+                        {debugInfo.timestamp && (
+                          <span>Zeitstempel: {new Date(debugInfo.timestamp).toLocaleTimeString()}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   
                   {error && (
                     <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-800 text-sm mb-4">
@@ -283,26 +322,26 @@ export default function DatabaseAdminPage() {
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                     </div>
-                  ) : results && results.length > 0 ? (
+                  ) : results && results.length > 0 && Object.keys(results[0]).length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
-                            {Object.keys(results[0]).map((key) => (
+                            {Object.keys(results[0]).map((key, index) => (
                               <th 
-                                key={key} 
+                                key={`header-${index}-${key || 'empty'}`}
                                 className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                               >
-                                {key}
+                                {key || '(Ohne Name)'}
                               </th>
                             ))}
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {results.map((row, i) => (
-                            <tr key={i} className="hover:bg-gray-50">
-                              {Object.values(row).map((value: any, j) => (
-                                <td key={j} className="px-3 py-2 text-sm text-gray-500">
+                          {results.map((row, rowIndex) => (
+                            <tr key={`row-${rowIndex}`} className="hover:bg-gray-50">
+                              {Object.entries(row).map(([key, value], cellIndex) => (
+                                <td key={`cell-${rowIndex}-${cellIndex}-${key || 'empty'}`} className="px-3 py-2 text-sm text-gray-500">
                                   {value === null ? (
                                     <span className="text-gray-400 italic">NULL</span>
                                   ) : typeof value === 'object' ? (

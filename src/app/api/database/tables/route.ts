@@ -3,33 +3,62 @@ import mysql from 'mysql2/promise';
 
 // Hilfsfunktion zum Erstellen einer Datenbankverbindung
 async function getConnection() {
-  return mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'schema',
-  });
+  try {
+    // Protokolliere die Verbindungsparameter (ohne Passwort)
+    console.log('Verbindungsaufbau zur Datenbank mit:', {
+      host: process.env.DB_HOST || 'localhost',
+      port: Number(process.env.DB_PORT) || 3306,
+      user: process.env.DB_USER || 'root',
+      database: process.env.DB_NAME || 'schema',
+    });
+
+    const connection = await mysql.createConnection({
+      host: process.env.DB_HOST || 'localhost',
+      port: Number(process.env.DB_PORT) || 3306,
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'schema',
+      // Zusätzliche Optionen für mehr Stabilität
+      connectTimeout: 10000,
+      waitForConnections: true,
+    });
+
+    // Teste die Verbindung mit einer einfachen Abfrage
+    const [testResult] = await connection.execute('SELECT DATABASE() as current_db');
+    console.log('Verbindung erfolgreich, aktuelle Datenbank:', testResult);
+
+    return connection;
+  } catch (error) {
+    console.error('Datenbankverbindungsfehler:', error);
+    throw error;
+  }
 }
 
 export async function GET() {
   let connection;
   try {
-    // Verbindung zur Datenbank herstellen
+    // Erstelle eine neue Verbindung für jede Anfrage
     connection = await getConnection();
 
-    // Abfrage ausführen, um Tabellen zu erhalten
+    // Verwende einfachere SHOW TABLES Abfrage, die für alle MySQL-Versionen funktioniert
     const [rows] = await connection.execute('SHOW TABLES');
     
-    // Array mit Tabellennamen erstellen
+    // Array mit Tabellennamen erstellen - bei SHOW TABLES enthält jedes Row-Element nur einen Wert
     const tables = Array.isArray(rows) 
       ? rows.map((row: any) => Object.values(row)[0] as string)
       : [];
 
-    // Sortiere die Tabellen alphabetisch
-    tables.sort();
+    console.log('Gefundene Tabellen:', tables); // Logging für Debugging
 
-    return NextResponse.json({ tables, success: true });
+    // Stelle sicher, dass die Verbindung geschlossen wird
+    await connection.end();
+
+    // Liefere die Tabellenliste mit einem Zeitstempel zurück
+    return NextResponse.json({ 
+      tables, 
+      timestamp: new Date().toISOString(),
+      success: true 
+    });
   } catch (error: any) {
     console.error('Fehler beim Abrufen der Tabellen:', error);
     return NextResponse.json(
@@ -40,9 +69,13 @@ export async function GET() {
       { status: 500 }
     );
   } finally {
-    // Stellen Sie sicher, dass die Verbindung geschlossen wird
+    // Stelle sicher, dass die Verbindung geschlossen wird
     if (connection) {
-      await connection.end();
+      try {
+        await connection.end();
+      } catch (err) {
+        console.error('Fehler beim Schließen der Datenbankverbindung:', err);
+      }
     }
   }
 } 
