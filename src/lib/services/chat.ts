@@ -1,5 +1,6 @@
 import { OpenRouterClient } from '../api/openrouter';
 import { ChatMessage } from '@/types/chat';
+import { CHAT_CONSTANTS } from '@/lib/constants/chat';
 
 export class ChatService {
   private static instance: ChatService;
@@ -34,12 +35,13 @@ export class ChatService {
     return `${baseUrl}/api/chat`;
   }
 
-  async sendMessage(message: string, model: string = 'openai/gpt-3.5-turbo', chatId: string = 'default'): Promise<string> {
+  async sendMessage(message: string, model: string = 'openai/gpt-3.5-turbo', chatId: string = 'default', deepResearch: boolean = false): Promise<string> {
     return new Promise((resolve, reject) => {
       let fullResponse = '';
       let hasReceivedContent = false;
       
       console.log('Starting message send with model:', model);
+      console.log('Deep Research mode:', deepResearch ? 'Enabled' : 'Disabled');
       
       this.streamMessage(message, model, 
         (chunk) => {
@@ -54,7 +56,8 @@ export class ChatService {
           console.error('Stream error:', error);
           reject(error);
         },
-        chatId
+        chatId,
+        deepResearch
       ).then(() => {
         console.log('Stream completed. Final response:', fullResponse);
         if (!hasReceivedContent) {
@@ -75,7 +78,8 @@ export class ChatService {
     model: string,
     onChunk: (chunk: string) => void,
     onError: (error: Error) => void,
-    chatId: string = 'default'
+    chatId: string = 'default',
+    deepResearch: boolean = false
   ): Promise<void> {
     try {
       // Hole die Nachrichtenhistorie für diesen spezifischen Chat
@@ -94,8 +98,14 @@ export class ChatService {
         content: msg.text
       }));
 
-      // Füge die aktuelle Nachricht hinzu
+      // Wähle den passenden System-Prompt basierend auf dem Deep Research Modus
+      const systemPrompt = deepResearch 
+        ? CHAT_CONSTANTS.DEEP_RESEARCH_PROMPT 
+        : CHAT_CONSTANTS.SYSTEM_PROMPT;
+
+      // Füge System-Prompt und die aktuelle Nachricht hinzu
       const messages = [
+        { role: 'system' as const, content: systemPrompt },
         ...conversationHistory,
         {
           role: 'user' as const,

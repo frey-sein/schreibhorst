@@ -14,7 +14,8 @@ import { de } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 import { Document, Paragraph } from 'docx';
 import { ChatAnalyzer } from '@/lib/services/analyzer/chatAnalyzer';
-import { ChatBubbleLeftIcon, PaperClipIcon, PaperAirplaneIcon, SparklesIcon, PlusIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftIcon, PaperClipIcon, PaperAirplaneIcon, SparklesIcon, PlusIcon, ClockIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { DEEP_RESEARCH_MODELS } from '@/lib/constants/chat';
 import { ChatMessage } from '@/types/chat';
 import ReactMarkdown from 'react-markdown';
 
@@ -155,6 +156,7 @@ export default function ChatPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showModelSelectionDialog, setShowModelSelectionDialog] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [deepResearchEnabled, setDeepResearchEnabled] = useState<boolean>(false);
 
   // Get prompt store functions
   const { addPrompt } = usePromptStore();
@@ -635,9 +637,10 @@ ${results.map((result, index) => `
     setIsLoading(true);
     try {
       console.log('Sende Nachricht an API:', text);
+      console.log('Deep Research Modus:', deepResearchEnabled ? 'Aktiv' : 'Inaktiv');
 
-      // Verwende die sendMessage-Methode des ChatService mit der aktuellen Chat-ID
-      const botResponse = await chatService.sendMessage(text, selectedModel, currentChatId);
+      // Verwende die sendMessage-Methode des ChatService mit der aktuellen Chat-ID und dem Deep Research Status
+      const botResponse = await chatService.sendMessage(text, selectedModel, currentChatId, deepResearchEnabled);
 
       const aiMessage: ChatMessage = {
         id: uuidv4(),
@@ -695,6 +698,24 @@ ${results.map((result, index) => `
   // Prüft, ob das aktuelle Modell Vision-Fähigkeiten hat
   const hasVisionCapabilities = (model: string) => {
     return VISION_MODELS.includes(model);
+  };
+
+  // Prüft, ob das aktuelle Modell Deep Research unterstützt
+  const supportsDeepResearch = (model: string) => {
+    // Zuerst direkte Übereinstimmung prüfen
+    const directMatch = DEEP_RESEARCH_MODELS.includes(model as any);
+    
+    // Dann Teil-Übereinstimmungen prüfen (GPT-4-Turbo vs. GPT-4-Turbo-Preview)
+    const modelLower = model.toLowerCase();
+    
+    const partialMatch = DEEP_RESEARCH_MODELS.some(supportedModel => {
+      const supportedModelName = supportedModel.split('/')[1]?.toLowerCase() || supportedModel.toLowerCase();
+      return modelLower.includes(supportedModelName) || supportedModelName?.includes(modelLower);
+    });
+    
+    console.log('Deep Research Check:', model, 'Direct Match:', directMatch, 'Partial Match:', partialMatch);
+    
+    return directMatch || partialMatch;
   };
 
   // Funktion zum Wechseln des Modells und Fortsetzen des Uploads
@@ -905,7 +926,14 @@ ${results.map((result, index) => `
             <div className="w-48 lg:w-64 shrink-0">
               <select
                 value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
+                onChange={(e) => {
+                  const newModel = e.target.value;
+                  setSelectedModel(newModel);
+                  // Wenn das neue Modell kein Deep Research unterstützt, deaktiviere den Deep Research Modus
+                  if (!supportsDeepResearch(newModel)) {
+                    setDeepResearchEnabled(false);
+                  }
+                }}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-sm bg-white text-gray-900 font-medium appearance-none bg-no-repeat bg-[right_1rem_center] bg-[length:1.5em_1.5em] bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%236B7280%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20d%3D%22M10%203a1%201%200%2001.707.293l3%203a1%201%200%2001-1.414%201.414L10%205.414%207.707%207.707a1%201%200%2001-1.414-1.414l3-3A1%201%200%200110%203zm-3.707%209.293a1%201%200%20011.414%200L10%2014.586l2.293-2.293a1%201%200%20011.414%201.414l-3%203a1%201%200%2001-1.414%200l-3-3a1%201%200%20010-1.414z%22%20clip-rule%3D%22evenodd%22%2F%3E%3C%2Fsvg%3E')]"
               >
                 {AVAILABLE_MODELS.map((model) => (
@@ -997,15 +1025,35 @@ ${results.map((result, index) => `
         <div className="p-6 border-t border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="flex gap-3">
             <form onSubmit={handleSubmit} className="flex-1 flex items-center space-x-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Schreibe deine Nachricht..."
-                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-sm text-gray-900"
-                disabled={isLoading}
-              />
+              {/* Input-Container mit integriertem Deep Research Button */}
+              <div className="relative flex-1">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Schreibe deine Nachricht..."
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-sm text-gray-900"
+                  disabled={isLoading}
+                />
+                
+                {/* Deep Research Button innerhalb des Eingabefelds */}
+                {supportsDeepResearch(selectedModel) && (
+                  <button
+                    type="button"
+                    onClick={() => setDeepResearchEnabled(!deepResearchEnabled)}
+                    className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 rounded-full z-10 transition-colors ${
+                      deepResearchEnabled 
+                        ? 'bg-blue-100 text-blue-600' 
+                        : 'bg-white text-gray-400 hover:bg-gray-100'
+                    }`}
+                    title={deepResearchEnabled ? "Deep Research aktiv" : "Deep Research aktivieren"}
+                  >
+                    <MagnifyingGlassIcon className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
               {/* Verstecktes File-Input-Element */}
               <input
                 type="file"

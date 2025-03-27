@@ -20,5 +20,20 @@ export const CHAT_CONSTANTS = {
     NO_HISTORY: 'Keine Chats verfügbar',
     MESSAGES: 'Nachrichten',
     DELETE_CHAT: 'Chat löschen'
-  }
-} as const; 
+  },
+  DEEP_RESEARCH_PROMPT: 'Du bist ein hilfreicher KI-Assistent mit erweiterter Recherchefähigkeit. Recherchiere gründlich, bevor du antwortest. Antworte immer auf Deutsch, auch wenn der Benutzer in einer anderen Sprache schreibt. Nutze fundierte Quellen und gib umfassende Erklärungen mit Kontext und Fakten.'
+} as const;
+
+// Modelle, die die Deep Research-Funktionalität unterstützen
+export const DEEP_RESEARCH_MODELS = [
+  'anthropic/claude-3-opus',
+  'anthropic/claude-3.5-sonnet',
+  'openai/gpt-4-turbo',
+  'openai/gpt-4o',
+  // Erweiterte Modellnamen hinzufügen
+  'gpt-4-turbo',
+  'gpt-4-turbo-preview',
+  'gpt-4o',
+  'claude-3-opus',
+  'claude-3.5-sonnet'
+] as const; 
