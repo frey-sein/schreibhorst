@@ -284,43 +284,49 @@ export default function StagePanel() {
     if (!image) return;
     
     try {
-      console.log('Herunterladen des Bildes:', id);
+      console.log('Herunterladen des Bildes:', id, 'URL:', image.url);
       
-      // Versuche zuerst, die Vollqualitätsversion über die neue API zu erhalten
-      try {
-        // Extrahiere die Bild-ID aus der URL, falls es sich um einen lokalen Pfad handelt
-        let imageId = id.toString();
-        
-        if (image.url && image.url.startsWith('/uploads/images/')) {
+      // Prüfe, ob die URL ein lokaler Pfad ist (beginnt mit '/uploads/images/')
+      const isLocalImage = image.url && image.url.includes('/uploads/images/');
+      
+      if (isLocalImage) {
+        // Extrahiere die Bild-ID aus der URL für lokale Bilder
+        let imageId = '';
+        try {
           const pathParts = image.url.split('/');
           const filename = pathParts[pathParts.length - 1];
           imageId = filename.split('.')[0]; // Entferne die Dateiendung
+          console.log('Extrahierte Bild-ID aus URL:', imageId);
+        } catch (e) {
+          console.error('Fehler beim Extrahieren der Bild-ID:', e);
+          imageId = id.toString();
         }
         
-        const response = await fetch(`/api/images/${imageId}/fullquality`);
-        if (response.ok) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `${image.prompt ? image.prompt.substring(0, 30).replace(/[^a-z0-9]/gi, '_') : `bild_${id}`}_1600x1200.png`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
-          return;
-        }
-      } catch (fullQualityError) {
-        console.log('Vollqualitätsversion nicht verfügbar:', fullQualityError);
-      }
-      
-      // Prüfe, ob die URL ein lokaler Pfad ist (beginnt mit '/' aber nicht mit 'http')
-      const isLocalPath = image.url && image.url.startsWith('/') && !image.url.startsWith('//');
-      
-      // Bei lokalen Pfaden versuche einen direkten Download
-      if (isLocalPath) {
+        // Verwende die extrahierte ID für die fullquality API
         try {
-          // Einfacher Fetch der lokalen Datei
+          console.log('Versuche fullquality Download mit ID:', imageId);
+          const response = await fetch(`/api/images/${imageId}/fullquality`);
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${image.prompt ? image.prompt.substring(0, 30).replace(/[^a-z0-9]/gi, '_') : `bild_${id}`}_2048x2048.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            return;
+          } else {
+            console.error('Fehler beim fullquality Download:', await response.text());
+          }
+        } catch (fullQualityError) {
+          console.error('Vollqualitätsversion nicht verfügbar:', fullQualityError);
+        }
+        
+        // Direkter Download als Fallback für lokale Bilder
+        try {
+          console.log('Versuche direkten Download der lokalen Datei:', image.url);
           const response = await fetch(image.url);
           if (response.ok) {
             const blob = await response.blob();
@@ -341,6 +347,7 @@ export default function StagePanel() {
       
       // Versuche als nächstes, die hochauflösende Version zu erhalten (falls API verfügbar)
       try {
+        console.log('Versuche highres API mit ID:', id);
         const response = await fetch(`/api/images/${id}/highres`);
         if (response.ok) {
           const blob = await response.blob();
@@ -361,6 +368,7 @@ export default function StagePanel() {
       // Fallback zur Canvas-Methode für externe URLs
       if (image.url) {
         try {
+          console.log('Versuche Canvas-Methode für:', image.url);
           // Canvas-Methode zum Umgehen von CORS und temporären URLs
           const img = new Image();
           img.crossOrigin = 'anonymous';  // Wichtig für CORS-Kompatibilität
@@ -427,6 +435,7 @@ export default function StagePanel() {
           console.error('Canvas-Methode fehlgeschlagen, versuche direkte Methode:', canvasError);
           
           // Als letzter Ausweg: Direkte Link-Methode
+          console.log('Letzter Ausweg: Direkte Link-Methode für:', image.url);
           const a = document.createElement('a');
           a.href = image.url;
           a.download = `${image.prompt ? image.prompt.substring(0, 30).replace(/[^a-z0-9]/gi, '_') : `bild_${id}`}.png`;
