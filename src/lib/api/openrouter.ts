@@ -145,10 +145,11 @@ export class OpenRouterClient {
   }
 
   async streamChat(
-    messages: Message[],
+    messages: ChatMessage[],
     model: string,
     onChunk: (chunk: string) => void,
-    onError: (error: Error) => void
+    onError: (error: Error) => void,
+    options?: { signal?: AbortSignal }
   ): Promise<void> {
     try {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -165,7 +166,8 @@ export class OpenRouterClient {
           stream: true,
           temperature: 0.7,
           max_tokens: 1000
-        })
+        }),
+        signal: options?.signal
       });
 
       if (!response.ok) {
@@ -181,6 +183,11 @@ export class OpenRouterClient {
       const decoder = new TextDecoder();
 
       while (true) {
+        if (options?.signal?.aborted) {
+          reader.cancel();
+          throw new Error('AbortError');
+        }
+
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -199,15 +206,21 @@ export class OpenRouterClient {
               if (parsed.choices?.[0]?.delta?.content) {
                 onChunk(parsed.choices[0].delta.content);
               }
-            } catch (e) {
-              console.error('Fehler beim Parsen der Chunk-Daten:', e);
-              onError(new Error(`Fehler beim Verarbeiten der Server-Antwort: ${e.message}`));
+            } catch (error: any) {
+              console.error('Fehler beim Parsen der Chunk-Daten:', error);
+              onError(new Error(`Fehler beim Verarbeiten der Server-Antwort: ${error.message}`));
             }
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('OpenRouter API Fehler:', error);
+      
+      if (error.name === 'AbortError' || error.message === 'AbortError') {
+        onError(new Error('AbortError'));
+        return;
+      }
+      
       onError(new Error(`Verbindungsfehler zur OpenRouter API: ${error.message}`));
     }
   }

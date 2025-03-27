@@ -79,7 +79,8 @@ export class ChatService {
     onChunk: (chunk: string) => void,
     onError: (error: Error) => void,
     chatId: string = 'default',
-    deepResearch: boolean = false
+    deepResearch: boolean = false,
+    options?: { signal?: AbortSignal }
   ): Promise<void> {
     try {
       // Hole die Nachrichtenhistorie für diesen spezifischen Chat
@@ -116,16 +117,27 @@ export class ChatService {
       // Speichere nach dem Empfang auch die Antwort in der Historie
       let aiResponse = '';
       
-      // Sende die Nachricht an die API mit dem erweiterten Handler
+      // Sende die Nachricht an die API mit dem erweiterten Handler und dem AbortSignal
       await this.getClient().streamChat(
         messages,
         model,
         (chunk) => {
+          // Prüfen, ob abgebrochen wurde, bevor wir den Chunk verarbeiten
+          if (options?.signal?.aborted) {
+            return;
+          }
+          
           aiResponse += chunk;
           onChunk(chunk);
         },
-        onError
+        onError,
+        { signal: options?.signal } // Hier geben wir das Signal weiter
       );
+
+      // Wenn abgebrochen wurde, nicht in die Historie speichern
+      if (options?.signal?.aborted) {
+        return;
+      }
 
       // Speichere die Nachricht im Verlauf für diesen spezifischen Chat
       const newUserMessage: ChatMessage = {
@@ -147,8 +159,17 @@ export class ChatService {
         };
         this.messageHistories[chatId] = [...this.messageHistories[chatId], aiMessage];
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Stream error:', error);
+      
+      // Prüfen ob der Fehler ein AbortError ist
+      if (error.name === 'AbortError' || error.message === 'AbortError') {
+        console.log('Request aborted');
+        // Bei abort trotzdem den error-Handler aufrufen
+        onError(new Error('AbortError'));
+        return;
+      }
+      
       onError(error as Error);
     }
   }
@@ -160,7 +181,8 @@ export class ChatService {
     model: string,
     onChunk: (chunk: string) => void,
     onError: (error: Error) => void,
-    chatId: string = 'default'
+    chatId: string = 'default',
+    options?: { signal?: AbortSignal }
   ): Promise<void> {
     try {
       console.log('Sending file message with model:', model);
@@ -203,9 +225,36 @@ export class ChatService {
       this.messageHistories[chatId] = [...messageHistory, newUserMessage];
 
       // ... rest of the method ...
+      
+      // Hier würde die tatsächliche Dateiverarbeitung und API-Anfrage stattfinden
+      // Füge AbortController-Unterstützung hinzu 
+      
+      // Beispiel wie wir einen Stream mit AbortController handlen würden:
+      const response = await fetch('/api/someEndpoint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, file }),
+        signal: options?.signal // Hier verwenden wir das Signal
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      // Stream-Verarbeitung ähnlich wie in streamMessage
+      // ...
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Stream error:', error);
+      
+      // Prüfen ob der Fehler ein AbortError ist
+      if (error.name === 'AbortError' || error.message === 'AbortError') {
+        console.log('File request aborted');
+        // Bei abort trotzdem den error-Handler aufrufen
+        onError(new Error('AbortError'));
+        return;
+      }
+      
       onError(error as Error);
     }
   }

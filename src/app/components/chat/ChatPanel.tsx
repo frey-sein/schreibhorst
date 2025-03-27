@@ -16,8 +16,15 @@ import { Document, Paragraph } from 'docx';
 import { ChatAnalyzer } from '@/lib/services/analyzer/chatAnalyzer';
 import { ChatBubbleLeftIcon, PaperClipIcon, PaperAirplaneIcon, SparklesIcon, PlusIcon, ClockIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { DEEP_RESEARCH_MODELS } from '@/lib/constants/chat';
-import { ChatMessage } from '@/types/chat';
 import ReactMarkdown from 'react-markdown';
+
+// Erweiterte ChatMessage-Definition mit 'system' als möglichem Sender
+interface ChatMessage {
+  id: string;
+  text: string;
+  sender: 'user' | 'assistant' | 'system';
+  timestamp: string;
+}
 
 interface AnalyzerMessage {
   id: number;
@@ -157,6 +164,8 @@ export default function ChatPanel() {
   const [showModelSelectionDialog, setShowModelSelectionDialog] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [deepResearchEnabled, setDeepResearchEnabled] = useState<boolean>(false);
+  const [aborted, setAborted] = useState<boolean>(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   // Get prompt store functions
   const { addPrompt } = usePromptStore();
@@ -546,9 +555,16 @@ ${results.map((result, index) => `
     inputRef.current?.focus();
   }, []);
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!input.trim() || isLoading || isUploading) return;
+
+    // Aborted-Status zurücksetzen
+    setAborted(false);
+
+    // Neuen AbortController erstellen
+    const controller = new AbortController();
+    setAbortController(controller);
 
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -586,27 +602,53 @@ ${results.map((result, index) => `
           });
         },
         (error: Error) => {
-          console.error('Chat error:', error);
-          setMessages(prev => [
-            ...prev,
-            {
-              id: Date.now().toString(),
-              text: `Entschuldigung, es gab ein Problem bei der Verarbeitung Ihrer Nachricht: ${error.message}`,
-              sender: 'assistant',
-              timestamp: new Date().toISOString()
-            }
-          ]);
+          // Prüfen, ob es sich um einen AbortError handelt
+          if (error.name === 'AbortError' || error.message === 'AbortError') {
+            console.log('Anfrage wurde abgebrochen');
+            // Wir setzen keine Fehlermeldung, da wir bereits eine Abbruchmeldung im handleAbort setzen
+          } else {
+            console.error('Chat error:', error);
+            setMessages(prev => [
+              ...prev,
+              {
+                id: Date.now().toString(),
+                text: `Entschuldigung, es gab ein Problem bei der Verarbeitung Ihrer Nachricht: ${error.message}`,
+                sender: 'assistant',
+                timestamp: new Date().toISOString()
+              }
+            ]);
+          }
         },
-        currentChatId // Übergebe die aktuelle Chat-ID
+        currentChatId,
+        deepResearchEnabled,
+        { signal: controller.signal } // Übergebe das Signal an die API
       );
+    } catch (error: any) {
+      // Prüfen, ob es sich um einen AbortError handelt
+      if (error.name === 'AbortError' || error.message === 'AbortError') {
+        console.log('Anfrage wurde abgebrochen');
+        // Wir setzen keine Fehlermeldung, da wir bereits eine Abbruchmeldung im handleAbort setzen
+      } else {
+        console.error('Chat error:', error);
+        setMessages(prev => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            text: `Entschuldigung, es gab ein Problem bei der Verarbeitung Ihrer Nachricht: ${error.message || 'Unbekannter Fehler'}`,
+            sender: 'assistant',
+            timestamp: new Date().toISOString()
+          }
+        ]);
+      }
     } finally {
       setIsLoading(false);
+      setAbortController(null);
       // Setze den Fokus zurück auf das Input-Feld
       setTimeout(() => {
         inputRef.current?.focus();
       }, 0);
     }
-  }, [input, isLoading, isUploading, selectedModel, chatService, currentChatId]);
+  }, [input, isLoading, isUploading, selectedModel, chatService, currentChatId, deepResearchEnabled]);
 
   // Send a prompt to the stage
   const handleSendToStage = (prompt: AnalysisResult) => {
@@ -634,6 +676,10 @@ ${results.map((result, index) => `
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
+    // Neuen AbortController erstellen
+    const controller = new AbortController();
+    setAbortController(controller);
+
     const userMessage: ChatMessage = {
       id: uuidv4(),
       text: text,
@@ -644,16 +690,26 @@ ${results.map((result, index) => `
     // Füge die Benutzernachricht zum UI hinzu
     setMessages(prev => [...prev, userMessage]);
 
-    // Die ursprüngliche Benutzernachricht nicht nochmal hinzufügen, da sie bereits durch handleFileUpload hinzugefügt wurde
-    // Wir nehmen direkt den Aufruf der API vor
-
     setIsLoading(true);
+    setAborted(false);
+    
     try {
       console.log('Sende Nachricht an API:', text);
       console.log('Deep Research Modus:', deepResearchEnabled ? 'Aktiv' : 'Inaktiv');
 
-      // Verwende die sendMessage-Methode des ChatService mit der aktuellen Chat-ID und dem Deep Research Status
-      const botResponse = await chatService.sendMessage(text, selectedModel, currentChatId, deepResearchEnabled);
+      // Anpassen des Aufrufs basierend auf der API-Signatur
+      const botResponse = await chatService.sendMessage(
+        text, 
+        selectedModel, 
+        currentChatId, 
+        deepResearchEnabled
+      );
+
+      // Der API-Aufruf wurde während der Antwort geprüft
+      if (aborted) {
+        console.log('Operation wurde abgebrochen');
+        return;
+      }
 
       const aiMessage: ChatMessage = {
         id: uuidv4(),
@@ -694,17 +750,23 @@ ${results.map((result, index) => `
         });
       }
 
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setMessages(prev => [...prev, {
-        id: uuidv4(),
-        text: `Fehler bei der Verarbeitung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
-        sender: 'assistant',
-        timestamp: new Date().toISOString()
-      }]);
+    } catch (error: any) {
+      // Prüfen, ob es sich um einen AbortError handelt
+      if (error.name === 'AbortError') {
+        console.log('Anfrage wurde abgebrochen');
+      } else {
+        console.error('Error sending message:', error);
+        setMessages(prev => [...prev, {
+          id: uuidv4(),
+          text: `Fehler bei der Verarbeitung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
+          sender: 'assistant',
+          timestamp: new Date().toISOString()
+        }]);
+      }
     } finally {
       setIsLoading(false);
       setInput('');
+      setAbortController(null);
     }
   };
   
@@ -758,6 +820,13 @@ ${results.map((result, index) => `
       return;
     }
 
+    // Neuen AbortController erstellen
+    const controller = new AbortController();
+    setAbortController(controller);
+    
+    // Aborted-Status zurücksetzen
+    setAborted(false);
+
     setIsUploading(true);
     try {
       // Füge die Benutzernachricht mit der Datei hinzu
@@ -770,7 +839,7 @@ ${results.map((result, index) => `
       setMessages(prev => [...prev, userMessage]);
       
       if (isImage) {
-        // Für Bilder verwenden wir den sendFileMessage-Service
+        // Für Bilder verwenden wir den sendFileMessage-Service mit AbortController
         console.log('Sende Bild an API mit Modell:', selectedModel);
         let botResponse = '';
         
@@ -782,11 +851,23 @@ ${results.map((result, index) => `
             botResponse += chunk;
           },
           (error) => {
-            console.error('Error sending file:', error);
-            throw error;
+            // Prüfen, ob es sich um einen AbortError handelt
+            if (error.name === 'AbortError' || error.message === 'AbortError') {
+              console.log('Datei-Upload wurde abgebrochen');
+              // Keine Fehlermeldung, da wir im handleAbort eine setzen
+            } else {
+              console.error('Error sending file:', error);
+              throw error;
+            }
           },
-          currentChatId
+          currentChatId,
+          { signal: controller.signal } // AbortSignal übergeben
         );
+        
+        // Wenn der Request abgebrochen wurde, keinen Response anzeigen
+        if (aborted) {
+          return;
+        }
         
         // Füge die Antwort des Bots hinzu
         const aiMessage: ChatMessage = {
@@ -831,18 +912,24 @@ ${results.map((result, index) => `
         const content = await processFile(file);
         await sendMessage(content);
       }
-    } catch (error) {
-      console.error('Error processing file:', error);
-      // Feedback an den Benutzer anzeigen
-      setMessages(prev => [...prev, {
-        id: uuidv4(),
-        text: `Fehler beim Verarbeiten der Datei: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
-        sender: 'assistant',
-        timestamp: new Date().toISOString()
-      }]);
+    } catch (error: any) {
+      // Abbruch-Fehler ignorieren, da wir das im handleAbort behandeln
+      if (error.name === 'AbortError' || error.message === 'AbortError') {
+        console.log('Datei-Upload wurde abgebrochen');
+      } else {
+        console.error('Error processing file:', error);
+        // Feedback an den Benutzer anzeigen
+        setMessages(prev => [...prev, {
+          id: uuidv4(),
+          text: `Fehler beim Verarbeiten der Datei: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
+          sender: 'assistant',
+          timestamp: new Date().toISOString()
+        }]);
+      }
     } finally {
       setIsUploading(false);
       setSelectedFile(null);
+      setAbortController(null);
     }
   };
 
@@ -895,6 +982,76 @@ ${results.map((result, index) => `
               Abbrechen
             </button>
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Funktion zum Abbrechen der aktuellen Anfrage
+  const handleAbort = () => {
+    if (abortController) {
+      // Tatsächlich den API-Aufruf abbrechen
+      abortController.abort();
+    }
+    
+    setAborted(true);
+    setIsLoading(false);
+    
+    // Eine Nachricht im Chat anzeigen, dass die Anfrage abgebrochen wurde
+    const abortMessage = {
+      id: uuidv4(),
+      text: '*Anfrage abgebrochen*',
+      sender: 'assistant' as const,
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, abortMessage]);
+  };
+
+  // Funktion zum Fortsetzen einer abgebrochenen Anfrage
+  const handleResume = () => {
+    setAborted(false);
+    // Hier müssten wir die letzte Anfrage erneut senden
+    if (input.trim()) {
+      handleSubmit();
+    }
+  };
+
+  // Render-Funktion für den Denkindikator
+  const renderThinkingIndicator = () => {
+    if (!isLoading) return null;
+    
+    return (
+      <div className="flex flex-col space-y-2 p-4 max-w-3xl mx-auto">
+        <div className="flex items-center space-x-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+          <div className="animate-pulse flex space-x-2">
+            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+          </div>
+          <div className="text-sm text-gray-600">
+            {deepResearchEnabled ? "Führe tiefere Recherche durch..." : "Denke..."}
+          </div>
+          
+          {/* Deep Research Abbruch- und Fortsetzungsoptionen */}
+          {deepResearchEnabled && (
+            <div className="ml-auto flex space-x-2">
+              {!aborted ? (
+                <button 
+                  onClick={handleAbort}
+                  className="px-3 py-1 text-xs bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
+                >
+                  Abbrechen
+                </button>
+              ) : (
+                <button 
+                  onClick={handleResume}
+                  className="px-3 py-1 text-xs bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
+                >
+                  Fortsetzen
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1028,6 +1185,46 @@ ${results.map((result, index) => `
                 </div>
               </div>
             ))}
+            
+            {/* Denkindikator hier einfügen */}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="max-w-[80%] rounded-2xl p-3 bg-gray-50 border border-gray-200">
+                  <div className="flex items-center space-x-3">
+                    <div className="animate-pulse flex space-x-2">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {deepResearchEnabled ? "Führe tiefere Recherche durch..." : "Denke..."}
+                    </div>
+                    
+                    {/* Deep Research Abbruch- und Fortsetzungsoptionen */}
+                    {deepResearchEnabled && (
+                      <div className="ml-auto flex space-x-2">
+                        {!aborted ? (
+                          <button 
+                            onClick={handleAbort}
+                            className="px-3 py-1 text-xs bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            Abbrechen
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={handleResume}
+                            className="px-3 py-1 text-xs bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            Fortsetzen
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div ref={messagesEndRef} />
           </div>
         </div>
