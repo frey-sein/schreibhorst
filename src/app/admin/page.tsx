@@ -335,6 +335,29 @@ export default function AdminPage() {
                 </p>
               </div>
             </div>
+
+            {/* Datenbankverwaltung */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-medium text-gray-900">Datenbankverwaltung</h3>
+              <div className="p-6 rounded-2xl bg-white border border-gray-100 hover:border-gray-200 hover:shadow-md space-y-4">
+                <div>
+                  <h4 className="text-base font-semibold text-gray-800">MySQL-Administration</h4>
+                  <p className="text-gray-600 text-sm mt-2">
+                    Verwalten Sie die MySQL-Datenbank direkt über das integrierte Administrator-Tool. 
+                    Sie können SQL-Abfragen ausführen und Tabellen anzeigen.
+                  </p>
+                </div>
+                <button 
+                  onClick={() => router.push('/admin/database')}
+                  className="inline-flex items-center px-5 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                  Datenbank-Administration öffnen
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </main>
