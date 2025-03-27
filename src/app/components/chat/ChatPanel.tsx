@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, ReactNode } from 'react';
+import { useState, useCallback, useEffect, useRef, ReactNode, useMemo } from 'react';
 import { ChatService } from '@/lib/services/chat';
 import { AnalyzerService } from '@/lib/services/analyzer';
 import { usePromptStore } from '@/lib/store/promptStore';
 import { AnalysisResult } from '@/lib/services/analyzer/chatAnalyzer';
 import { useChatHistoryStore, type Message as HistoryMessage, type ChatHistory } from '@/lib/store/chatHistoryStore';
-import ChatHistoryComponent from './ChatHistory';
+import ChatList from './ChatList';
 import { v4 as uuidv4 } from 'uuid';
 import { DocumentService } from '@/lib/services/document/documentService';
 import { format } from 'date-fns';
@@ -179,13 +179,13 @@ const components = {
  */
 export default function ChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [messageText, setMessageText] = useState('');
+  const [isPendingResponse, setIsPendingResponse] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>(process.env.NEXT_PUBLIC_DEFAULT_MODEL || 'openai/gpt-4-turbo-preview');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [currentChatId, setCurrentChatId] = useState<string>('');
+  const [currentChatId, setCurrentChatId] = useState<string>('default');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -194,97 +194,113 @@ export default function ChatPanel() {
   const [showModelSelectionDialog, setShowModelSelectionDialog] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [deepResearchEnabled, setDeepResearchEnabled] = useState<boolean>(false);
-  const [aborted, setAborted] = useState<boolean>(false);
+  const [isAborted, setIsAborted] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   // Get prompt store functions
   const { addPrompt } = usePromptStore();
-  const { addChat, updateChat, getChat, getAllChats } = useChatHistoryStore();
+  const { updateChat, getChat, getAllChats } = useChatHistoryStore();
 
-  const chatService = ChatService.getInstance();
+  // Initialisiere Services
+  const chatService = useMemo(() => ChatService.getInstance(), []);
   const analyzerService = new ChatAnalyzer();
   const documentService = DocumentService.getInstance();
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
-  // Lade gespeicherte Nachrichten beim Start
+  // Laden der Nachrichten aus der Datenbank
   useEffect(() => {
-    const initializeStore = async () => {
-      try {
-        console.log('Initialisiere Chat-Speicher...');
-        
-        // Lade Daten aus dem ChatService in den lokalen State
-        await chatService.loadFromLocalStorage(currentChatId);
-        const serviceMessages = chatService.getMessageHistory(currentChatId);
-        
-        if (serviceMessages.length > 0) {
-          console.log('Setze Nachrichten aus ChatService:', serviceMessages);
-          setMessages(serviceMessages);
-        } else {
-          // Erstelle Willkommensnachricht
-          const welcomeMessage: ChatMessage = {
-            id: 'welcome',
-            text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
-            sender: 'assistant',
-            timestamp: new Date().toISOString()
-          };
-          setMessages([welcomeMessage]);
-          chatService.setMessageHistory(currentChatId, [welcomeMessage]);
+    const loadMessages = async () => {
+      if (currentChatId) {
+        try {
+          // Versuche Nachrichten aus der Datenbank zu laden
+          const loadedMessages = await chatService.loadFromLocalStorage(currentChatId);
+          
+          if (loadedMessages.length > 0) {
+            setMessages(loadedMessages);
+            console.log(`${loadedMessages.length} Nachrichten aus der Datenbank geladen`);
+          } else {
+            // Wenn keine Nachrichten gefunden wurden, erstelle eine Willkommensnachricht
+            const welcomeMessage: ChatMessage = {
+              id: 'welcome',
+              text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
+              sender: 'assistant',
+              timestamp: new Date().toISOString()
+            };
+            setMessages([welcomeMessage]);
+            
+            // Speichere die Willkommensnachricht auch in der Datenbank
+            chatService.setMessageHistory(currentChatId, [welcomeMessage]);
+            await chatService.saveToLocalStorage(currentChatId);
+          }
+          
+          // Scrolle zum Ende des Chats
+          setTimeout(scrollToBottom, 100);
+        } catch (error) {
+          console.error('Fehler beim Laden der Nachrichten:', error);
+          console.error('Die Chatnachrichten konnten nicht geladen werden.');
         }
-      } catch (error) {
-        console.error('Fehler bei der Initialisierung:', error);
-        // Fallback auf Default-Werte
-        const welcomeMessage: ChatMessage = {
-          id: 'welcome',
-          text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
-          sender: 'assistant',
-          timestamp: new Date().toISOString()
-        };
-        setMessages([welcomeMessage]);
       }
     };
     
-    if (currentChatId) {
-      initializeStore();
-    }
-  }, [currentChatId]);
+    loadMessages();
+  }, [currentChatId, chatService, scrollToBottom]);
 
-  // Speichere Nachrichten bei Änderungen
+  // Speichern der Nachrichten in der Datenbank bei Änderungen
   useEffect(() => {
-    if (messages.length > 0 && currentChatId) {
-      // Synchronisiere den ChatService
-      chatService.setMessageHistory(currentChatId, messages);
-      
-      // Speichere in localStorage
-      chatService.saveToLocalStorage(currentChatId);
-      console.log('Nachrichten in ChatService und localStorage aktualisiert');
-    }
-  }, [messages, currentChatId]);
+    const saveMessages = async () => {
+      if (messages.length > 0 && currentChatId) {
+        try {
+          // Setze die aktuellen Nachrichten im Chat-Service
+          chatService.setMessageHistory(currentChatId, messages);
+          
+          // Speichere in der Datenbank
+          await chatService.saveToLocalStorage(currentChatId);
+          console.log('Nachrichten in der Datenbank aktualisiert');
+        } catch (error) {
+          console.error('Fehler beim Speichern der Nachrichten:', error);
+        }
+      }
+    };
+    
+    // Speichere Nachrichten, aber nicht zu oft
+    const debounceTimer = setTimeout(saveMessages, 1000);
+    return () => clearTimeout(debounceTimer);
+  }, [messages, currentChatId, chatService]);
 
-  // Lade Chat aus der Historie
-  const handleSelectChat = (chatId: string) => {
-    // Speichere den aktuellen Chat vor dem Wechsel
-    if (currentChatId) {
-      chatService.saveToLocalStorage(currentChatId);
-    }
-    
-    // Setze den neuen Chat
-    setCurrentChatId(chatId);
-    
-    // Lade die Nachrichten für den neuen Chat
-    const chatMessages = chatService.getMessageHistory(chatId);
-    
-    // Aktualisiere die Nachrichten im UI
-    if (chatMessages.length > 0) {
-      setMessages(chatMessages);
-    } else {
-      // Erstelle Willkommensnachricht
+  // Funktion zum Erstellen eines neuen Chats
+  const handleNewChat = useCallback(async () => {
+    try {
+      // Erstelle einen neuen Chat in der Datenbank
+      const response = await fetch('/api/chats', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title: 'Neuer Chat' }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Fehler beim Erstellen des Chats: ${response.status}`);
+      }
+      
+      const newChat = await response.json();
+      
+      // Speichere den aktuellen Chat vor dem Wechsel
+      if (currentChatId !== 'default') {
+        chatService.saveToLocalStorage(currentChatId);
+      }
+      
+      // Setze die neue Chat-ID
+      setCurrentChatId(newChat.id);
+      
+      // Initialisiere mit Willkommensnachricht
       const welcomeMessage: ChatMessage = {
         id: 'welcome',
         text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
@@ -292,174 +308,240 @@ export default function ChatPanel() {
         timestamp: new Date().toISOString()
       };
       setMessages([welcomeMessage]);
-      chatService.setMessageHistory(chatId, [welcomeMessage]);
+      
+      // Initialisiere den neuen Chat im Service
+      chatService.setMessageHistory(newChat.id, [welcomeMessage]);
+      await chatService.saveToLocalStorage(newChat.id);
+      
+      // Schließe den Chatverlauf-Dialog
+      setIsHistoryOpen(false);
+      
+      console.log(`Neuer Chat erstellt: ${newChat.id}`);
+    } catch (error) {
+      console.error('Fehler beim Erstellen eines neuen Chats:', error);
     }
-    
-    // Schließe den Chatverlauf-Dialog
-    setIsHistoryOpen(false);
-    
-    // Speichere die Chat-ID im localStorage
-    localStorage.setItem('lastActiveChatId', chatId);
-    console.log(`Gewechselt zu Chat ${chatId}`);
-  };
+  }, [currentChatId, chatService]);
 
-  // Funktion für neuen Chat
-  const handleNewChat = () => {
-    // Generiere eine neue Chat-ID
-    const newChatId = `chat_${Date.now()}`;
-    
-    // Speichere den aktuellen Chat vor dem Wechsel
-    if (currentChatId) {
-      chatService.saveToLocalStorage(currentChatId);
+  // Wechsle zu einem bestehenden Chat
+  const handleSelectChat = useCallback(async (chatId: string) => {
+    try {
+      // Speichere den aktuellen Chat vor dem Wechsel
+      if (currentChatId !== 'default') {
+        await chatService.saveToLocalStorage(currentChatId);
+      }
+      
+      // Setze den neuen Chat
+      setCurrentChatId(chatId);
+      
+      // Lade die Nachrichten für den neuen Chat
+      const loadedMessages = await chatService.loadFromLocalStorage(chatId);
+      
+      // Aktualisiere die Nachrichten im UI
+      if (loadedMessages.length > 0) {
+        setMessages(loadedMessages);
+      } else {
+        // Erstelle Willkommensnachricht wenn keine Nachrichten vorhanden
+        const welcomeMessage: ChatMessage = {
+          id: 'welcome',
+          text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
+          sender: 'assistant',
+          timestamp: new Date().toISOString()
+        };
+        setMessages([welcomeMessage]);
+        chatService.setMessageHistory(chatId, [welcomeMessage]);
+        await chatService.saveToLocalStorage(chatId);
+      }
+      
+      // Schließe den Chatverlauf-Dialog
+      setIsHistoryOpen(false);
+      
+      console.log(`Gewechselt zu Chat ${chatId}`);
+    } catch (error) {
+      console.error('Fehler beim Wechseln zu anderem Chat:', error);
     }
-    
-    // Setze die neue Chat-ID
-    setCurrentChatId(newChatId);
-    
-    // Initialisiere mit Willkommensnachricht
-    const welcomeMessage: ChatMessage = {
-      id: 'welcome',
-      text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
-      sender: 'assistant',
-      timestamp: new Date().toISOString()
-    };
-    setMessages([welcomeMessage]);
-    
-    // Initialisiere den neuen Chat im Service
-    chatService.setMessageHistory(newChatId, [welcomeMessage]);
-    
-    // Setze ihn als aktuellen Chat im localStorage
-    localStorage.setItem('lastActiveChatId', newChatId);
-    
-    // Schließe den Chatverlauf-Dialog
-    setIsHistoryOpen(false);
-    
-    console.log(`Neuer Chat erstellt: ${newChatId}`);
-  };
+  }, [currentChatId, chatService]);
 
   // Automatischer Fokus auf das Eingabefeld nach einer Antwort
   useEffect(() => {
     // Warte einen kurzen Moment, damit die UI aktualisiert werden kann
     const timer = setTimeout(() => {
       // Nur fokussieren, wenn wir nicht mehr laden und das letzte Element keine Benutzernachricht ist
-      if (!isLoading && messages.length > 0 && messages[messages.length - 1].sender !== 'user') {
+      if (!isPendingResponse && messages.length > 0 && messages[messages.length - 1].sender !== 'user') {
         inputRef.current?.focus();
       }
     }, 100);
     
     return () => clearTimeout(timer);
-  }, [messages, isLoading]); // Reagiere auf Änderungen an messages oder isLoading
+  }, [messages, isPendingResponse]);
 
-  // Speichere Nachrichten bei Änderungen
+  // Setze initialen Fokus auf das Input-Feld
   useEffect(() => {
-    if (messages.length > 0) {
-      localStorage.setItem('chatMessages', JSON.stringify(messages));
-      chatService.setMessageHistory(currentChatId, messages);
-    }
-  }, [messages, currentChatId]);
+    inputRef.current?.focus();
+  }, []);
 
-  // Laden des letzten aktiven Chats oder Erstellen eines neuen Chats
+  // Füge CSS-Stile zum Dokument hinzu
   useEffect(() => {
-    const loadChat = () => {
-      // Versuche aus dem localStorage den letzten aktiven Chat zu laden
-      const lastActiveChatId = localStorage.getItem('lastActiveChatId');
-      
-      if (lastActiveChatId) {
-        const chat = getChat(lastActiveChatId);
-        if (chat) {
-          // Wenn der Chat existiert, stelle ihn wieder her
-          setCurrentChatId(lastActiveChatId);
-          const convertedMessages: ChatMessage[] = chat.messages.map(msg => ({
-            id: msg.id,
-            text: msg.content,
-            sender: msg.role,
-            timestamp: msg.timestamp
-          }));
-          setMessages(convertedMessages);
-          return true;
-        }
-      }
-      
-      // Wenn kein Chat geladen wurde, prüfe ob es bereits Chats gibt
-      const allChats = getAllChats();
-      if (allChats.length > 0) {
-        // Wenn es Chats gibt, lade den neuesten
-        const newestChat = allChats.sort((a: ChatHistory, b: ChatHistory) => 
-          new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
-        )[0];
-        
-        setCurrentChatId(newestChat.id);
-        const convertedMessages: ChatMessage[] = newestChat.messages.map((msg: HistoryMessage) => ({
-          id: msg.id,
-          text: msg.content,
-          sender: msg.role,
-          timestamp: msg.timestamp
-        }));
-        setMessages(convertedMessages);
-        // Speicher die Chat-ID im localStorage
-        localStorage.setItem('lastActiveChatId', newestChat.id);
-        return true;
-      }
-      
-      return false;
-    };
+    // Erstelle ein Link-Element für die externe CSS-Datei
+    const linkElement = document.createElement('link');
+    linkElement.rel = 'stylesheet';
+    linkElement.type = 'text/css';
+    linkElement.href = '/styles/message-styles.css';
     
-    // Wenn kein bestehender Chat geladen werden konnte, erstelle einen neuen
-    if (!loadChat()) {
-      const newChatId = uuidv4();
-      setCurrentChatId(newChatId);
-      setMessages([
-        {
-          id: 'welcome',
-          text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
-          sender: 'assistant',
-          timestamp: new Date().toISOString()
-        }
-      ]);
-      // Speicher die neue Chat-ID im localStorage
-      localStorage.setItem('lastActiveChatId', newChatId);
-    }
-  }, [getChat, getAllChats]);
-
-  // Speichere die aktuelle Chat-ID im localStorage, wenn sie sich ändert
-  useEffect(() => {
-    if (currentChatId) {
-      localStorage.setItem('lastActiveChatId', currentChatId);
-    }
-  }, [currentChatId]);
-
-  // Speichere Chat in der Historie
-  useEffect(() => {
-    if (messages.length > 0) {
-      let chatTitle = 'Neuer Chat';
-      const firstUserMessage = messages.find(msg => msg.sender === 'user');
-      if (firstUserMessage) {
-        chatTitle = firstUserMessage.text.substring(0, 50) + (firstUserMessage.text.length > 50 ? '...' : '');
+    // Füge es zum Dokument-Head hinzu
+    document.head.appendChild(linkElement);
+    
+    // Clean-up Funktion
+    return () => {
+      if (document.head.contains(linkElement)) {
+        document.head.removeChild(linkElement);
       }
-      
-      // Konvertiere die Messages in das Format für die Historie
-      const convertedMessages: HistoryMessage[] = messages.map(msg => ({
-        id: msg.id,
-        content: msg.text,
-        role: msg.sender,
-        timestamp: msg.timestamp
-      }));
-      
-      const chat: ChatHistory = {
-        id: currentChatId,
-        title: chatTitle,
-        messages: convertedMessages,
-        lastUpdated: new Date(),
+    };
+  }, []);
+
+  // Funktion zum Senden einer Nachricht
+  const sendMessage = useCallback(async () => {
+    if (!messageText.trim() || isPendingResponse) return;
+    
+    setIsPendingResponse(true);
+    
+    try {
+      // User-Nachricht hinzufügen
+      const newUserMessage: ChatMessage = {
+        id: Date.now().toString(),
+        sender: 'user',
+        text: messageText,
+        timestamp: new Date().toISOString()
       };
-
-      const existingChat = getChat(currentChatId);
-      if (existingChat) {
-        updateChat(currentChatId, chat);
-      } else {
-        addChat(chat);
-      }
+      
+      const updatedMessages = [...messages, newUserMessage];
+      setMessages(updatedMessages);
+      setMessageText('');
+      
+      // Scrolle nach unten, nachdem die Nachricht hinzugefügt wurde
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+      
+      const typingIndicatorMessage: ChatMessage = {
+        id: 'typing-indicator',
+        sender: 'assistant',
+        text: '',
+        timestamp: new Date().toISOString()
+      };
+      
+      setMessages([...updatedMessages, typingIndicatorMessage]);
+      
+      // Setze die aktualisierten Nachrichten im Chat-Service
+      chatService.setMessageHistory(currentChatId, updatedMessages);
+      
+      // AbortController für die Anfrage erstellen
+      const controller = new AbortController();
+      setAbortController(controller);
+      
+      let responseText = '';
+      
+      await chatService.streamMessage(
+        messageText,
+        selectedModel,
+        (chunk) => {
+          // Verarbeite jeden Chunk der Antwort
+          responseText += chunk;
+          
+          // Aktualisiere die Typing-Indikator-Nachricht mit dem aktuellen Text
+          setMessages(prevMessages => {
+            const newMessages = [...prevMessages];
+            const typingIndex = newMessages.findIndex(m => m.id === 'typing-indicator');
+            
+            if (typingIndex !== -1) {
+              newMessages[typingIndex] = {
+                ...newMessages[typingIndex],
+                text: responseText
+              };
+            }
+            
+            return newMessages;
+          });
+          
+          // Scrolle während des Tippens nach unten
+          scrollToBottom();
+        },
+        (error) => {
+          console.error('Fehler beim Empfangen der Antwort:', error);
+          
+          // Entferne den Typing-Indikator
+          setMessages(prevMessages => 
+            prevMessages.filter(m => m.id !== 'typing-indicator')
+          );
+          
+          if (error.message !== 'AbortError') {
+            // Füge eine Fehlermeldung hinzu, wenn es kein Abbruch war
+            const errorMessage: ChatMessage = {
+              id: Date.now().toString(),
+              sender: 'assistant',
+              text: `Fehler: ${error.message}`,
+              timestamp: new Date().toISOString()
+            };
+            
+            setMessages(prevMessages => [...prevMessages, errorMessage]);
+          }
+          
+          setIsPendingResponse(false);
+        },
+        currentChatId,
+        deepResearchEnabled,
+        { signal: controller.signal }
+      );
+      
+      // Entferne den Typing-Indikator und füge die endgültige Antwort hinzu
+      setMessages(prevMessages => {
+        const filteredMessages = prevMessages.filter(m => m.id !== 'typing-indicator');
+        
+        if (responseText.trim() !== '') {
+          const aiMessage: ChatMessage = {
+            id: Date.now().toString(),
+            sender: 'assistant',
+            text: responseText,
+            timestamp: new Date().toISOString()
+          };
+          
+          return [...filteredMessages, aiMessage];
+        }
+        
+        return filteredMessages;
+      });
+    } catch (error: any) {
+      console.error('Fehler beim Senden der Nachricht:', error);
+      
+      // Fehlernachricht anzeigen
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        sender: 'assistant',
+        text: `Fehler: ${error.message}`,
+        timestamp: new Date().toISOString()
+      };
+      
+      setMessages(prevMessages => 
+        prevMessages.filter(m => m.id !== 'typing-indicator').concat(errorMessage)
+      );
+    } finally {
+      setIsPendingResponse(false);
+      setAbortController(null);
     }
-  }, [messages, currentChatId, addChat, updateChat, getChat]);
+  }, [messageText, isPendingResponse, messages, chatService, selectedModel, scrollToBottom, deepResearchEnabled, currentChatId]);
+
+  // Tastendruck-Handler für Eingabefeld
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  // Handlefunktion für Formular-Submit
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendMessage();
+  };
 
   // Neue PromptSelectionView-Komponente mit Korrektur des null-Parameters
   const PromptSelectionView = ({ 
@@ -613,75 +695,6 @@ export default function ChatPanel() {
     );
   };
 
-  // Function to manually trigger chat analysis
-  const analyzeChat = async () => {
-    if (messages.length < 3) {
-      const errorMessage: ChatMessage = {
-        id: Date.now().toString(),
-        text: '❌ Es werden mindestens 3 Nachrichten für eine sinnvolle Analyse benötigt.',
-        sender: 'assistant',
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-      return;
-    }
-    
-    try {
-      const analyzerMessages = messages.map(msg => ({
-        id: parseInt(msg.id),
-        text: msg.text,
-        sender: msg.sender === 'user' ? 'user' : 'ai' as 'user' | 'ai',
-        timestamp: new Date(msg.timestamp)
-      })) as AnalyzerMessage[];
-      
-      const results = await analyzerService.analyzeConversation(analyzerMessages);
-      
-      // Wenn keine Ergebnisse vorhanden sind
-      if (results.length === 0) {
-        const feedbackMessage: ChatMessage = {
-          id: Date.now().toString(),
-          text: `📝 Nicht genügend Kontext für sinnvolle Prompt-Vorschläge vorhanden.
-
-Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
-          sender: 'assistant',
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, feedbackMessage]);
-        return;
-      }
-
-      // Gruppiere Ergebnisse nach Typ
-      const textPrompts = results.filter(result => result.type === 'text');
-      const imagePrompts = results.filter(result => result.type === 'image');
-
-      // Erzeuge eine JSX-Komponente als String für die Chat-Nachricht
-      const analysisMessage: ChatMessage = {
-        id: Date.now().toString(),
-        text: `✨ Aufgrund unserer Konversation habe ich folgende Prompt-Vorschläge erstellt:
-
-<PromptSelectionView />`,
-        sender: 'assistant',
-        timestamp: new Date().toISOString(),
-        promptsData: {
-          textPrompts,
-          imagePrompts
-        }
-      };
-
-      setMessages(prev => [...prev, analysisMessage]);
-      setSelectedSuggestions([]);
-    } catch (error) {
-      console.error('Analysis error:', error);
-      const errorMessage: ChatMessage = {
-        id: Date.now().toString(),
-        text: '❌ Bei der Analyse ist ein Fehler aufgetreten. Bitte versuche es später erneut.',
-        sender: 'assistant',
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    }
-  };
-
   // Funktion zum Verarbeiten von Klicks auf Links in Nachrichten
   const handleMessageClick = (message: ChatMessage, element: HTMLElement) => {
     if (element.classList.contains('select-suggestion-btn')) {
@@ -744,233 +757,135 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
     setSelectedSuggestions([]);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
-    }
-  };
-
-  // Setze initialen Fokus auf das Input-Feld
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  // Füge CSS-Stile zum Dokument hinzu
-  useEffect(() => {
-    // Erstelle ein Link-Element für die externe CSS-Datei
-    const linkElement = document.createElement('link');
-    linkElement.rel = 'stylesheet';
-    linkElement.type = 'text/css';
-    linkElement.href = '/styles/message-styles.css';
-    
-    // Füge es zum Dokument-Head hinzu
-    document.head.appendChild(linkElement);
-    
-    // Clean-up Funktion
-    return () => {
-      document.head.removeChild(linkElement);
-    };
-  }, []);
-
-  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!input.trim() || isLoading || isUploading) return;
-
-    // Aborted-Status zurücksetzen
-    setAborted(false);
-
-    // Neuen AbortController erstellen
-    const controller = new AbortController();
-    setAbortController(controller);
-
-    const newMessage: ChatMessage = {
-      id: Date.now().toString(),
-      text: input.trim(),
-      sender: 'user',
-      timestamp: new Date().toISOString()
-    };
-
-    setMessages(prev => [...prev, newMessage]);
-    setInput('');
-    setIsLoading(true);
-
-    try {
-      await chatService.streamMessage(
-        input.trim(),
-        selectedModel,
-        (chunk: string) => {
-          setMessages(prev => {
-            const lastMessage = prev[prev.length - 1];
-            if (lastMessage.sender === 'assistant') {
-              return [
-                ...prev.slice(0, -1),
-                { ...lastMessage, text: lastMessage.text + chunk }
-              ];
-            }
-            return [
-              ...prev,
-              {
-                id: Date.now().toString(),
-                text: chunk,
-                sender: 'assistant',
-                timestamp: new Date().toISOString()
-              }
-            ];
-          });
-        },
-        (error: Error) => {
-          // Prüfen, ob es sich um einen AbortError handelt
-          if (error.name === 'AbortError' || error.message === 'AbortError') {
-            console.log('Anfrage wurde abgebrochen');
-            // Wir setzen keine Fehlermeldung, da wir bereits eine Abbruchmeldung im handleAbort setzen
-          } else {
-            console.error('Chat error:', error);
-            setMessages(prev => [
-              ...prev,
-              {
-                id: Date.now().toString(),
-                text: `Entschuldigung, es gab ein Problem bei der Verarbeitung Ihrer Nachricht: ${error.message}`,
-                sender: 'assistant',
-                timestamp: new Date().toISOString()
-              }
-            ]);
-          }
-        },
-        currentChatId,
-        deepResearchEnabled,
-        { signal: controller.signal } // Übergebe das Signal an die API
-      );
-    } catch (error: any) {
-      // Prüfen, ob es sich um einen AbortError handelt
-      if (error.name === 'AbortError' || error.message === 'AbortError') {
-        console.log('Anfrage wurde abgebrochen');
-        // Wir setzen keine Fehlermeldung, da wir bereits eine Abbruchmeldung im handleAbort setzen
-      } else {
-        console.error('Chat error:', error);
-        setMessages(prev => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            text: `Entschuldigung, es gab ein Problem bei der Verarbeitung Ihrer Nachricht: ${error.message || 'Unbekannter Fehler'}`,
-            sender: 'assistant',
-            timestamp: new Date().toISOString()
-          }
-        ]);
-      }
-    } finally {
-      setIsLoading(false);
-      setAbortController(null);
-      // Setze den Fokus zurück auf das Input-Feld
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 0);
-    }
-  }, [input, isLoading, isUploading, selectedModel, chatService, currentChatId, deepResearchEnabled]);
-
   // Send a prompt to the stage
   const handleSendToStage = (prompt: AnalysisResult) => {
     addPrompt(prompt);
   };
 
-  // Diese Funktion ist für die direkte Textnachrichtenverarbeitung
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return;
+  // Funktion zum Öffnen des Datei-Dialogs
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
 
-    // Neuen AbortController erstellen
-    const controller = new AbortController();
-    setAbortController(controller);
-
-    const userMessage: ChatMessage = {
-      id: uuidv4(),
-      text: text,
-      sender: 'user',
-      timestamp: new Date().toISOString()
-    };
-
-    // Füge die Benutzernachricht zum UI hinzu
-    setMessages(prev => [...prev, userMessage]);
-
-    setIsLoading(true);
-    setAborted(false);
-    
-    try {
-      console.log('Sende Nachricht an API:', text);
-      console.log('Deep Research Modus:', deepResearchEnabled ? 'Aktiv' : 'Inaktiv');
-
-      // Anpassen des Aufrufs basierend auf der API-Signatur
-      const botResponse = await chatService.sendMessage(
-        text, 
-        selectedModel, 
-        currentChatId, 
-        deepResearchEnabled
-      );
-
-      // Der API-Aufruf wurde während der Antwort geprüft
-      if (aborted) {
-        console.log('Operation wurde abgebrochen');
-        return;
-      }
-
-      const aiMessage: ChatMessage = {
-        id: uuidv4(),
-        text: botResponse.trim(),
-        sender: 'assistant',
-        timestamp: new Date().toISOString()
-      };
-
-      setMessages(prev => [...prev, aiMessage]);
-
-      // Speichere den Chat in der Historie
-      const chatMessages: HistoryMessage[] = [
-        ...messages.map(msg => ({
-          id: msg.id,
-          content: msg.text,
-          role: msg.sender,
-          timestamp: msg.timestamp
-        })),
-        {
-          id: userMessage.id,
-          content: userMessage.text,
-          role: userMessage.sender,
-          timestamp: userMessage.timestamp
-        },
-        {
-          id: aiMessage.id,
-          content: aiMessage.text,
-          role: aiMessage.sender,
-          timestamp: aiMessage.timestamp
-        }
-      ];
-      
-      // Aktualisiere den Chat in der Historie
-      if (currentChatId) {
-        updateChat(currentChatId, {
-          messages: chatMessages,
-          lastUpdated: new Date()
-        });
-      }
-
-    } catch (error: any) {
-      // Prüfen, ob es sich um einen AbortError handelt
-      if (error.name === 'AbortError') {
-        console.log('Anfrage wurde abgebrochen');
-      } else {
-        console.error('Error sending message:', error);
-        setMessages(prev => [...prev, {
-          id: uuidv4(),
-          text: `Fehler bei der Verarbeitung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
-          sender: 'assistant',
-          timestamp: new Date().toISOString()
-        }]);
-      }
-    } finally {
-      setIsLoading(false);
-      setInput('');
-      setAbortController(null);
+  // Funktion zum Verarbeiten der ausgewählten Datei
+  const onFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      handleFileUpload(file);
     }
   };
-  
+
+  // Dialog-Komponente für die Modellauswahl
+  const ModelSelectionDialog = () => {
+    if (!showModelSelectionDialog) return null;
+    
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-white rounded-lg p-6 max-w-lg w-full shadow-xl">
+          <h3 className="text-lg font-semibold mb-3">Modell unterstützt keine Bilder</h3>
+          <p className="mb-4">
+            Das aktuell ausgewählte Modell <span className="font-semibold">{selectedModel}</span> unterstützt 
+            keine Bildverarbeitung. Bitte wählen Sie eines der folgenden Modelle:
+          </p>
+          <div className="grid gap-2 mb-4">
+            {VISION_MODELS.map(model => (
+              <button
+                key={model}
+                onClick={() => switchModelAndUpload(model)}
+                className="w-full text-left px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <div className="font-medium">{model.split('/')[1]}</div>
+                <div className="text-xs text-gray-500">{model.split('/')[0]}</div>
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => {
+                setPendingFile(null);
+                setShowModelSelectionDialog(false);
+              }}
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Funktion zum Abbrechen der aktuellen Anfrage
+  const handleAbort = () => {
+    if (abortController) {
+      // Tatsächlich den API-Aufruf abbrechen
+      abortController.abort();
+    }
+    
+    setIsAborted(true);
+    setIsPendingResponse(false);
+    
+    // Eine Nachricht im Chat anzeigen, dass die Anfrage abgebrochen wurde
+    const abortMessage: ChatMessage = {
+      id: Date.now().toString(),
+      text: '*Anfrage abgebrochen*',
+      sender: 'assistant' as const,
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, abortMessage]);
+  };
+
+  // Funktion zum Fortsetzen einer abgebrochenen Anfrage
+  const handleResume = () => {
+    setIsAborted(false);
+    // Hier müssten wir die letzte Anfrage erneut senden
+    if (messageText.trim()) {
+      sendMessage();
+    }
+  };
+
+  // Render-Funktion für den Denkindikator
+  const renderThinkingIndicator = () => {
+    if (!isPendingResponse) return null;
+    
+    return (
+      <div className="flex flex-col space-y-2 p-4 max-w-3xl mx-auto">
+        <div className="flex items-center space-x-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+          <div className="animate-pulse flex space-x-2">
+            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+          </div>
+          <div className="text-sm text-gray-600">
+            {deepResearchEnabled ? "Führe tiefere Recherche durch..." : "Denke..."}
+          </div>
+          
+          {/* Deep Research Abbruch- und Fortsetzungsoptionen */}
+          {deepResearchEnabled && (
+            <div className="ml-auto flex space-x-2">
+              {!isAborted ? (
+                <button 
+                  onClick={handleAbort}
+                  className="px-3 py-1 text-xs bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
+                >
+                  Abbrechen
+                </button>
+              ) : (
+                <button 
+                  onClick={handleResume}
+                  className="px-3 py-1 text-xs bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
+                >
+                  Fortsetzen
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // Prüft, ob das aktuelle Modell Vision-Fähigkeiten hat
   const hasVisionCapabilities = (model: string) => {
     return VISION_MODELS.includes(model);
@@ -1026,7 +941,7 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
     setAbortController(controller);
     
     // Aborted-Status zurücksetzen
-    setAborted(false);
+    setIsAborted(false);
 
     setIsUploading(true);
     try {
@@ -1066,7 +981,7 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
         );
         
         // Wenn der Request abgebrochen wurde, keinen Response anzeigen
-        if (aborted) {
+        if (isAborted) {
           return;
         }
         
@@ -1134,139 +1049,84 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
     }
   };
 
-  // Funktion zum Öffnen des Datei-Dialogs
-  const triggerFileUpload = () => {
-    fileInputRef.current?.click();
-  };
-
-  // Funktion zum Verarbeiten der ausgewählten Datei
-  const onFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      handleFileUpload(file);
-    }
-  };
-
-  // Dialog-Komponente für die Modellauswahl
-  const ModelSelectionDialog = () => {
-    if (!showModelSelectionDialog) return null;
-    
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-        <div className="bg-white rounded-lg p-6 max-w-lg w-full shadow-xl">
-          <h3 className="text-lg font-semibold mb-3">Modell unterstützt keine Bilder</h3>
-          <p className="mb-4">
-            Das aktuell ausgewählte Modell <span className="font-semibold">{selectedModel}</span> unterstützt 
-            keine Bildverarbeitung. Bitte wählen Sie eines der folgenden Modelle:
-          </p>
-          <div className="grid gap-2 mb-4">
-            {VISION_MODELS.map(model => (
-              <button
-                key={model}
-                onClick={() => switchModelAndUpload(model)}
-                className="w-full text-left px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <div className="font-medium">{model.split('/')[1]}</div>
-                <div className="text-xs text-gray-500">{model.split('/')[0]}</div>
-              </button>
-            ))}
-          </div>
-          <div className="flex justify-end space-x-3">
-            <button
-              onClick={() => {
-                setPendingFile(null);
-                setShowModelSelectionDialog(false);
-              }}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Abbrechen
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Funktion zum Abbrechen der aktuellen Anfrage
-  const handleAbort = () => {
-    if (abortController) {
-      // Tatsächlich den API-Aufruf abbrechen
-      abortController.abort();
+  // Füge die analyzeChat-Funktion wieder hinzu
+  const analyzeChat = async () => {
+    if (messages.length < 3) {
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: '❌ Es werden mindestens 3 Nachrichten für eine sinnvolle Analyse benötigt.',
+        sender: 'assistant',
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
     }
     
-    setAborted(true);
-    setIsLoading(false);
-    
-    // Eine Nachricht im Chat anzeigen, dass die Anfrage abgebrochen wurde
-    const abortMessage = {
-      id: uuidv4(),
-      text: '*Anfrage abgebrochen*',
-      sender: 'assistant' as const,
-      timestamp: new Date().toISOString()
-    };
-    setMessages(prev => [...prev, abortMessage]);
-  };
+    try {
+      const analyzerMessages = messages.map(msg => ({
+        id: parseInt(msg.id) || Date.now(),
+        text: msg.text,
+        sender: msg.sender === 'user' ? 'user' : 'ai' as 'user' | 'ai',
+        timestamp: new Date(msg.timestamp)
+      }));
+      
+      const results = await analyzerService.analyzeConversation(analyzerMessages);
+      
+      // Wenn keine Ergebnisse vorhanden sind
+      if (results.length === 0) {
+        const feedbackMessage: ChatMessage = {
+          id: Date.now().toString(),
+          text: `📝 Nicht genügend Kontext für sinnvolle Prompt-Vorschläge vorhanden.
 
-  // Funktion zum Fortsetzen einer abgebrochenen Anfrage
-  const handleResume = () => {
-    setAborted(false);
-    // Hier müssten wir die letzte Anfrage erneut senden
-    if (input.trim()) {
-      handleSubmit();
+Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
+          sender: 'assistant',
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, feedbackMessage]);
+        return;
+      }
+
+      // Gruppiere Ergebnisse nach Typ
+      const textPrompts = results.filter(result => result.type === 'text');
+      const imagePrompts = results.filter(result => result.type === 'image');
+
+      // Erzeuge eine JSX-Komponente als String für die Chat-Nachricht
+      const analysisMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: `✨ Aufgrund unserer Konversation habe ich folgende Prompt-Vorschläge erstellt:
+
+<PromptSelectionView />`,
+        sender: 'assistant',
+        timestamp: new Date().toISOString(),
+        promptsData: {
+          textPrompts,
+          imagePrompts
+        }
+      };
+
+      setMessages(prev => [...prev, analysisMessage]);
+      setSelectedSuggestions([]);
+    } catch (error) {
+      console.error('Analysis error:', error);
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: '❌ Bei der Analyse ist ein Fehler aufgetreten. Bitte versuche es später erneut.',
+        sender: 'assistant',
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
     }
-  };
-
-  // Render-Funktion für den Denkindikator
-  const renderThinkingIndicator = () => {
-    if (!isLoading) return null;
-    
-    return (
-      <div className="flex flex-col space-y-2 p-4 max-w-3xl mx-auto">
-        <div className="flex items-center space-x-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-          <div className="animate-pulse flex space-x-2">
-            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-          </div>
-          <div className="text-sm text-gray-600">
-            {deepResearchEnabled ? "Führe tiefere Recherche durch..." : "Denke..."}
-          </div>
-          
-          {/* Deep Research Abbruch- und Fortsetzungsoptionen */}
-          {deepResearchEnabled && (
-            <div className="ml-auto flex space-x-2">
-              {!aborted ? (
-                <button 
-                  onClick={handleAbort}
-                  className="px-3 py-1 text-xs bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
-                >
-                  Abbrechen
-                </button>
-              ) : (
-                <button 
-                  onClick={handleResume}
-                  className="px-3 py-1 text-xs bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
-                >
-                  Fortsetzen
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    );
   };
 
   return (
     <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0] relative">
       {isHistoryOpen && (
-        <div className="absolute inset-0 z-50">
-          <ChatHistoryComponent
-            onSelectChat={handleSelectChat}
-            onClose={() => setIsHistoryOpen(false)}
-          />
-        </div>
+        <ChatList
+          onSelectChat={handleSelectChat}
+          onNewChat={handleNewChat}
+          currentChatId={currentChatId}
+          onClose={() => setIsHistoryOpen(false)}
+        />
       )}
       
       {/* Dialog für Modellauswahl anzeigen */}
@@ -1340,17 +1200,14 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
                   <div className="message-header">
                     <span className="timestamp">{formatTime(new Date(message.timestamp))}</span>
                   </div>
-                  <div 
-                    className="message-content" 
-                    onClick={(e) => handleMessageClick(message, e.target as HTMLElement)}
-                  >
+                  <div className="message-content">
                     {message.text.includes('<PromptSelectionView />') && message.promptsData ? (
                       <PromptSelectionView
                         textPrompts={message.promptsData.textPrompts}
                         imagePrompts={message.promptsData.imagePrompts}
                         selectedPrompts={selectedSuggestions}
                         onPromptSelect={(prompt) => {
-                          if ('sendAll' in prompt) {
+                          if ('sendAll' in prompt && prompt.sendAll) {
                             // Wenn prompt { sendAll: true } ist, übertrage alle ausgewählten Prompts
                             handleSendSelectedSuggestions();
                             return;
@@ -1377,7 +1234,7 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
             ))}
             
             {/* Denkindikator hier einfügen */}
-            {isLoading && (
+            {isPendingResponse && (
               <div className="flex justify-start">
                 <div className="max-w-[80%] rounded-2xl p-3 bg-gray-50 border border-gray-200">
                   <div className="flex items-center space-x-3">
@@ -1390,24 +1247,15 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
                       {deepResearchEnabled ? "Führe tiefere Recherche durch..." : "Denke..."}
                     </div>
                     
-                    {/* Deep Research Abbruch- und Fortsetzungsoptionen */}
+                    {/* Deep Research Abbruch-Option */}
                     {deepResearchEnabled && (
                       <div className="ml-auto flex space-x-2">
-                        {!aborted ? (
-                          <button 
-                            onClick={handleAbort}
-                            className="px-3 py-1 text-xs bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
-                          >
-                            Abbrechen
-                          </button>
-                        ) : (
-                          <button 
-                            onClick={handleResume}
-                            className="px-3 py-1 text-xs bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
-                          >
-                            Fortsetzen
-                          </button>
-                        )}
+                        <button 
+                          onClick={handleAbort}
+                          className="px-3 py-1 text-xs bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
+                        >
+                          Abbrechen
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1430,11 +1278,12 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
                 <input
                   ref={inputRef}
                   type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   placeholder="Schreibe deine Nachricht..."
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-sm text-gray-900"
-                  disabled={isLoading}
+                  disabled={isPendingResponse}
                 />
                 
                 {/* Deep Research Button innerhalb des Eingabefelds */}
@@ -1471,7 +1320,7 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
                 title={hasVisionCapabilities(selectedModel)
                   ? "Datei hochladen (Text, CSV, Excel, Bilder)" 
                   : "Datei hochladen (nur Text, CSV, Excel)"}
-                disabled={isLoading || isUploading}
+                disabled={isPendingResponse || isUploading}
               >
                 {isUploading ? (
                   <svg className="animate-spin h-5 w-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -1484,7 +1333,7 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
               </button>
               <button
                 type="submit"
-                disabled={isLoading || !input.trim()}
+                disabled={isPendingResponse || !messageText.trim()}
                 className="p-2.5 pr-4 text-[#2c2c2c] hover:text-[#1a1a1a] focus:outline-none disabled:opacity-50"
               >
                 <PaperAirplaneIcon className="w-5 h-5" />

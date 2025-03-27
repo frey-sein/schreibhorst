@@ -1,6 +1,7 @@
 import { OpenRouterClient } from '../api/openrouter';
 import { ChatMessage } from '@/types/chat';
 import { CHAT_CONSTANTS } from '@/lib/constants/chat';
+import { getChatMessages, saveChatMessage, saveChatMessages, createChat } from '@/lib/db/chatDb';
 
 export class ChatService {
   private static instance: ChatService;
@@ -159,6 +160,9 @@ export class ChatService {
         };
         this.messageHistories[chatId] = [...this.messageHistories[chatId], aiMessage];
       }
+      
+      // Neue Nachrichten in der Datenbank speichern
+      await this.saveToDatabase(chatId);
     } catch (error: any) {
       console.error('Stream error:', error);
       
@@ -172,6 +176,106 @@ export class ChatService {
       
       onError(error as Error);
     }
+  }
+
+  // Methode zum Laden der Nachrichten aus der Datenbank
+  async loadFromDatabase(chatId: string): Promise<ChatMessage[]> {
+    try {
+      // Stelle sicher, dass der Chat existiert
+      if (chatId === 'default') {
+        // Wenn kein spezifischer Chat existiert, erstelle einen neuen
+        const chat = await createChat('Neue Unterhaltung');
+        if (chat) {
+          chatId = chat.id;
+        }
+      }
+      
+      // Lade Nachrichten aus der Datenbank
+      const messages = await getChatMessages(chatId);
+      
+      // Aktualisiere den lokalen Cache
+      this.messageHistories[chatId] = messages;
+      
+      return messages;
+    } catch (error) {
+      console.error('Fehler beim Laden aus der Datenbank:', error);
+      return [];
+    }
+  }
+
+  // Methode zum Speichern der Nachrichten in der Datenbank
+  async saveToDatabase(chatId: string): Promise<boolean> {
+    try {
+      const messages = this.messageHistories[chatId] || [];
+      
+      if (messages.length === 0) {
+        return true; // Nichts zu speichern
+      }
+      
+      // Speichere alle Nachrichten auf einmal
+      return await saveChatMessages(messages, chatId);
+    } catch (error) {
+      console.error('Fehler beim Speichern in die Datenbank:', error);
+      return false;
+    }
+  }
+
+  // Lade Nachrichten aus lokalem Storage oder Datenbank
+  async loadFromLocalStorage(chatId: string): Promise<ChatMessage[]> {
+    try {
+      // Versuche zuerst, aus der Datenbank zu laden
+      const dbMessages = await this.loadFromDatabase(chatId);
+      if (dbMessages.length > 0) {
+        return dbMessages;
+      }
+      
+      // Fallback zu lokalem Storage wenn Datenbank leer ist
+      if (typeof window !== 'undefined') {
+        const storedData = localStorage.getItem(`chat_${chatId}`);
+        if (storedData) {
+          const parsedData = JSON.parse(storedData);
+          this.messageHistories[chatId] = parsedData;
+          
+          // Speichere die Daten aus dem localStorage auch in der Datenbank
+          await this.saveToDatabase(chatId);
+          
+          return parsedData;
+        }
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Fehler beim Laden der Nachrichten:', error);
+      return [];
+    }
+  }
+
+  // Speichere Nachrichten in lokalem Storage und Datenbank
+  async saveToLocalStorage(chatId: string): Promise<boolean> {
+    try {
+      const messages = this.messageHistories[chatId] || [];
+      
+      // Speichere in der Datenbank
+      await this.saveToDatabase(chatId);
+      
+      // Speichere auch lokal als Backup
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`chat_${chatId}`, JSON.stringify(messages));
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Fehler beim Speichern der Nachrichten:', error);
+      return false;
+    }
+  }
+
+  setMessageHistory(chatId: string, messages: ChatMessage[]): void {
+    this.messageHistories[chatId] = messages;
+  }
+
+  getMessageHistory(chatId: string): ChatMessage[] {
+    return this.messageHistories[chatId] || [];
   }
 
   // Neue Methode zum Senden einer Datei
@@ -223,6 +327,9 @@ export class ChatService {
       };
 
       this.messageHistories[chatId] = [...messageHistory, newUserMessage];
+      
+      // Speichere die Nachricht in der Datenbank
+      await this.saveToDatabase(chatId);
 
       // ... rest of the method ...
       
@@ -249,70 +356,12 @@ export class ChatService {
       
       // Prüfen ob der Fehler ein AbortError ist
       if (error.name === 'AbortError' || error.message === 'AbortError') {
-        console.log('File request aborted');
-        // Bei abort trotzdem den error-Handler aufrufen
+        console.log('Request aborted');
         onError(new Error('AbortError'));
         return;
       }
       
       onError(error as Error);
     }
-  }
-
-  // Neue Methode zum Setzen der Nachrichtenhistorie für einen Chat
-  public setMessageHistory(chatId: string, messages: ChatMessage[]): void {
-    this.messageHistories[chatId] = messages;
-  }
-
-  // Neue Methode zum Abrufen der Nachrichtenhistorie für einen Chat
-  public getMessageHistory(chatId: string): ChatMessage[] {
-    return this.messageHistories[chatId] || [];
-  }
-
-  // Lädt Chatdaten aus dem localStorage
-  public async loadFromLocalStorage(chatId: string): Promise<void> {
-    if (typeof window === 'undefined') return;
-    
-    const storedData = localStorage.getItem('chat-store');
-    if (storedData) {
-      try {
-        const parsedData = JSON.parse(storedData);
-        if (parsedData.state && parsedData.state.messages) {
-          this.messageHistories[chatId] = parsedData.state.messages;
-          console.log(`Chat-Verlauf für ${chatId} aus localStorage geladen`);
-        }
-      } catch (error) {
-        console.error('Fehler beim Laden des Chatverlaufs:', error);
-      }
-    }
-  }
-
-  // Speichert Chatdaten im localStorage
-  public async saveToLocalStorage(chatId: string): Promise<void> {
-    if (typeof window === 'undefined') return;
-    
-    try {
-      const currentStore = localStorage.getItem('chat-store');
-      const storeData = currentStore ? JSON.parse(currentStore) : { state: {} };
-      
-      storeData.state.messages = this.messageHistories[chatId];
-      localStorage.setItem('chat-store', JSON.stringify(storeData));
-      console.log(`Chat-Verlauf für ${chatId} in localStorage gespeichert`);
-    } catch (error) {
-      console.error('Fehler beim Speichern des Chatverlaufs:', error);
-    }
-  }
-
-  // Löscht einen Chat aus der Historie
-  public deleteChat(chatId: string): void {
-    if (this.messageHistories[chatId]) {
-      delete this.messageHistories[chatId];
-      console.log(`Chat ${chatId} aus der Historie gelöscht`);
-    }
-  }
-
-  // Holt alle Chat-IDs
-  public getAllChatIds(): string[] {
-    return Object.keys(this.messageHistories);
   }
 }

@@ -78,6 +78,48 @@ export async function initializeDatabase(): Promise<void> {
       )
     `);
     
+    // Erstelle die Chats-Tabelle
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS chats (
+        id VARCHAR(36) PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        last_message_preview VARCHAR(255)
+      )
+    `);
+
+    // Erstelle die Chat-Nachrichten Tabelle
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id VARCHAR(36) PRIMARY KEY,
+        chat_id VARCHAR(36) NOT NULL,
+        sender ENUM('user', 'assistant', 'system') NOT NULL,
+        text MEDIUMTEXT NOT NULL,
+        timestamp TIMESTAMP NOT NULL,
+        FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+        INDEX (chat_id)
+      )
+    `);
+
+    // Erstelle die Prompt-Vorschläge Tabelle (für die Analyzer-Funktionalität)
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS prompt_suggestions (
+        id VARCHAR(36) PRIMARY KEY,
+        chat_id VARCHAR(36) NOT NULL,
+        message_id VARCHAR(36) NOT NULL,
+        type ENUM('text', 'image') NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        prompt_text MEDIUMTEXT NOT NULL,
+        tags JSON,
+        format VARCHAR(100),
+        estimated_length INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+        FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE CASCADE
+      )
+    `);
+    
     console.log('Datenbanktabellen wurden erfolgreich initialisiert');
   } catch (error) {
     console.error('Fehler beim Erstellen der Tabellen:', error);
