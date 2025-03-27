@@ -36,10 +36,24 @@ async function getConnection() {
 
 export async function GET() {
   let connection;
+  console.log('GET-Anfrage an /api/database/tables erhalten');
+  
   try {
     // Erstelle eine neue Verbindung für jede Anfrage
-    connection = await getConnection();
+    try {
+      connection = await getConnection();
+    } catch (connError: any) {
+      console.error('Verbindungsfehler:', connError);
+      return NextResponse.json(
+        { 
+          error: `Datenbankverbindung fehlgeschlagen: ${connError.message}`,
+          success: false 
+        },
+        { status: 500 }
+      );
+    }
 
+    console.log('Führe SHOW TABLES Abfrage aus');
     // Verwende einfachere SHOW TABLES Abfrage, die für alle MySQL-Versionen funktioniert
     const [rows] = await connection.execute('SHOW TABLES');
     
@@ -52,6 +66,7 @@ export async function GET() {
 
     // Stelle sicher, dass die Verbindung geschlossen wird
     await connection.end();
+    console.log('Datenbankverbindung geschlossen');
 
     // Liefere die Tabellenliste mit einem Zeitstempel zurück
     return NextResponse.json({ 
@@ -73,6 +88,7 @@ export async function GET() {
     if (connection) {
       try {
         await connection.end();
+        console.log('Datenbankverbindung im finally-Block geschlossen');
       } catch (err) {
         console.error('Fehler beim Schließen der Datenbankverbindung:', err);
       }

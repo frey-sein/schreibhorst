@@ -40,24 +40,35 @@ export default function DatabaseAdminPage() {
     
     try {
       // Cache-Busting-Parameter hinzufügen, um Browser-Caching zu verhindern
-      const response = await fetch(`/api/database/tables?t=${Date.now()}`);
-      const data = await response.json();
+      const endpoint = `/api/database/tables?t=${Date.now()}`;
+      console.log('Fetching tables from:', endpoint);
       
-      console.log('Antwort vom Server:', data); // Debug-Ausgabe
-      
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Fehler beim Abrufen der Tabellen');
-      }
-      
-      // Filtere leere oder null Tabellennamen
-      const validTables = (data.tables || []).filter((tableName: string) => !!tableName);
-      console.log('Gültige Tabellen:', validTables); // Debug-Ausgabe
-      
-      setTables(validTables);
-      setConnectionStatus('success');
-      
-      if (validTables.length > 0 && !selectedTable) {
-        setSelectedTable(validTables[0]);
+      try {
+        const response = await fetch(endpoint);
+        const data = await response.json();
+        
+        console.log('Antwort vom Server:', data); // Debug-Ausgabe
+        
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Fehler beim Abrufen der Tabellen');
+        }
+        
+        // Filtere leere oder null Tabellennamen
+        const validTables = (data.tables || []).filter((tableName: string) => !!tableName);
+        console.log('Gültige Tabellen:', validTables); // Debug-Ausgabe
+        
+        setTables(validTables);
+        setConnectionStatus('success');
+        
+        if (validTables.length > 0 && !selectedTable) {
+          setSelectedTable(validTables[0]);
+        }
+      } catch (fetchError: any) {
+        console.error('Fetch-Fehler bei Tabellenabruf:', fetchError);
+        // Detaillierte Fehlerinformationen anzeigen
+        setError(`Verbindungsfehler: ${fetchError.message || 'Unbekannter Fehler'}`);
+        setConnectionStatus('error');
+        setTables([]);
       }
     } catch (err: any) {
       console.error('Fehler beim Abrufen der Tabellen:', err);
@@ -88,25 +99,34 @@ export default function DatabaseAdminPage() {
     
     try {
       // Cache-Busting-Parameter zur URL hinzufügen
-      const response = await fetch(`/api/database/query?t=${Date.now()}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query: queryToExecute }),
-      });
+      const endpoint = `/api/database/query?t=${Date.now()}`;
+      console.log('Executing query at:', endpoint, 'Query:', queryToExecute.substring(0, 100));
       
-      const data = await response.json();
-      
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Fehler bei der Ausführung der Abfrage');
-      }
-      
-      setResults(Array.isArray(data.results) ? data.results : []);
-      
-      // Debug-Informationen speichern, wenn vorhanden
-      if (data.debug) {
-        setDebugInfo(data.debug);
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query: queryToExecute }),
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Fehler bei der Ausführung der Abfrage');
+        }
+        
+        setResults(Array.isArray(data.results) ? data.results : []);
+        
+        // Debug-Informationen speichern, wenn vorhanden
+        if (data.debug) {
+          setDebugInfo(data.debug);
+        }
+      } catch (fetchError: any) {
+        console.error('Fetch-Fehler bei Abfrageausführung:', fetchError);
+        // Detaillierte Fehlerinformationen anzeigen
+        setError(`Verbindungsfehler: ${fetchError.message || 'Unbekannter Fehler'}`);
       }
     } catch (err: any) {
       console.error('Fehler bei der Abfrage:', err);
