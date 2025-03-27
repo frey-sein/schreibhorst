@@ -207,6 +207,19 @@ export default function ChatPanel() {
     }
   }, [currentChatId]);
 
+  // Automatischer Fokus auf das Eingabefeld nach einer Antwort
+  useEffect(() => {
+    // Warte einen kurzen Moment, damit die UI aktualisiert werden kann
+    const timer = setTimeout(() => {
+      // Nur fokussieren, wenn wir nicht mehr laden und das letzte Element keine Benutzernachricht ist
+      if (!isLoading && messages.length > 0 && messages[messages.length - 1].sender !== 'user') {
+        inputRef.current?.focus();
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [messages, isLoading]); // Reagiere auf Änderungen an messages oder isLoading
+
   // Speichere Nachrichten bei Änderungen
   useEffect(() => {
     if (messages.length > 0) {
