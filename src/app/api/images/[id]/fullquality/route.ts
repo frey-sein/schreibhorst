@@ -8,16 +8,24 @@ export async function GET(
   try {
     const imageId = params.id;
     if (!imageId) {
+      console.log('Fehler: Keine Bild-ID übermittelt');
       return NextResponse.json({ error: 'Bild-ID fehlt' }, { status: 400 });
     }
 
+    console.log(`Angeforderte Vollqualitäts-Bild-ID: ${imageId}`);
+    
     // Versuche das lokale Bild in voller Qualität abzurufen
     const fullQualityImage = await getLocalImageFullQuality(imageId);
     
     if (!fullQualityImage) {
-      return NextResponse.json({ error: 'Bild nicht gefunden' }, { status: 404 });
+      console.error(`Bild mit ID ${imageId} nicht im lokalen Speicher gefunden.`);
+      return NextResponse.json({ 
+        error: `Bild mit ID ${imageId} nicht gefunden. Prüfen Sie, ob das Bild lokal gespeichert wurde.` 
+      }, { status: 404 });
     }
 
+    console.log(`Bild mit ID ${imageId} in voller Qualität gefunden. Sende als Download...`);
+    
     // Setze die korrekten Header für den Bilddownload
     return new NextResponse(fullQualityImage, {
       headers: {
@@ -30,7 +38,7 @@ export async function GET(
   } catch (error) {
     console.error('Fehler beim Abrufen des Bildes in voller Qualität:', error);
     return NextResponse.json(
-      { error: 'Interner Serverfehler' },
+      { error: `Interner Serverfehler: ${(error as Error).message}` },
       { status: 500 }
     );
   }

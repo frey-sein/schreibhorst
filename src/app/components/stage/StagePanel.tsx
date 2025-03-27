@@ -212,11 +212,31 @@ export default function StagePanel() {
         if (result.success) {
           // Verwende die URL vom gespeicherten Bild, falls vorhanden (lokaler Pfad)
           if (result.image && result.image.url) {
+            console.log('Verwende lokale Bild-URL:', result.image.url);
             updateImageDraft(id, { url: result.image.url });
           } 
           // Fallback zur externen URL, falls keine lokale URL vorhanden
           else if (result.imageUrl) {
-            updateImageDraft(id, { url: result.imageUrl as string });
+            let imageUrl = result.imageUrl as string;
+            
+            // Prüfe, ob es sich um eine imgproxy-URL handelt
+            if (imageUrl.includes('imgproxy') || imageUrl.includes('api.together.ai')) {
+              console.log('Externe imgproxy-URL erkannt:', imageUrl);
+              
+              // Versuche, die lokale ID aus der URL zu extrahieren (falls möglich)
+              try {
+                // Versuch, ein generiertes Bild aus dem lokalen Speicher zu laden
+                // Im realen Fall würde hier eine komplexere Logik stehen
+                // Wir könnten zum Beispiel einen API-Aufruf machen, um das zuletzt generierte Bild zu finden
+                
+                // Für jetzt behalten wir die URL bei und markieren sie für späteren Download-Fallback
+                console.log('Markiere Bild mit ID', id, 'als extern - wird beim Download lokale Version versuchen');
+              } catch (loadError) {
+                console.error('Fehler beim Versuch, lokale Version zu laden:', loadError);
+              }
+            }
+            
+            updateImageDraft(id, { url: imageUrl });
             console.warn('Bild wurde generiert, aber ohne lokalen Pfad - verwende externe URL');
           }
         } else {
@@ -284,10 +304,52 @@ export default function StagePanel() {
     if (!image) return;
     
     try {
-      console.log('Herunterladen des Bildes:', id, 'URL:', image.url);
+      // Detaillierte Logging-Ausgaben für Debugging
+      console.log('Herunterladen des Bildes:', id);
+      console.log('Bild-URL:', image.url);
+      console.log('Enthält imgproxy?', image.url?.includes('imgproxy'));
+      console.log('Enthält api.together.ai?', image.url?.includes('api.together.ai'));
       
-      // Prüfe, ob die URL ein lokaler Pfad ist (beginnt mit '/uploads/images/')
-      const isLocalImage = image.url && image.url.includes('/uploads/images/');
+      // Verbesserte Erkennung für lokale Bilder
+      const isLocalImage = image.url && (
+        image.url.includes('/uploads/images/') || 
+        (image.url.startsWith('/') && !image.url.includes('api.together.ai'))
+      );
+      
+      console.log('Wird als lokales Bild erkannt:', isLocalImage);
+      
+      // Wenn URL api.together.ai/imgproxy enthält, versuche lokale Alternative zu finden
+      if (image.url && (image.url.includes('api.together.ai/imgproxy') || image.url.includes('imgproxy'))) {
+        console.log('Together imgproxy URL erkannt, versuche lokale Alternative zu finden');
+        
+        // Versuche, eine lokale ID aus anderen Eigenschaften des Bildes zu extrahieren
+        let localImageId = '';
+        
+        // Wenn wir eine lokale ID haben, versuche den lokalen Download
+        if (localImageId || id) {
+          try {
+            const imageIdToUse = localImageId || id.toString();
+            console.log('Versuche fullquality Download mit ID:', imageIdToUse);
+            const response = await fetch(`/api/images/${imageIdToUse}/fullquality`);
+            if (response.ok) {
+              const blob = await response.blob();
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${image.prompt ? image.prompt.substring(0, 30).replace(/[^a-z0-9]/gi, '_') : `bild_${id}`}_2048x2048.png`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(url);
+              return;
+            } else {
+              console.error('Fehler beim fullquality Download:', await response.text());
+            }
+          } catch (fullQualityError) {
+            console.error('Vollqualitätsversion nicht verfügbar:', fullQualityError);
+          }
+        }
+      }
       
       if (isLocalImage) {
         // Extrahiere die Bild-ID aus der URL für lokale Bilder

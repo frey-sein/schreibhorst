@@ -130,6 +130,7 @@ export async function generateImage(prompt: string, modelId?: string, title?: st
     
     // Bild herunterladen und im Filesystem/DB speichern
     try {
+      console.log('Bild-URL von der API erhalten:', imageUrl);
       const imageData = await downloadImage(imageUrl);
       
       // Bild im neuen Storage-Service speichern (client-seitig)
@@ -146,11 +147,22 @@ export async function generateImage(prompt: string, modelId?: string, title?: st
       });
       
       // Erfolg mit gespeichertem Bild zurückgeben
-      return {
-        success: true,
-        imageUrl: savedImage?.url || imageUrl,
-        image: savedImage || undefined
-      };
+      if (savedImage && savedImage.url) {
+        console.log('Bild erfolgreich lokal gespeichert mit URL:', savedImage.url);
+        // Immer den lokalen Pfad zurückgeben, wenn verfügbar
+        return {
+          success: true,
+          imageUrl: savedImage.url,
+          image: savedImage
+        };
+      } else {
+        console.warn('Bild wurde gespeichert, aber keine URL zurückgegeben');
+        return {
+          success: true,
+          imageUrl,
+          error: 'Bild wurde gespeichert, aber lokale URL fehlt'
+        };
+      }
     } catch (saveError) {
       console.error('Fehler beim Speichern des generierten Bildes:', saveError);
       
