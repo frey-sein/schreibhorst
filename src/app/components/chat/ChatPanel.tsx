@@ -626,6 +626,9 @@ ${results.map((result, index) => `
       timestamp: new Date().toISOString()
     };
 
+    // Füge die Benutzernachricht zum UI hinzu
+    setMessages(prev => [...prev, userMessage]);
+
     // Die ursprüngliche Benutzernachricht nicht nochmal hinzufügen, da sie bereits durch handleFileUpload hinzugefügt wurde
     // Wir nehmen direkt den Aufruf der API vor
 
@@ -633,8 +636,8 @@ ${results.map((result, index) => `
     try {
       console.log('Sende Nachricht an API:', text);
 
-      // Verwende die sendMessage-Methode des ChatService
-      const botResponse = await chatService.sendMessage(text, selectedModel);
+      // Verwende die sendMessage-Methode des ChatService mit der aktuellen Chat-ID
+      const botResponse = await chatService.sendMessage(text, selectedModel, currentChatId);
 
       const aiMessage: ChatMessage = {
         id: uuidv4(),
@@ -733,12 +736,22 @@ ${results.map((result, index) => `
       setMessages(prev => [...prev, userMessage]);
       
       if (isImage) {
-        // Für Bilder verwenden wir den neuen sendFile-Service
+        // Für Bilder verwenden wir den sendFileMessage-Service
         console.log('Sende Bild an API mit Modell:', selectedModel);
-        const botResponse = await chatService.sendFile(
+        let botResponse = '';
+        
+        await chatService.sendFileMessage(
           `Bitte analysiere dieses Bild: ${file.name}`, 
           file, 
-          selectedModel
+          selectedModel,
+          (chunk) => {
+            botResponse += chunk;
+          },
+          (error) => {
+            console.error('Error sending file:', error);
+            throw error;
+          },
+          currentChatId
         );
         
         // Füge die Antwort des Bots hinzu

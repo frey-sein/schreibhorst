@@ -34,7 +34,7 @@ export class ChatService {
     return `${baseUrl}/api/chat`;
   }
 
-  async sendMessage(message: string, model: string = 'openai/gpt-3.5-turbo'): Promise<string> {
+  async sendMessage(message: string, model: string = 'openai/gpt-3.5-turbo', chatId: string = 'default'): Promise<string> {
     return new Promise((resolve, reject) => {
       let fullResponse = '';
       let hasReceivedContent = false;
@@ -53,7 +53,8 @@ export class ChatService {
         (error) => {
           console.error('Stream error:', error);
           reject(error);
-        }
+        },
+        chatId
       ).then(() => {
         console.log('Stream completed. Final response:', fullResponse);
         if (!hasReceivedContent) {
@@ -74,7 +75,7 @@ export class ChatService {
     model: string,
     onChunk: (chunk: string) => void,
     onError: (error: Error) => void,
-    chatId: string
+    chatId: string = 'default'
   ): Promise<void> {
     try {
       // Hole die Nachrichtenhistorie für diesen spezifischen Chat
@@ -83,7 +84,7 @@ export class ChatService {
       // Filtere die Willkommensnachricht und Systemnachrichten aus der Historie
       const filteredHistory = messageHistory.filter(msg => 
         msg.id !== 'welcome' && 
-        msg.sender !== 'system' &&
+        (msg.sender === 'user' || msg.sender === 'assistant') && 
         msg.text.trim() !== ''
       );
       
@@ -102,23 +103,40 @@ export class ChatService {
         }
       ];
 
-      // Sende die Nachricht an die API
+      // Speichere nach dem Empfang auch die Antwort in der Historie
+      let aiResponse = '';
+      
+      // Sende die Nachricht an die API mit dem erweiterten Handler
       await this.getClient().streamChat(
         messages,
         model,
-        onChunk,
+        (chunk) => {
+          aiResponse += chunk;
+          onChunk(chunk);
+        },
         onError
       );
 
       // Speichere die Nachricht im Verlauf für diesen spezifischen Chat
-      const newMessage: ChatMessage = {
+      const newUserMessage: ChatMessage = {
         id: Date.now().toString(),
         text: message,
         sender: 'user',
         timestamp: new Date().toISOString()
       };
 
-      this.messageHistories[chatId] = [...messageHistory, newMessage];
+      this.messageHistories[chatId] = [...messageHistory, newUserMessage];
+      
+      // Nach Abschluss der Antwort auch die KI-Antwort speichern
+      if (aiResponse.trim() !== '') {
+        const aiMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          text: aiResponse,
+          sender: 'assistant',
+          timestamp: new Date().toISOString()
+        };
+        this.messageHistories[chatId] = [...this.messageHistories[chatId], aiMessage];
+      }
     } catch (error) {
       console.error('Stream error:', error);
       onError(error as Error);
@@ -131,7 +149,8 @@ export class ChatService {
     file: File,
     model: string,
     onChunk: (chunk: string) => void,
-    onError: (error: Error) => void
+    onError: (error: Error) => void,
+    chatId: string = 'default'
   ): Promise<void> {
     try {
       console.log('Sending file message with model:', model);
@@ -159,6 +178,19 @@ export class ChatService {
       if (!imageTypes.includes(file.type)) {
         throw new Error(`Dateiformat ${file.type} wird nicht unterstützt. Nur Bilder (JPEG, PNG, GIF, WEBP) werden derzeit unterstützt.`);
       }
+
+      // Hole die Nachrichtenhistorie für diesen spezifischen Chat
+      const messageHistory = this.messageHistories[chatId] || [];
+      
+      // Speichere die Nachricht im Verlauf für diesen spezifischen Chat
+      const newUserMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: message,
+        sender: 'user',
+        timestamp: new Date().toISOString()
+      };
+
+      this.messageHistories[chatId] = [...messageHistory, newUserMessage];
 
       // ... rest of the method ...
 
