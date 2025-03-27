@@ -185,36 +185,127 @@ export default function ChatPanel() {
 
   // Lade gespeicherte Nachrichten beim Start
   useEffect(() => {
-    const savedMessages = localStorage.getItem('chatMessages');
-    if (savedMessages) {
-      const parsedMessages = JSON.parse(savedMessages);
-      if (parsedMessages.length > 0) {
-        setMessages(parsedMessages);
-        // Setze die Nachrichtenhistorie im ChatService
-        chatService.setMessageHistory(currentChatId, parsedMessages);
-      } else {
-        // Nur wenn keine Nachrichten vorhanden sind, zeige die Willkommensnachricht
-        const welcomeMessage = {
+    const initializeStore = async () => {
+      try {
+        console.log('Initialisiere Chat-Speicher...');
+        
+        // Lade Daten aus dem ChatService in den lokalen State
+        await chatService.loadFromLocalStorage(currentChatId);
+        const serviceMessages = chatService.getMessageHistory(currentChatId);
+        
+        if (serviceMessages.length > 0) {
+          console.log('Setze Nachrichten aus ChatService:', serviceMessages);
+          setMessages(serviceMessages);
+        } else {
+          // Erstelle Willkommensnachricht
+          const welcomeMessage: ChatMessage = {
+            id: 'welcome',
+            text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
+            sender: 'assistant',
+            timestamp: new Date().toISOString()
+          };
+          setMessages([welcomeMessage]);
+          chatService.setMessageHistory(currentChatId, [welcomeMessage]);
+        }
+      } catch (error) {
+        console.error('Fehler bei der Initialisierung:', error);
+        // Fallback auf Default-Werte
+        const welcomeMessage: ChatMessage = {
           id: 'welcome',
           text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
-          sender: 'assistant' as const,
+          sender: 'assistant',
           timestamp: new Date().toISOString()
         };
         setMessages([welcomeMessage]);
-        chatService.setMessageHistory(currentChatId, [welcomeMessage]);
       }
+    };
+    
+    if (currentChatId) {
+      initializeStore();
+    }
+  }, [currentChatId]);
+
+  // Speichere Nachrichten bei Änderungen
+  useEffect(() => {
+    if (messages.length > 0 && currentChatId) {
+      // Synchronisiere den ChatService
+      chatService.setMessageHistory(currentChatId, messages);
+      
+      // Speichere in localStorage
+      chatService.saveToLocalStorage(currentChatId);
+      console.log('Nachrichten in ChatService und localStorage aktualisiert');
+    }
+  }, [messages, currentChatId]);
+
+  // Lade Chat aus der Historie
+  const handleSelectChat = (chatId: string) => {
+    // Speichere den aktuellen Chat vor dem Wechsel
+    if (currentChatId) {
+      chatService.saveToLocalStorage(currentChatId);
+    }
+    
+    // Setze den neuen Chat
+    setCurrentChatId(chatId);
+    
+    // Lade die Nachrichten für den neuen Chat
+    const chatMessages = chatService.getMessageHistory(chatId);
+    
+    // Aktualisiere die Nachrichten im UI
+    if (chatMessages.length > 0) {
+      setMessages(chatMessages);
     } else {
-      // Nur wenn keine gespeicherten Nachrichten existieren, zeige die Willkommensnachricht
-      const welcomeMessage = {
+      // Erstelle Willkommensnachricht
+      const welcomeMessage: ChatMessage = {
         id: 'welcome',
         text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
-        sender: 'assistant' as const,
+        sender: 'assistant',
         timestamp: new Date().toISOString()
       };
       setMessages([welcomeMessage]);
-      chatService.setMessageHistory(currentChatId, [welcomeMessage]);
+      chatService.setMessageHistory(chatId, [welcomeMessage]);
     }
-  }, [currentChatId]);
+    
+    // Schließe den Chatverlauf-Dialog
+    setIsHistoryOpen(false);
+    
+    // Speichere die Chat-ID im localStorage
+    localStorage.setItem('lastActiveChatId', chatId);
+    console.log(`Gewechselt zu Chat ${chatId}`);
+  };
+
+  // Funktion für neuen Chat
+  const handleNewChat = () => {
+    // Generiere eine neue Chat-ID
+    const newChatId = `chat_${Date.now()}`;
+    
+    // Speichere den aktuellen Chat vor dem Wechsel
+    if (currentChatId) {
+      chatService.saveToLocalStorage(currentChatId);
+    }
+    
+    // Setze die neue Chat-ID
+    setCurrentChatId(newChatId);
+    
+    // Initialisiere mit Willkommensnachricht
+    const welcomeMessage: ChatMessage = {
+      id: 'welcome',
+      text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
+      sender: 'assistant',
+      timestamp: new Date().toISOString()
+    };
+    setMessages([welcomeMessage]);
+    
+    // Initialisiere den neuen Chat im Service
+    chatService.setMessageHistory(newChatId, [welcomeMessage]);
+    
+    // Setze ihn als aktuellen Chat im localStorage
+    localStorage.setItem('lastActiveChatId', newChatId);
+    
+    // Schließe den Chatverlauf-Dialog
+    setIsHistoryOpen(false);
+    
+    console.log(`Neuer Chat erstellt: ${newChatId}`);
+  };
 
   // Automatischer Fokus auf das Eingabefeld nach einer Antwort
   useEffect(() => {
@@ -306,25 +397,6 @@ export default function ChatPanel() {
       localStorage.setItem('lastActiveChatId', currentChatId);
     }
   }, [currentChatId]);
-
-  // Lade Chat aus der Historie
-  const handleSelectChat = (chatId: string) => {
-    const chat = getChat(chatId);
-    if (chat) {
-      setCurrentChatId(chatId);
-      // Konvertiere die Message-Objekte in das richtige Format
-      const convertedMessages: ChatMessage[] = chat.messages.map(msg => ({
-        id: msg.id,
-        text: msg.content,
-        sender: msg.role,
-        timestamp: msg.timestamp
-      }));
-      setMessages(convertedMessages);
-      setIsHistoryOpen(false);
-      // Speicher die Chat-ID im localStorage
-      localStorage.setItem('lastActiveChatId', chatId);
-    }
-  };
 
   // Speichere Chat in der Historie
   useEffect(() => {
@@ -653,23 +725,6 @@ ${results.map((result, index) => `
   // Send a prompt to the stage
   const handleSendToStage = (prompt: AnalysisResult) => {
     addPrompt(prompt);
-  };
-
-  // Reset chat to initial state
-  const handleNewChat = () => {
-    const newChatId = uuidv4();
-    setCurrentChatId(newChatId);
-    const welcomeMessage = {
-      id: 'welcome',
-      text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
-      sender: 'assistant' as const,
-      timestamp: new Date().toISOString()
-    };
-    setMessages([welcomeMessage]);
-    chatService.setMessageHistory(newChatId, [welcomeMessage]);
-    setInput('');
-    // Lösche die gespeicherten Nachrichten
-    localStorage.removeItem('chatMessages');
   };
 
   // Diese Funktion ist für die direkte Textnachrichtenverarbeitung
@@ -1254,7 +1309,7 @@ ${results.map((result, index) => `
                     onClick={() => setDeepResearchEnabled(!deepResearchEnabled)}
                     className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 rounded-full z-10 transition-colors ${
                       deepResearchEnabled 
-                        ? 'bg-blue-100 text-blue-600' 
+                        ? 'bg-[#2c2c2c] text-white' 
                         : 'bg-white text-gray-400 hover:bg-gray-100'
                     }`}
                     title={deepResearchEnabled ? "Deep Research aktiv" : "Deep Research aktivieren"}

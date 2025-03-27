@@ -9,8 +9,8 @@ export interface Message {
 export interface ChatMessage {
   id: string;
   text: string;
-  sender: 'user' | 'assistant';
+  sender: 'user' | 'assistant' | 'system';
   timestamp: string;
-  role?: 'user' | 'assistant';
+  role?: 'user' | 'assistant' | 'system';
   content?: string;
 } 

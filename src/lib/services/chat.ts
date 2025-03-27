@@ -268,4 +268,51 @@ export class ChatService {
   public getMessageHistory(chatId: string): ChatMessage[] {
     return this.messageHistories[chatId] || [];
   }
+
+  // Lädt Chatdaten aus dem localStorage
+  public async loadFromLocalStorage(chatId: string): Promise<void> {
+    if (typeof window === 'undefined') return;
+    
+    const storedData = localStorage.getItem('chat-store');
+    if (storedData) {
+      try {
+        const parsedData = JSON.parse(storedData);
+        if (parsedData.state && parsedData.state.messages) {
+          this.messageHistories[chatId] = parsedData.state.messages;
+          console.log(`Chat-Verlauf für ${chatId} aus localStorage geladen`);
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden des Chatverlaufs:', error);
+      }
+    }
+  }
+
+  // Speichert Chatdaten im localStorage
+  public async saveToLocalStorage(chatId: string): Promise<void> {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const currentStore = localStorage.getItem('chat-store');
+      const storeData = currentStore ? JSON.parse(currentStore) : { state: {} };
+      
+      storeData.state.messages = this.messageHistories[chatId];
+      localStorage.setItem('chat-store', JSON.stringify(storeData));
+      console.log(`Chat-Verlauf für ${chatId} in localStorage gespeichert`);
+    } catch (error) {
+      console.error('Fehler beim Speichern des Chatverlaufs:', error);
+    }
+  }
+
+  // Löscht einen Chat aus der Historie
+  public deleteChat(chatId: string): void {
+    if (this.messageHistories[chatId]) {
+      delete this.messageHistories[chatId];
+      console.log(`Chat ${chatId} aus der Historie gelöscht`);
+    }
+  }
+
+  // Holt alle Chat-IDs
+  public getAllChatIds(): string[] {
+    return Object.keys(this.messageHistories);
+  }
 }

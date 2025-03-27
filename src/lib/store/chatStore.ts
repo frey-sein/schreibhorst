@@ -27,7 +27,7 @@ interface ChatActions {
 }
 
 // Erstelle die Willkommensnachricht mit einer festen ID und einem festen Zeitstempel
-const createWelcomeMessage = (): ChatMessage => ({
+export const createWelcomeMessage = (): ChatMessage => ({
   id: 'welcome',
   text: CHAT_CONSTANTS.UI_MESSAGES.WELCOME,
   sender: 'assistant',
@@ -49,7 +49,7 @@ const validateChatMessage = (message: ChatMessage): boolean => {
   return (
     typeof message.id === 'string' &&
     message.id.length > 0 &&
-    ['user', 'assistant'].includes(message.sender) &&
+    ['user', 'assistant', 'system'].includes(message.sender) &&
     typeof message.text === 'string' &&
     typeof message.timestamp === 'string'
   );
