@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import AvatarSelector from '../components/agents/AvatarSelector';
 import Image from 'next/image';
+import * as knowledgeService from '../../lib/services/knowledgeService';
 
 interface Agent {
   id: string;
@@ -86,10 +87,35 @@ export default function AdminPage() {
   };
   
   // Funktion zum Bestätigen des Löschens der Wissensdatenbank
-  const confirmClearKnowledgeBase = () => {
-    localStorage.removeItem('wissensdatenbank_faqs');
-    setShowClearConfirmation(false);
-    alert('Die Wissensdatenbank wurde erfolgreich geleert.');
+  const confirmClearKnowledgeBase = async () => {
+    try {
+      setIsResetting(true);
+      // Hole alle FAQs
+      const faqs = await knowledgeService.getAllFAQs();
+      
+      // Lösche jedes FAQ-Item einzeln
+      let success = true;
+      for (const faq of faqs) {
+        const deleted = await knowledgeService.deleteFAQ(faq.id);
+        if (!deleted) {
+          success = false;
+        }
+      }
+      
+      if (success) {
+        alert('Die Wissensdatenbank wurde erfolgreich geleert.');
+        // Seite neu laden, damit alle Änderungen übernommen werden
+        window.location.reload();
+      } else {
+        alert('Einige Einträge konnten nicht gelöscht werden.');
+      }
+    } catch (error) {
+      console.error('Fehler beim Leeren der Wissensdatenbank:', error);
+      alert('Fehler beim Leeren der Wissensdatenbank');
+    } finally {
+      setIsResetting(false);
+      setShowClearConfirmation(false);
+    }
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -278,9 +304,12 @@ export default function AdminPage() {
                 </div>
                 <button
                   onClick={clearKnowledgeBase}
-                  className="px-5 py-2.5 bg-red-600 text-white rounded-full hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all text-sm font-medium"
+                  className={`px-5 py-2.5 bg-red-600 text-white rounded-full hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all text-sm font-medium ${
+                    isResetting ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  disabled={isResetting}
                 >
-                  Wissensdatenbank leeren
+                  {isResetting ? 'Wird geleert...' : 'Wissensdatenbank leeren'}
                 </button>
               </div>
             </div>
@@ -329,9 +358,12 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={confirmClearKnowledgeBase}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className={`px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 ${
+                  isResetting ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                disabled={isResetting}
               >
-                Ja, alles löschen
+                {isResetting ? 'Wird gelöscht...' : 'Ja, alles löschen'}
               </button>
             </div>
           </div>

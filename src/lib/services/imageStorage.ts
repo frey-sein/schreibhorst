@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import mysql from 'mysql2/promise';
+import { getPool } from '../db/mysql';
 
 // Definition des Upload-Verzeichnisses
 const UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/images');
@@ -19,72 +20,19 @@ try {
   console.error('Fehler beim Erstellen des Upload-Verzeichnisses:', error);
 }
 
-// MySQL-Verbindung initialisieren, falls konfiguriert
+// MySQL-Verbindung wird nun aus dem zentralen Pool abgerufen
 let dbPool: mysql.Pool | null = null;
 
 try {
-  if (process.env.MYSQL_HOST && process.env.MYSQL_USER && process.env.MYSQL_PASSWORD && process.env.MYSQL_DATABASE) {
-    dbPool = mysql.createPool({
-      host: process.env.MYSQL_HOST,
-      user: process.env.MYSQL_USER,
-      password: process.env.MYSQL_PASSWORD,
-      database: process.env.MYSQL_DATABASE,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
-    });
-    
-    console.log('MySQL-Verbindung wurde initialisiert');
-    
-    // Stelle sicher, dass die Tabellen existieren
-    initializeDatabase().catch(error => {
-      console.error('Fehler beim Initialisieren der Datenbank:', error);
-    });
-  } else {
+  // Holen der Verbindung aus der zentralen Verbindungsdatei
+  dbPool = getPool();
+  
+  // Wenn keine Verbindung vorhanden ist, geben wir eine Meldung aus
+  if (!dbPool) {
     console.log('Keine MySQL-Konfiguration gefunden, verwende Filesystem-Storage');
   }
 } catch (error) {
   console.error('Fehler beim Initialisieren der MySQL-Verbindung:', error);
-}
-
-/**
- * Initialisiert die Datenbank und erstellt die benötigten Tabellen
- */
-async function initializeDatabase(): Promise<void> {
-  if (!dbPool) return;
-  
-  const connection = await dbPool.getConnection();
-  try {
-    // Erstelle die Bilder-Tabelle
-    await connection.execute(`
-      CREATE TABLE IF NOT EXISTS images (
-        id VARCHAR(36) NOT NULL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        prompt TEXT,
-        modelId VARCHAR(50) NOT NULL,
-        filePath VARCHAR(255) NOT NULL,
-        width INT NOT NULL,
-        height INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        meta JSON
-      )
-    `);
-    
-    // Erstelle die Snapshots-Tabelle für Stage-Zustände
-    await connection.execute(`
-      CREATE TABLE IF NOT EXISTS stage_snapshots (
-        id VARCHAR(36) NOT NULL PRIMARY KEY,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        data JSON
-      )
-    `);
-    
-    console.log('Datenbanktabellen wurden erfolgreich initialisiert');
-  } catch (error) {
-    console.error('Fehler beim Erstellen der Tabellen:', error);
-  } finally {
-    connection.release();
-  }
 }
 
 // Interface für einen Bild-Entwurf (noch nicht gespeichert)
