@@ -40,6 +40,7 @@ export class ChatAnalyzer {
     const mainTopics = this.extractMainTopics(conversationText);
     const keyPoints = this.extractKeyPoints(conversationText);
     const tone = this.determineConversationTone(conversationText);
+    const style = this.determineVisualStyle(conversationText);
 
     const results: AnalysisResult[] = [];
     
@@ -48,7 +49,7 @@ export class ChatAnalyzer {
     results.push(...textPrompts);
     
     // Generiere drei Bild-Prompts
-    const imagePrompts = this.generateImagePrompts(mainTopics, keyPoints);
+    const imagePrompts = this.generateImagePrompts(mainTopics, keyPoints, style);
     results.push(...imagePrompts);
     
     return results;
@@ -102,7 +103,13 @@ export class ChatAnalyzer {
         sentence.trim().length > 30 && 
         !this.isSmallTalk(sentence)
       )
-      .map(sentence => sentence.trim())
+      .map(sentence => {
+        // Entferne "Assistent: " oder "Benutzer: " Präfixe aus den Sätzen
+        const trimmedSentence = sentence.trim();
+        return trimmedSentence
+          .replace(/^Assistent:\s*/i, '')
+          .replace(/^Benutzer:\s*/i, '');
+      })
       .slice(0, 7);
     
     return importantSentences;
@@ -150,6 +157,40 @@ export class ChatAnalyzer {
   }
 
   /**
+   * Bestimmt den visuellen Stil basierend auf dem Konversationsinhalt
+   */
+  private determineVisualStyle(text: string): string {
+    // Definiere verschiedene visuelle Stile mit zugehörigen Schlüsselwörtern
+    const styles = [
+      { name: 'fotorealistisch', keywords: ['realistisch', 'foto', 'detailliert', 'echt', 'fotografie', 'realismus'] },
+      { name: 'abstrakt', keywords: ['abstrakt', 'konzeptuell', 'künstlerisch', 'experimentell'] },
+      { name: 'comic', keywords: ['comic', 'zeichentrick', 'cartoon', 'animiert', 'lustig'] },
+      { name: '3D', keywords: ['3d', 'render', 'modell', 'dreidimensional'] },
+      { name: 'vintage', keywords: ['retro', 'alt', 'klassisch', 'antik', 'vintage', 'nostalgisch'] },
+      { name: 'minimalistisch', keywords: ['minimal', 'einfach', 'schlicht', 'reduziert'] },
+      { name: 'lebendig', keywords: ['bunt', 'lebendig', 'farbenfroh', 'farbig', 'kräftig'] }
+    ];
+    
+    const textLower = text.toLowerCase();
+    const styleScores = styles.map(style => {
+      const score = style.keywords.reduce((count, keyword) => {
+        const regex = new RegExp(keyword, 'g');
+        const matches = textLower.match(regex);
+        return count + (matches ? matches.length : 0);
+      }, 0);
+      
+      return { style: style.name, score };
+    });
+    
+    // Sortiere nach Score und wähle den dominanten Stil
+    const dominantStyle = styleScores.sort((a, b) => b.score - a.score)[0];
+    
+    // Falls kein klarer dominanter Stil erkannt wird oder der Score zu niedrig ist, 
+    // verwende 'lebendig' als Standard-Stil
+    return (dominantStyle.score > 0) ? dominantStyle.style : 'lebendig';
+  }
+
+  /**
    * Generiert Prompts für Textinhalte
    */
   private generateTextPrompts(topics: string[], keyPoints: string[], tone: string): AnalysisResult[] {
@@ -181,17 +222,42 @@ Füge passende Zwischenüberschriften und praktische Beispiele ein.`,
   /**
    * Generiert Prompts für Bildinhalte
    */
-  private generateImagePrompts(topics: string[], keyPoints: string[]): AnalysisResult[] {
+  private generateImagePrompts(topics: string[], keyPoints: string[], style: string = 'lebendig'): AnalysisResult[] {
     const thematicString = topics.slice(0, 3).join(', ');
+    
+    // Stil-Beschreibung basierend auf dem erkannten Stil
+    let styleDescription = '';
+    switch(style) {
+      case 'fotorealistisch':
+        styleDescription = 'im fotorealistischen Stil mit naturgetreuen Farben und Details';
+        break;
+      case 'abstrakt':
+        styleDescription = 'im abstrakten, künstlerischen Stil mit expressiven Formen und Farben';
+        break;
+      case 'comic':
+        styleDescription = 'im Comic-Stil mit lebendigen Farben und charakteristischen Outlines';
+        break;
+      case '3D':
+        styleDescription = 'als 3D-Rendering mit realistischer Beleuchtung und Tiefe';
+        break;
+      case 'vintage':
+        styleDescription = 'im Retro/Vintage-Stil mit warmen, leicht verblassten Farbtönen';
+        break;
+      case 'minimalistisch':
+        styleDescription = 'im minimalistischen Stil mit klaren Linien und ausgewählten Farbelementen';
+        break;
+      default:
+        styleDescription = 'mit lebendigen, kräftigen Farben und ansprechender Komposition';
+    }
     
     // Header-Bild
     const headerImagePrompt: AnalysisResult = {
       id: `image-header-${Date.now()}`,
       type: 'image',
       title: 'Header-Bild',
-      prompt: `Erstelle ein minimalistisches, elegantes Header-Bild im Schwarz-Weiß-Stil für einen Blogbeitrag zum Thema "${thematicString}". 
-Das Bild sollte modern und schlicht wirken, mit klaren Linien und ausgewogener Komposition, ähnlich dem Apple-Design-Stil.`,
-      tags: [...topics.slice(0, 3), 'header', 'cover', 'minimal']
+      prompt: `Erstelle ein farbiges Header-Bild für einen Blogbeitrag zum Thema "${thematicString}" ${styleDescription}. 
+Das Bild sollte ansprechend und gut strukturiert sein, mit einer Komposition, die das Thema gut vermittelt.`,
+      tags: [...topics.slice(0, 3), 'header', 'cover', style]
     };
     
     // Konzeptbild
@@ -199,10 +265,10 @@ Das Bild sollte modern und schlicht wirken, mit klaren Linien und ausgewogener K
       id: `image-concept-${Date.now()}`,
       type: 'image',
       title: 'Konzeptbild',
-      prompt: `Erstelle eine konzeptionelle Visualisierung zum Thema "${thematicString}" in einem monochromatischen, eleganten Design-Stil.
-Das Bild sollte eine abstrakte Darstellung der Kernkonzepte sein, mit einem klaren Fokus und grafischen Elementen, die das Thema symbolisieren.
-Stil: Minimalistisch, schwarz-weiß, hochwertig, reduziert auf das Wesentliche.`,
-      tags: [...topics.slice(0, 2), 'konzept', 'abstrakt', 'monochrom']
+      prompt: `Erstelle eine konzeptionelle Visualisierung zum Thema "${thematicString}" ${styleDescription}.
+Das Bild sollte eine kreative Darstellung der Kernkonzepte sein, mit grafischen Elementen, die das Thema symbolisieren.
+Stil: ${style}, hochwertig, mit deutlichem Bezug zum Thema.`,
+      tags: [...topics.slice(0, 2), 'konzept', 'kreativ', style]
     };
     
     // Infografik
@@ -210,10 +276,10 @@ Stil: Minimalistisch, schwarz-weiß, hochwertig, reduziert auf das Wesentliche.`
       id: `image-infographic-${Date.now()}`,
       type: 'image',
       title: 'Infografik',
-      prompt: `Erstelle eine minimalistische Infografik im Schwarz-Weiß-Stil zum Thema "${thematicString}".
-Die Grafik sollte Schlüsselinformationen visuell darstellen, mit klaren Symbolen, einer logischen Struktur und einer eleganten Typografie.
-Stil: Zurückhaltend, präzise, informativ, im Stil moderner Apple-Präsentationen.`,
-      tags: [...topics.slice(0, 2), 'infografik', 'daten', 'visualisierung']
+      prompt: `Erstelle eine Infografik zum Thema "${thematicString}" ${styleDescription}.
+Die Grafik sollte Schlüsselinformationen visuell darstellen, mit klaren Symbolen, einer logischen Struktur und einer modernen Typografie.
+Stil: Informativ, präzise, mit einer ansprechenden Farbpalette, die Informationen gut strukturiert darstellt.`,
+      tags: [...topics.slice(0, 2), 'infografik', 'daten', 'visualisierung', style]
     };
     
     return [headerImagePrompt, conceptImagePrompt, infographicPrompt];

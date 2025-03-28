@@ -607,11 +607,6 @@ export default function StagePanel() {
                   <div className="p-5 bg-white">
                     <div className="flex justify-between items-start mb-3">
                       <h3 className="font-medium text-gray-900 truncate">{draft.title || 'Unbenannter Text'}</h3>
-                      {draft.isSelected && (
-                        <div className="bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-xs font-medium">
-                          Ausgewählt
-                        </div>
-                      )}
                     </div>
                     
                     <div className="mb-3 text-xs text-gray-500">
@@ -813,11 +808,7 @@ export default function StagePanel() {
                         />
                       )}
                       <div className="absolute top-3 right-3 flex items-center gap-2">
-                        {draft.isSelected && (
-                          <div className="bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-sm font-medium">
-                            Ausgewählt
-                          </div>
-                        )}
+                        {/* Ausgewählt-Label wurde entfernt */}
                         {draft.status !== 'pending' && draft.status !== 'generating' && (
                           <>
                             <button 
