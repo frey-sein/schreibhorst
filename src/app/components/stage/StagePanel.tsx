@@ -574,7 +574,7 @@ export default function StagePanel() {
       htmlContent: "",
       metaTitle: "",
       metaDescription: "",
-      modelId: selectedModel,
+      modelId: selectedTextModel,
       createdAt: new Date()
     };
     

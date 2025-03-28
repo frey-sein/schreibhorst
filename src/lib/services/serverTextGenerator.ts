@@ -56,6 +56,12 @@ export async function generateBlogPost(prompt: string, modelId?: string): Promis
     // Wenn kein Modell angegeben wurde, verwende das Standardmodell
     let model = modelId || 'openai/gpt-4-turbo-preview';
 
+    // Blocke explizit Flux-Modelle für Textgenerierung
+    if (model.includes('flux') || model.includes('FLUX')) {
+      console.warn(`Flux-Modell "${model}" ist für Textgenerierung nicht erlaubt. Verwende GPT-4 Turbo.`);
+      model = 'openai/gpt-4-turbo-preview';
+    }
+
     // Prüfe, ob das Modell in der Liste verfügbar ist
     const isValidModel = availableTextModels.some(m => m.id === model);
     if (!isValidModel) {

@@ -29,6 +29,12 @@ const getValidModel = (modelId: string): string => {
 
 // Hilfsfunktion: Stellt sicher, dass das Text-Modell in der verfügbaren Liste ist
 const getValidTextModel = (modelId: string): string => {
+  // Ersetze Flux-Modelle explizit durch GPT-4 Turbo
+  if (modelId.includes('flux') || modelId.includes('FLUX')) {
+    console.warn(`Flux-Modell "${modelId}" ist für Textgenerierung nicht erlaubt. Verwende GPT-4 Turbo.`);
+    return 'openai/gpt-4-turbo-preview';
+  }
+  
   const isValid = availableTextModels.some(model => model.id === modelId);
   return isValid ? modelId : 'openai/gpt-4-turbo-preview';
 };
