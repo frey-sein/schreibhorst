@@ -20,6 +20,7 @@ export interface ImageDraft {
   modelId: string;
   width: number;
   height: number;
+  status?: 'pending' | 'generating' | 'completed' | 'error';
   meta?: {
     provider?: string;
     author?: string;

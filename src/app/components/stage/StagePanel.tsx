@@ -76,32 +76,30 @@ export default function StagePanel() {
 
   useEffect(() => {
     if (imagePrompts.length > 0) {
-      // For image prompts, we'd typically generate images via an API
-      // For now, we'll just use placeholders
-      const placeholderImages = [
-        "https://images.unsplash.com/photo-1513477967668-2aaf11838bd6?w=800&auto=format&fit=crop&q=60",
-        "https://images.unsplash.com/photo-1498598457418-36ef20772c9b?w=800&auto=format&fit=crop&q=60",
-        "https://images.unsplash.com/photo-1505765050516-f72dcac9c60e?w=800&auto=format&fit=crop&q=60"
-      ];
+      console.log('Neue Bildprompts empfangen:', imagePrompts);
       
       const newImageDrafts = imagePrompts.map((prompt, index) => ({
         id: imageDrafts.length > 0 ? Math.max(...imageDrafts.map(d => d.id)) + index + 1 : index + 1,
-        url: placeholderImages[index % placeholderImages.length],
-        title: prompt.contentType || "Neues Bild",
+        url: '/images/placeholder.svg', // Standard-Platzhalter
+        title: prompt.title || prompt.contentType || "Neues Bild",
         isSelected: false,
         contentType: prompt.contentType,
         tags: prompt.tags,
         sourceContext: prompt.sourceContext,
         prompt: prompt.prompt,
-        // Fehlende erforderliche Eigenschaften für ImageDraft
+        // Status setzen als "pending" - noch nicht generiert
+        status: 'pending' as 'pending' | 'generating' | 'completed' | 'error',
+        // Erforderliche Eigenschaften für ImageDraft
         modelId: selectedModel,
         width: 800,
         height: 600,
         meta: {
-          provider: 'placeholder',
+          provider: 'pending',
           tags: prompt.tags
         }
       }));
+      
+      console.log('Neue ImageDrafts erstellt:', newImageDrafts);
       
       // Komplett neue Liste erstellen
       setImageDrafts([...newImageDrafts, ...imageDrafts]);
@@ -218,14 +216,17 @@ export default function StagePanel() {
   const handleRegenerateImage = async (id: number) => {
     const image = imageDrafts.find(img => img.id === id);
     if (image && image.prompt) {
-      // Setze das Bild in einen Ladezustand
-      updateImageDraft(id, { url: '/images/loading.svg' });
+      // Setze den Status auf "generating"
+      updateImageDraft(id, { status: 'generating' });
       
       try {
         // Generiere ein neues Bild mit dem Prompt über die Together API
         const result = await generateImage(image.prompt, selectedModel);
         
         if (result.success) {
+          // Status auf "completed" setzen
+          updateImageDraft(id, { status: 'completed' });
+          
           // Verwende die URL vom gespeicherten Bild, falls vorhanden (lokaler Pfad)
           if (result.image && result.image.url) {
             console.log('Verwende lokale Bild-URL:', result.image.url);
@@ -256,15 +257,18 @@ export default function StagePanel() {
             console.warn('Bild wurde generiert, aber ohne lokalen Pfad - verwende externe URL');
           }
         } else {
-          // Fehlerbehandlung
+          // Fehlerbehandlung - Status auf "error" setzen
+          updateImageDraft(id, { 
+            status: 'error',
+            url: '/images/error.svg' 
+          });
+          
+          // Fehlermeldung anzeigen
           console.error('Fehler bei der Bildgenerierung:', result.error);
           
           // Anzeigen einer benutzerfreundlichen Fehlermeldung
           const errorMessage = result.error || 'Unbekannter Fehler';
           alert(`Fehler bei der Bildgenerierung: ${errorMessage}`);
-          
-          // Setze das Bild auf ein Fehlerbild
-          updateImageDraft(id, { url: '/images/error.svg' });
           
           // Wenn das Modell nicht verfügbar ist, setze auf das Standardmodell zurück
           if (errorMessage.includes('nicht verfügbar') || errorMessage.includes('Unable to access model')) {
@@ -274,11 +278,14 @@ export default function StagePanel() {
           }
         }
       } catch (error) {
+        // Fehlerhandling - Status auf "error" setzen
+        updateImageDraft(id, { 
+          status: 'error',
+          url: '/images/error.svg' 
+        });
+        
         console.error('Fehler bei der Bildgenerierung:', error);
         alert(`Es ist ein unerwarteter Fehler aufgetreten: ${(error as Error).message || 'Unbekannter Fehler'}`);
-        
-        // Setze das Bild auf ein Fehlerbild
-        updateImageDraft(id, { url: '/images/error.svg' });
       }
     }
   };
@@ -714,39 +721,96 @@ export default function StagePanel() {
                           : 'hover:ring-2 hover:ring-gray-400 hover:shadow-md'
                       }`}
                     >
-                      <img
-                        src={draft.url}
-                        alt={draft.title}
-                        className="w-full h-full object-cover"
-                      />
+                      {draft.status === 'pending' ? (
+                        // Anzeige für noch nicht generierte Bilder
+                        <div className="flex flex-col items-center justify-center h-full bg-gray-100 p-4">
+                          <div className="text-gray-400 mb-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <p className="text-sm text-gray-600 text-center mb-3">Bild noch nicht generiert</p>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRegenerateImage(draft.id);
+                            }}
+                            className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full text-sm font-medium hover:bg-[#1a1a1a] transition-colors"
+                          >
+                            Bild generieren
+                          </button>
+                        </div>
+                      ) : draft.status === 'generating' ? (
+                        // Anzeige für Bilder im Generierungsprozess
+                        <div className="flex flex-col items-center justify-center h-full bg-gray-100 p-4">
+                          <div className="animate-spin text-gray-400 mb-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          </div>
+                          <p className="text-sm text-gray-600 text-center">Bild wird generiert...</p>
+                        </div>
+                      ) : draft.status === 'error' ? (
+                        // Anzeige für Fehler bei der Generierung
+                        <div className="flex flex-col items-center justify-center h-full bg-red-50 p-4">
+                          <div className="text-red-500 mb-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                          </div>
+                          <p className="text-sm text-red-600 text-center mb-3">Fehler bei der Generierung</p>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRegenerateImage(draft.id);
+                            }}
+                            className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full text-sm font-medium hover:bg-[#1a1a1a] transition-colors"
+                          >
+                            Erneut versuchen
+                          </button>
+                        </div>
+                      ) : (
+                        // Anzeige für erfolgreich generierte Bilder
+                        <img
+                          src={draft.url}
+                          alt={draft.title}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
                       <div className="absolute top-3 right-3 flex items-center gap-2">
                         {draft.isSelected && (
                           <div className="bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-sm font-medium">
                             Ausgewählt
                           </div>
                         )}
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRegenerateImage(draft.id);
-                          }}
-                          className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
-                          title="Bild neu generieren"
-                        >
-                          <ArrowPathIcon className="h-4 w-4 text-gray-600" />
-                        </button>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownloadImage(draft.id);
-                          }}
-                          className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
-                          title="Bild herunterladen"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                          </svg>
-                        </button>
+                        {draft.status !== 'pending' && draft.status !== 'generating' && (
+                          <>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRegenerateImage(draft.id);
+                              }}
+                              className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                              title="Bild neu generieren"
+                            >
+                              <ArrowPathIcon className="h-4 w-4 text-gray-600" />
+                            </button>
+                            {draft.status === 'completed' && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownloadImage(draft.id);
+                                }}
+                                className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                                title="Bild herunterladen"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                              </button>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                     {draft.prompt && (

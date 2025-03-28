@@ -811,10 +811,10 @@ export default function ChatPanel() {
         </div>
         
         {selectedPrompts.length > 0 && (
-          <div className="flex justify-end mt-4 sticky bottom-4">
-            <div className="bg-white shadow-md border border-gray-200 rounded-full px-4 py-2">
+          <div className="mt-6 border-t border-gray-100 pt-4">
+            <div className="flex justify-end">
               <button 
-                className="prompt-submit-button"
+                className="bg-gray-900 text-white rounded-full px-4 py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
                 onClick={() => onPromptSelect({ sendAll: true } as any)}
               >
                 Ausgewählte Prompts übertragen ({selectedPrompts.length})
