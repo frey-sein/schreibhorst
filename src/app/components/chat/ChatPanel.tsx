@@ -339,6 +339,8 @@ export default function ChatPanel() {
         // Setze Text- und Bildvorschläge zurück
         stageStore.setTextDrafts([]);
         stageStore.setImageDrafts([]);
+        // Setze auch den Blogbeitrag-Generator zurück
+        stageStore.setBlogPostDraft(null);
         
         // Stelle die gespeicherten Einstellungen wieder her
         stageStore.setSelectedModel(currentModel);
@@ -411,6 +413,8 @@ export default function ChatPanel() {
         // Setze Text- und Bildvorschläge zurück
         stageStore.setTextDrafts([]);
         stageStore.setImageDrafts([]);
+        // Setze auch den Blogbeitrag-Generator zurück
+        stageStore.setBlogPostDraft(null);
         
         // Stelle die gespeicherten Einstellungen wieder her
         stageStore.setSelectedModel(currentModel);

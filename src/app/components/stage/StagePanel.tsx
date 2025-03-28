@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { usePromptStore } from '@/lib/store/promptStore';
 import { useStageHistoryStore } from '@/lib/store/stageHistoryStore';
-import { TextDraft, ImageDraft } from '@/types/stage';
-import { ClockIcon, TrashIcon, ArrowPathIcon, PhotoIcon, SparklesIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { TextDraft, ImageDraft, BlogPostDraft } from '@/types/stage';
+import { ClockIcon, TrashIcon, ArrowPathIcon, PhotoIcon, SparklesIcon, PencilIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { createPortal } from 'react-dom';
@@ -17,11 +17,12 @@ import TextGeneratorPanel from './TextGeneratorPanel';
 export default function StagePanel() {
   // Zugriff auf den persistenten Store
   const { 
-    textDrafts, setTextDrafts, 
-    imageDrafts, setImageDrafts, 
+    textDrafts, setTextDrafts,
+    imageDrafts, setImageDrafts,
+    updateTextDraft, updateImageDraft,
     selectedModel, setSelectedModel,
-    activeImageTab, setActiveImageTab,
-    updateTextDraft, updateImageDraft
+    selectedTextModel, setBlogPostDraft,
+    activeImageTab, setActiveImageTab
   } = useStageStore();
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -558,6 +559,29 @@ export default function StagePanel() {
     }
   };
 
+  // Neue Funktion: Überträgt den Textentwurf in den Blogbeitrag-Generator
+  const sendToBlogGenerator = (id: number) => {
+    // Finde den gewählten Textentwurf anhand der ID
+    const text = textDrafts.find(item => item.id === id);
+    if (!text) return;
+    
+    // Setze das aktive Tab auf 'blog'
+    setActiveTab('blog');
+    
+    // Erstelle einen neuen BlogPostDraft-Entwurf mit dem Inhalt des Textentwurfs
+    const newBlogPostDraft: BlogPostDraft = {
+      prompt: text.content,
+      htmlContent: "",
+      metaTitle: "",
+      metaDescription: "",
+      modelId: selectedModel,
+      createdAt: new Date()
+    };
+    
+    // Aktualisiere den Store mit dem neuen BlogPostDraft
+    setBlogPostDraft(newBlogPostDraft);
+  };
+
   return (
     <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0]">
       {/* Header */}
@@ -685,13 +709,13 @@ export default function StagePanel() {
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          // Im Moment tut diese Schaltfläche nichts, da die Funktion nicht implementiert ist
-                          handleRegenerateTexts();
+                          // Sende den Textentwurf an den Blogbeitrag-Generator
+                          sendToBlogGenerator(draft.id);
                         }}
-                        className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
-                        title="Text neu generieren"
+                        className="p-1.5 bg-black hover:bg-gray-800 rounded-full transition-colors border border-black"
+                        title="An Blogbeitrag-Generator senden"
                       >
-                        <ArrowPathIcon className="h-4 w-4 text-gray-600" />
+                        <PaperAirplaneIcon className="h-4 w-4 text-white" />
                       </button>
                     </div>
                   </div>
