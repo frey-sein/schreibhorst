@@ -54,7 +54,7 @@ export default function StagePanel() {
     if (textPrompts.length > 0) {
       // Add new text prompts as drafts
       const newTextDrafts = textPrompts.map((prompt, index) => ({
-        id: textDrafts.length + index + 1,
+        id: textDrafts.length > 0 ? Math.max(...textDrafts.map(d => d.id)) + index + 1 : index + 1,
         content: prompt.prompt,
         isSelected: false,
         title: prompt.contentType || "Neuer Entwurf",
@@ -63,9 +63,10 @@ export default function StagePanel() {
         sourceContext: prompt.sourceContext
       }));
       
+      // Komplett neue Liste erstellen, statt von textDrafts.length abhängig zu sein
       setTextDrafts([...newTextDrafts, ...textDrafts]);
     }
-  }, [textPrompts, textDrafts.length, setTextDrafts]);
+  }, [textPrompts]); // textDrafts.length aus der Abhängigkeitsliste entfernen
 
   useEffect(() => {
     if (imagePrompts.length > 0) {
@@ -78,7 +79,7 @@ export default function StagePanel() {
       ];
       
       const newImageDrafts = imagePrompts.map((prompt, index) => ({
-        id: imageDrafts.length + index + 1,
+        id: imageDrafts.length > 0 ? Math.max(...imageDrafts.map(d => d.id)) + index + 1 : index + 1,
         url: placeholderImages[index % placeholderImages.length],
         title: prompt.contentType || "Neues Bild",
         isSelected: false,
@@ -88,9 +89,10 @@ export default function StagePanel() {
         prompt: prompt.prompt
       }));
       
+      // Komplett neue Liste erstellen, statt von imageDrafts.length abhängig zu sein
       setImageDrafts([...newImageDrafts, ...imageDrafts]);
     }
-  }, [imagePrompts, imageDrafts.length, setImageDrafts]);
+  }, [imagePrompts]); // imageDrafts.length aus der Abhängigkeitsliste entfernen
 
   const handleTextSelect = (id: number) => {
     setTextDrafts(textDrafts.map(draft => ({

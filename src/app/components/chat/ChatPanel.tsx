@@ -316,6 +316,39 @@ export default function ChatPanel() {
       // Schließe den Chatverlauf-Dialog
       setIsHistoryOpen(false);
       
+      // Prompt-Store leeren
+      try {
+        const { usePromptStore } = await import('@/lib/store/promptStore');
+        const promptStore = usePromptStore.getState();
+        promptStore.clearPrompts();
+        console.log('Prompt-Store geleert');
+      } catch (error) {
+        console.error('Fehler beim Leeren des Prompt-Stores:', error);
+      }
+      
+      // Stage zurücksetzen - Leere die Text- und Bildvorschläge
+      try {
+        // Importiere und verwende useStageStore dynamisch
+        const { useStageStore } = await import('@/lib/store/stageStore');
+        const stageStore = useStageStore.getState();
+        
+        // Speichere aktuelle Einstellungen
+        const currentModel = stageStore.selectedModel;
+        const currentTab = stageStore.activeImageTab;
+        
+        // Setze Text- und Bildvorschläge zurück
+        stageStore.setTextDrafts([]);
+        stageStore.setImageDrafts([]);
+        
+        // Stelle die gespeicherten Einstellungen wieder her
+        stageStore.setSelectedModel(currentModel);
+        stageStore.setActiveImageTab(currentTab);
+        
+        console.log('Stage wurde für neuen Chat zurückgesetzt');
+      } catch (error) {
+        console.error('Fehler beim Zurücksetzen der Stage:', error);
+      }
+      
       console.log(`Neuer Chat erstellt: ${newChat.id}`);
     } catch (error) {
       console.error('Fehler beim Erstellen eines neuen Chats:', error);
@@ -354,6 +387,39 @@ export default function ChatPanel() {
       
       // Schließe den Chatverlauf-Dialog
       setIsHistoryOpen(false);
+      
+      // Prompt-Store leeren
+      try {
+        const { usePromptStore } = await import('@/lib/store/promptStore');
+        const promptStore = usePromptStore.getState();
+        promptStore.clearPrompts();
+        console.log('Prompt-Store für Chat-Wechsel geleert');
+      } catch (error) {
+        console.error('Fehler beim Leeren des Prompt-Stores:', error);
+      }
+      
+      // Stage zurücksetzen - Leere die Text- und Bildvorschläge
+      try {
+        // Importiere und verwende useStageStore dynamisch
+        const { useStageStore } = await import('@/lib/store/stageStore');
+        const stageStore = useStageStore.getState();
+        
+        // Speichere aktuelle Einstellungen
+        const currentModel = stageStore.selectedModel;
+        const currentTab = stageStore.activeImageTab;
+        
+        // Setze Text- und Bildvorschläge zurück
+        stageStore.setTextDrafts([]);
+        stageStore.setImageDrafts([]);
+        
+        // Stelle die gespeicherten Einstellungen wieder her
+        stageStore.setSelectedModel(currentModel);
+        stageStore.setActiveImageTab(currentTab);
+        
+        console.log('Stage wurde für Chat-Wechsel zurückgesetzt');
+      } catch (error) {
+        console.error('Fehler beim Zurücksetzen der Stage:', error);
+      }
       
       console.log(`Gewechselt zu Chat ${chatId}`);
     } catch (error) {
@@ -397,6 +463,44 @@ export default function ChatPanel() {
       }
     };
   }, []);
+
+  // Stile inline definieren als Fallback
+  const messageStyles = `
+    .message-container {
+      display: flex;
+      margin-bottom: 1rem;
+    }
+    .message {
+      max-width: 80%;
+      border-radius: 1rem;
+      padding: 0.75rem 1rem;
+      position: relative;
+    }
+    .message-user {
+      background-color: #2c2c2c;
+      color: white;
+    }
+    .message-assistant {
+      background-color: #f3f4f6;
+      color: #1f2937;
+    }
+    .message-system {
+      background-color: #fef3c7;
+      color: #92400e;
+      font-style: italic;
+    }
+    .message-header {
+      display: flex;
+      justify-content: flex-end;
+      font-size: 0.75rem;
+      margin-bottom: 0.25rem;
+      opacity: 0.7;
+    }
+    .message-content {
+      white-space: pre-wrap;
+      font-size: 0.875rem;
+    }
+  `;
 
   // Funktion zum Senden einer Nachricht
   const sendMessage = useCallback(async () => {
@@ -1120,6 +1224,9 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
 
   return (
     <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0] relative">
+      {/* Inline CSS als Fallback */}
+      <style dangerouslySetInnerHTML={{ __html: messageStyles }} />
+      
       {isHistoryOpen && (
         <ChatList
           onSelectChat={handleSelectChat}

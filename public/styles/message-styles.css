@@ -12,17 +12,17 @@
 
 .message-user {
   background-color: #2c2c2c;
-  color: white;
+  color: white !important;
 }
 
 .message-assistant {
   background-color: #f3f4f6;
-  color: #1f2937;
+  color: #1f2937 !important;
 }
 
 .message-system {
   background-color: #fef3c7;
-  color: #92400e;
+  color: #92400e !important;
   font-style: italic;
 }
 
@@ -37,6 +37,7 @@
 .message-content {
   white-space: pre-wrap;
   font-size: 0.875rem;
+  color: inherit !important;
 }
 
 /* Stile für die PromptSelectionView-Komponente */

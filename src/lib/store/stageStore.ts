@@ -116,4 +116,18 @@ export const useStageStore = create<StageState>()(
       }
     }
   )
-); 
+);
+
+// Funktion zum Zurücksetzen der Stage, die direkt aufgerufen werden kann
+export const resetStage = () => {
+  const stageStore = useStageStore.getState();
+  if (stageStore) {
+    const currentModel = stageStore.selectedModel;
+    const currentTab = stageStore.activeImageTab;
+    stageStore.setTextDrafts([]);
+    stageStore.setImageDrafts([]);
+    stageStore.setSelectedModel(currentModel); // Modell beibehalten
+    stageStore.setActiveImageTab(currentTab); // Tab beibehalten
+    console.log('Stage wurde zurückgesetzt');
+  }
+}; 

@@ -132,9 +132,9 @@ export default function ChatList({ onSelectChat, onNewChat, currentChatId, onClo
   return (
     <div className="fixed inset-0 bg-white z-50 overflow-hidden flex flex-col">
       <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-        <h2 className="text-xl font-medium">Meine Chats</h2>
+        <h2 className="text-xl font-medium text-gray-900">Meine Chats</h2>
         <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200">
-          <ChevronRightIcon className="w-5 h-5" />
+          <ChevronRightIcon className="w-5 h-5 text-gray-700" />
         </button>
       </div>
       
@@ -143,8 +143,8 @@ export default function ChatList({ onSelectChat, onNewChat, currentChatId, onClo
           onClick={onNewChat}
           className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center mb-4 transition-colors"
         >
-          <PlusIcon className="w-5 h-5 mr-2" />
-          <span>Neuen Chat erstellen</span>
+          <PlusIcon className="w-5 h-5 mr-2 text-gray-700" />
+          <span className="text-gray-900">Neuen Chat erstellen</span>
         </button>
       </div>
       
@@ -193,35 +193,33 @@ export default function ChatList({ onSelectChat, onNewChat, currentChatId, onClo
                 ) : (
                   <div className="flex justify-between">
                     <div className="flex-1">
-                      <div className="text-sm font-medium">{chat.title}</div>
-                      <div className="text-xs text-gray-500 mt-1 flex items-center">
+                      <div className="text-sm font-medium text-gray-900">{chat.title}</div>
+                      <div className="text-xs text-gray-700 mt-1 flex items-center">
                         <span className="mr-2">
                           {formatDate(chat.updated_at)}
                         </span>
                         {chat.last_message_preview && (
                           <>
-                            <span className="inline-block w-1 h-1 bg-gray-300 rounded-full mr-2"></span>
-                            <span className="truncate max-w-[180px] inline-block">
+                            <span className="inline-block w-1 h-1 bg-gray-500 rounded-full mr-2"></span>
+                            <span className="truncate max-w-[180px] inline-block text-gray-700">
                               {chat.last_message_preview}
                             </span>
                           </>
                         )}
                       </div>
                     </div>
-                    <div className="flex space-x-1">
-                      <button
+                    <div className="flex items-center space-x-1">
+                      <button 
                         onClick={(e) => startEditing(chat.id, chat.title, e)}
-                        className="p-1 rounded hover:bg-gray-200"
-                        title="Chat umbenennen"
+                        className="p-2 rounded-full hover:bg-gray-200"
                       >
-                        <PencilIcon className="w-4 h-4 text-gray-500" />
+                        <PencilIcon className="w-4 h-4 text-gray-700" />
                       </button>
-                      <button
+                      <button 
                         onClick={(e) => handleDeleteChat(chat.id, e)}
-                        className="p-1 rounded hover:bg-gray-200"
-                        title="Chat löschen"
+                        className="p-2 rounded-full hover:bg-gray-200"
                       >
-                        <TrashIcon className="w-4 h-4 text-gray-500" />
+                        <TrashIcon className="w-4 h-4 text-gray-700" />
                       </button>
                     </div>
                   </div>
