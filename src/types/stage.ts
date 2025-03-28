@@ -5,6 +5,10 @@ export interface TextDraft {
   isSelected: boolean;
   createdAt?: Date;
   updatedAt?: Date;
+  styleVariant?: string;
+  contentType?: string;
+  tags?: string[];
+  sourceContext?: string;
 }
 
 export interface ImageDraft {

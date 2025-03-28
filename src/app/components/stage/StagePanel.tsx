@@ -52,21 +52,27 @@ export default function StagePanel() {
   // Listen for new prompts from the store
   useEffect(() => {
     if (textPrompts.length > 0) {
+      // Debug-Ausgabe zum Überprüfen der eingehenden Textprompts
+      console.log('Neue Textprompts empfangen:', textPrompts);
+      
       // Add new text prompts as drafts
       const newTextDrafts = textPrompts.map((prompt, index) => ({
         id: textDrafts.length > 0 ? Math.max(...textDrafts.map(d => d.id)) + index + 1 : index + 1,
         content: prompt.prompt,
         isSelected: false,
-        title: prompt.contentType || "Neuer Entwurf",
-        contentType: prompt.contentType,
-        tags: prompt.tags,
-        sourceContext: prompt.sourceContext
+        title: prompt.title || "Blogbeitrag",
+        contentType: prompt.contentType || "Blogbeitrag",
+        styleVariant: prompt.styleVariant || "blog",
+        tags: prompt.tags || ["blog", "artikel"],
+        sourceContext: prompt.sourceContext || "Chatanalyse"
       }));
       
-      // Komplett neue Liste erstellen, statt von textDrafts.length abhängig zu sein
+      console.log('Neue TextDrafts erstellt:', newTextDrafts);
+      
+      // Komplett neue Liste erstellen
       setTextDrafts([...newTextDrafts, ...textDrafts]);
     }
-  }, [textPrompts]); // textDrafts.length aus der Abhängigkeitsliste entfernen
+  }, [textPrompts]);
 
   useEffect(() => {
     if (imagePrompts.length > 0) {
@@ -86,13 +92,21 @@ export default function StagePanel() {
         contentType: prompt.contentType,
         tags: prompt.tags,
         sourceContext: prompt.sourceContext,
-        prompt: prompt.prompt
+        prompt: prompt.prompt,
+        // Fehlende erforderliche Eigenschaften für ImageDraft
+        modelId: selectedModel,
+        width: 800,
+        height: 600,
+        meta: {
+          provider: 'placeholder',
+          tags: prompt.tags
+        }
       }));
       
-      // Komplett neue Liste erstellen, statt von imageDrafts.length abhängig zu sein
+      // Komplett neue Liste erstellen
       setImageDrafts([...newImageDrafts, ...imageDrafts]);
     }
-  }, [imagePrompts]); // imageDrafts.length aus der Abhängigkeitsliste entfernen
+  }, [imagePrompts, selectedModel]);
 
   const handleTextSelect = (id: number) => {
     setTextDrafts(textDrafts.map(draft => ({

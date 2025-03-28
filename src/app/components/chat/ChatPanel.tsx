@@ -521,6 +521,33 @@ export default function ChatPanel() {
       setMessages(updatedMessages);
       setMessageText('');
       
+      // Wenn dies die erste Benutzernachricht im Chat ist, aktualisiere den Chat-Titel
+      const isFirstUserMessage = messages.filter(m => m.sender === 'user').length === 0;
+      if (isFirstUserMessage && currentChatId !== 'default') {
+        try {
+          // Extrahiere maximal die ersten 40 Zeichen als Titel
+          let chatTitle = messageText.trim().substring(0, 40);
+          if (messageText.length > 40) chatTitle += '...';
+          
+          // Aktualisiere den Chat-Titel in der Datenbank
+          const response = await fetch('/api/chats', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ id: currentChatId, title: chatTitle }),
+          });
+          
+          if (!response.ok) {
+            console.error('Fehler beim Aktualisieren des Chat-Titels:', response.status);
+          } else {
+            console.log('Chat-Titel aktualisiert:', chatTitle);
+          }
+        } catch (error) {
+          console.error('Fehler beim Aktualisieren des Chat-Titels:', error);
+        }
+      }
+      
       // Scrolle nach unten, nachdem die Nachricht hinzugefügt wurde
       setTimeout(() => {
         scrollToBottom();
@@ -853,7 +880,7 @@ export default function ChatPanel() {
     // Füge eine Bestätigungsnachricht hinzu
     const confirmationMessage: ChatMessage = {
       id: Date.now().toString(),
-      text: `✅ ${selectedSuggestions.length} Vorschläge wurden auf die Stage übertragen.`,
+      text: `${selectedSuggestions.length} Prompts wurden übergeben.`,
       sender: 'assistant',
       timestamp: new Date().toISOString()
     };
@@ -863,6 +890,10 @@ export default function ChatPanel() {
 
   // Send a prompt to the stage
   const handleSendToStage = (prompt: AnalysisResult) => {
+    // Debug-Ausgabe zum Überprüfen der Daten
+    console.log('Sende Prompt an Stage:', prompt);
+    
+    // Direkt an den Store senden ohne Transformation
     addPrompt(prompt);
   };
 

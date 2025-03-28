@@ -8,6 +8,15 @@ export interface AnalysisResult {
   tags: string[];
   format?: string;
   estimatedLength?: number;
+  styleOptions?: Array<{
+    name: string;
+    title: string;
+    description: string;
+    format: string;
+  }>;
+  styleVariant?: string;
+  contentType?: string;
+  sourceContext?: string;
 }
 
 interface AnalyzerMessage {
@@ -147,55 +156,26 @@ export class ChatAnalyzer {
     const thematicString = topics.slice(0, 3).join(', ');
     const keyPointsString = keyPoints.slice(0, 3).map(p => `- ${p}`).join('\n');
     
-    // Artikel-Prompt
-    const articlePrompt: AnalysisResult = {
-      id: `text-article-${Date.now()}`,
+    // Einzelner Hauptprompt mit Blogstil
+    const textPrompt: AnalysisResult = {
+      id: `text-${Date.now()}`,
       type: 'text',
       title: 'Blogbeitrag',
       prompt: `Erstelle einen informativen Blogbeitrag zum Thema ${thematicString}. 
 Baue folgende Kernpunkte ein:
 ${keyPointsString}
 
-Verwende einen ${tone}en Schreibstil und strukturiere den Artikel mit Einleitung, Hauptteil und Fazit. 
+Verwende einen ${tone}en Stil und strukturiere den Artikel mit Einleitung, Hauptteil und Fazit.
 Füge passende Zwischenüberschriften und praktische Beispiele ein.`,
       tags: [...topics.slice(0, 3), 'blog', 'artikel'],
       format: 'Artikel',
-      estimatedLength: 800
+      estimatedLength: 800,
+      // Nur Blog-Stil behalten
+      styleVariant: 'blog',
+      contentType: 'Blogbeitrag'
     };
     
-    // How-To-Guide-Prompt
-    const howToPrompt: AnalysisResult = {
-      id: `text-howto-${Date.now()}`,
-      type: 'text',
-      title: 'How-To-Anleitung',
-      prompt: `Erstelle eine Schritt-für-Schritt-Anleitung zu ${thematicString}.
-Berücksichtige dabei:
-${keyPointsString}
-
-Der Guide sollte klar strukturierte Schritte, praktische Tipps und mögliche Fallstricke enthalten.
-Verwende einen ${tone}en, leicht verständlichen Stil.`,
-      tags: [...topics.slice(0, 3), 'anleitung', 'how-to', 'guide'],
-      format: 'How-To-Guide',
-      estimatedLength: 600
-    };
-    
-    // Listicle-Prompt
-    const listiclePrompt: AnalysisResult = {
-      id: `text-listicle-${Date.now()}`,
-      type: 'text',
-      title: 'Top-Liste',
-      prompt: `Erstelle eine listenbasierte Übersicht zu "${thematicString}".
-Basiere den Inhalt auf:
-${keyPointsString}
-
-Formatiere den Inhalt als nummerierte Liste mit aussagekräftigen Überschriften und kurzen, prägnanten Erklärungen.
-Schreibe in einem ${tone}en Stil und halte die einzelnen Punkte kompakt.`,
-      tags: [...topics.slice(0, 3), 'liste', 'übersicht', 'tipps'],
-      format: 'Listicle',
-      estimatedLength: 500
-    };
-    
-    return [articlePrompt, howToPrompt, listiclePrompt];
+    return [textPrompt];
   }
 
   /**
