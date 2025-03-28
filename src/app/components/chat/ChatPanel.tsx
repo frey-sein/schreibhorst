@@ -873,6 +873,7 @@ export default function ChatPanel() {
 
   // Funktion zum Senden der ausgewählten Vorschläge
   const handleSendSelectedSuggestions = async () => {
+    // Prompts direkt an den Store senden
     selectedSuggestions.forEach(async (suggestion) => {
       await handleSendToStage(suggestion);
     });
@@ -886,6 +887,14 @@ export default function ChatPanel() {
     };
     setMessages(prev => [...prev, confirmationMessage]);
     setSelectedSuggestions([]);
+    
+    // Verzögere das Leeren des Prompt-Stores um eine Sekunde,
+    // damit die Stage-Komponente Zeit hat, die Prompts zu verarbeiten
+    setTimeout(() => {
+      const promptStore = usePromptStore.getState();
+      promptStore.clearPrompts();
+      console.log('Prompt-Store nach kurzer Verzögerung geleert');
+    }, 1000);
   };
 
   // Send a prompt to the stage

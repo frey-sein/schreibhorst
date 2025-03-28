@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import { usePromptStore } from '@/lib/store/promptStore';
 import { useStageHistoryStore } from '@/lib/store/stageHistoryStore';
 import { TextDraft, ImageDraft } from '@/types/stage';
-import { ClockIcon, TrashIcon, ArrowPathIcon, PhotoIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { ClockIcon, TrashIcon, ArrowPathIcon, PhotoIcon, SparklesIcon, PencilIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { createPortal } from 'react-dom';
 import { generateImage, availableModels, ImageModel } from '@/lib/services/imageGenerator';
 import { useStageStore } from '@/lib/store/stageStore';
 import StockImagePanel from './StockImagePanel';
+import PromptEditor from './PromptEditor';
 
 export default function StagePanel() {
   // Zugriff auf den persistenten Store
@@ -25,7 +26,9 @@ export default function StagePanel() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
   const [currentImageId, setCurrentImageId] = useState<number | null>(null);
+  const [currentTextId, setCurrentTextId] = useState<number | null>(null);
   const [editingPrompt, setEditingPrompt] = useState("");
+  const [editingItemType, setEditingItemType] = useState<'text' | 'image'>('image');
   const { addSnapshot, getSnapshots, restoreSnapshot, clearSnapshots } = useStageHistoryStore();
   const [snapshots, setSnapshots] = useState<Array<{
     id: string;
@@ -191,24 +194,40 @@ export default function StagePanel() {
     }
   };
 
-  const handleOpenPromptModal = (id: number) => {
-    const image = imageDrafts.find(img => img.id === id);
-    if (image) {
-      setCurrentImageId(id);
-      setEditingPrompt(image.prompt || "");
-      setIsPromptModalOpen(true);
+  const handleOpenPromptModal = (id: number, type: 'text' | 'image' = 'image') => {
+    if (type === 'text') {
+      const text = textDrafts.find(item => item.id === id);
+      if (text) {
+        setCurrentTextId(id);
+        setCurrentImageId(null);
+        setEditingPrompt(text.content || "");
+        setEditingItemType('text');
+        setIsPromptModalOpen(true);
+      }
+    } else {
+      const image = imageDrafts.find(img => img.id === id);
+      if (image) {
+        setCurrentImageId(id);
+        setCurrentTextId(null);
+        setEditingPrompt(image.prompt || "");
+        setEditingItemType('image');
+        setIsPromptModalOpen(true);
+      }
     }
   };
 
   const handleClosePromptModal = () => {
     setIsPromptModalOpen(false);
     setCurrentImageId(null);
+    setCurrentTextId(null);
     setEditingPrompt("");
   };
 
-  const handleSavePrompt = () => {
-    if (currentImageId) {
-      updateImageDraft(currentImageId, { prompt: editingPrompt });
+  const handleSavePrompt = (newPrompt: string) => {
+    if (editingItemType === 'text' && currentTextId) {
+      updateTextDraft(currentTextId, { content: newPrompt });
+    } else if (editingItemType === 'image' && currentImageId) {
+      updateImageDraft(currentImageId, { prompt: newPrompt });
     }
     handleClosePromptModal();
   };
@@ -559,86 +578,102 @@ export default function StagePanel() {
       <div className="flex-1 overflow-y-auto p-8 pt-24 space-y-12 pb-24">
         {/* Text Drafts Section */}
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium text-gray-900">Textentwürfe</h3>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  // Hier würde die Logik zum Neu Laden der Prompts stehen
-                  console.log("Prompts neu laden...");
-                  
-                  // In einer realen Implementierung würde hier der Aufruf an einen
-                  // Textgenerierungsservice stehen, ähnlich wie bei den Bildern
-                  alert("Diese Funktion ist noch nicht implementiert. Sie würde Text-Prompts neu generieren.");
-                }}
-                className="px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium z-30"
-              >
-                Prompts neu laden
-              </button>
+            <div className="flex items-center">
               <button
                 onClick={handleRegenerateTexts}
-                className="p-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] transition-colors border border-[#2c2c2c] mr-3"
+                className="p-2.5 bg-[#2c2c2c] hover:bg-[#1a1a1a] rounded-full transition-colors border border-[#2c2c2c] mr-3"
                 title="Alle Texte neu generieren"
               >
-                <ArrowPathIcon className="h-5 w-5" />
+                <ArrowPathIcon className="h-5 w-5 text-white" />
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-2 gap-6">
             {textDrafts.map((draft) => (
-              <div
+              <div 
                 key={draft.id}
-                onClick={() => handleTextSelect(draft.id)}
-                className={`p-6 rounded-2xl cursor-pointer transition-all duration-200 ${
-                  draft.isSelected
-                    ? 'bg-white border-2 border-[#2c2c2c] shadow-lg'
-                    : 'bg-white border border-gray-100 hover:border-gray-200 hover:shadow-md'
-                }`}
+                className="flex flex-col"
               >
-                <div className="flex flex-col h-full justify-between">
-                  {draft.contentType && (
-                    <div className="mb-2 flex justify-between items-center">
-                      <span className="text-xs font-medium text-gray-500">
-                        Typ: {draft.contentType}
-                      </span>
-                      {draft.sourceContext && (
-                        <span className="text-xs text-gray-400">
-                          Quelle: {draft.sourceContext}
-                        </span>
+                <div
+                  onClick={() => handleTextSelect(draft.id)}
+                  className={`group relative rounded-t-2xl overflow-hidden cursor-pointer transition-all duration-200 border border-gray-100 ${
+                    draft.isSelected
+                      ? 'ring-2 ring-[#2c2c2c] shadow-lg'
+                      : 'hover:ring-2 hover:ring-gray-400 hover:shadow-md'
+                  }`}
+                >
+                  <div className="p-5 bg-white">
+                    <div className="flex justify-between items-start mb-3">
+                      <h3 className="font-medium text-gray-900 truncate">{draft.title || 'Unbenannter Text'}</h3>
+                      {draft.isSelected && (
+                        <div className="bg-[#2c2c2c] text-white px-3 py-1 rounded-full text-xs font-medium">
+                          Ausgewählt
+                        </div>
                       )}
                     </div>
-                  )}
-                  
-                  <p className="text-gray-700 leading-relaxed">{draft.content}</p>
-                  
-                  <div className="mt-3 space-y-3">
+                    
+                    <div className="mb-3 text-xs text-gray-500">
+                      {draft.contentType || 'Text'} {draft.styleVariant ? `(${draft.styleVariant})` : ''}
+                    </div>
+                    
+                    <div className="h-36 overflow-y-auto text-sm text-gray-700 leading-relaxed">
+                      {draft.content}
+                    </div>
+                    
                     {draft.tags && draft.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {draft.tags.slice(0, 3).map((tag, index) => (
-                          <span key={index} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        {draft.tags.slice(0, 3).map((tag, idx) => (
+                          <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                             {tag}
                           </span>
                         ))}
                         {draft.tags.length > 3 && (
-                          <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
-                            +{draft.tags.length - 3}
-                          </span>
+                          <span className="text-xs text-gray-500">+{draft.tags.length - 3}</span>
                         )}
                       </div>
                     )}
-                    
-                    <div className="flex justify-between items-center h-6">
-                      {draft.isSelected ? (
-                        <>
-                          <span className="text-sm text-[#2c2c2c] font-medium">Ausgewählt</span>
-                          <div className="flex items-center space-x-1 text-gray-500 text-xs">
-                            <span>{draft.title}</span>
-                            {draft.contentType && <span>• {draft.contentType}</span>}
-                          </div>
-                        </>
-                      ) : <div />}
-                    </div>
                   </div>
+
+                  <div className="absolute top-3 right-3 flex items-center gap-2">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenPromptModal(draft.id, 'text');
+                      }}
+                      className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                      title="Text bearbeiten"
+                    >
+                      <PencilIcon className="h-4 w-4 text-gray-600" />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Im Moment tut diese Schaltfläche nichts, da die Funktion nicht implementiert ist
+                        handleRegenerateTexts();
+                      }}
+                      className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                      title="Text neu generieren"
+                    >
+                      <ArrowPathIcon className="h-4 w-4 text-gray-600" />
+                    </button>
+                  </div>
+                </div>
+                
+                <div 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenPromptModal(draft.id, 'text');
+                  }}
+                  className="p-3 bg-white border border-gray-100 rounded-b-2xl cursor-pointer hover:bg-gray-50"
+                >
+                  <p className="text-sm text-gray-600 truncate" title={draft.content}>
+                    {draft.content.length > 60 
+                      ? `${draft.content.substring(0, 60)}...` 
+                      : draft.content}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Klicken zum Bearbeiten</p>
                 </div>
               </div>
             ))}
@@ -677,7 +712,7 @@ export default function StagePanel() {
             </div>
           </div>
           
-          {/* KI-Generierung Tab */}
+          {/* AI-Bilder Tab */}
           {activeImageTab === 'ai' && (
             <>
               <div className="flex justify-between items-center">
@@ -707,7 +742,7 @@ export default function StagePanel() {
                   <ArrowPathIcon className="h-5 w-5 text-white" />
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-3 gap-6 mt-6">
                 {imageDrafts.map((draft) => (
                   <div
                     key={draft.id}
@@ -788,6 +823,16 @@ export default function StagePanel() {
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
+                                handleOpenPromptModal(draft.id, 'image');
+                              }}
+                              className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                              title="Prompt bearbeiten"
+                            >
+                              <PencilIcon className="h-4 w-4 text-gray-600" />
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 handleRegenerateImage(draft.id);
                               }}
                               className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
@@ -815,7 +860,10 @@ export default function StagePanel() {
                     </div>
                     {draft.prompt && (
                       <div 
-                        onClick={() => handleOpenPromptModal(draft.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenPromptModal(draft.id, 'image');
+                        }}
                         className="p-3 bg-white border border-gray-100 rounded-b-2xl cursor-pointer hover:bg-gray-50"
                       >
                         <p className="text-sm text-gray-600 truncate" title={draft.prompt}>
@@ -936,106 +984,15 @@ export default function StagePanel() {
         </div>
       </div>
 
-      {/* Prompt-Bearbeitungs-Modal */}
-      {isPromptModalOpen && createPortal(
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
-          <div className="bg-white rounded-xl max-w-xl w-full p-6 relative max-h-[90vh] flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Prompt bearbeiten</h3>
-              <button 
-                onClick={handleClosePromptModal}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="mb-4">
-              <label htmlFor="prompt" className="block text-sm font-medium text-gray-700 mb-2">
-                Bildgenerierungsprompt
-              </label>
-              <textarea
-                id="prompt"
-                className="w-full border border-gray-300 rounded-lg p-3 min-h-[150px] text-gray-700 focus:ring-2 focus:ring-[#2c2c2c] focus:border-transparent outline-none resize-none"
-                value={editingPrompt}
-                onChange={(e) => setEditingPrompt(e.target.value)}
-                placeholder="Beschreibe das Bild, das du generieren möchtest..."
-              />
-            </div>
-            
-            <div className="mb-4">
-              <label htmlFor="model" className="block text-sm font-medium text-gray-700 mb-2">
-                KI-Modell
-              </label>
-              <div className="relative">
-                <select
-                  id="model"
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="appearance-none w-full border border-gray-300 rounded-lg py-2.5 px-4 pr-8 text-gray-700 focus:ring-2 focus:ring-[#2c2c2c] focus:border-transparent outline-none"
-                >
-                  {availableModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} - {model.provider}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                  </svg>
-                </div>
-              </div>
-              {availableModels.find(m => m.id === selectedModel)?.description && (
-                <p className="mt-1 text-xs text-gray-500">
-                  {availableModels.find(m => m.id === selectedModel)?.description}
-                </p>
-              )}
-            </div>
-            
-            {currentImageId && (
-              <div className="mb-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Aktuelles Bild:</h4>
-                <div className="aspect-video rounded-lg overflow-hidden bg-gray-100">
-                  <img 
-                    src={imageDrafts.find(d => d.id === currentImageId)?.url} 
-                    alt="Aktuelles Bild" 
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-              </div>
-            )}
-            
-            <div className="flex justify-end gap-3 mt-auto">
-              <button
-                onClick={handleClosePromptModal}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-              >
-                Abbrechen
-              </button>
-              <button
-                onClick={handleSavePrompt}
-                className="px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a]"
-              >
-                Speichern & Schließen
-              </button>
-              <button
-                onClick={() => {
-                  handleSavePrompt();
-                  if (currentImageId) {
-                    handleRegenerateImage(currentImageId);
-                  }
-                }}
-                className="px-4 py-2 bg-[#2c2c2c] text-white rounded-lg hover:bg-[#1a1a1a]"
-              >
-                Speichern & Neu Generieren
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {/* Prompt Editor Modal */}
+      {isPromptModalOpen && (
+        <PromptEditor
+          stageItemId={editingItemType === 'text' ? (currentTextId || 0) : (currentImageId || 0)}
+          initialPrompt={editingPrompt}
+          itemType={editingItemType}
+          onSave={handleSavePrompt}
+          onCancel={handleClosePromptModal}
+        />
       )}
     </div>
   );
