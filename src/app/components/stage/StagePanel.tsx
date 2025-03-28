@@ -12,6 +12,7 @@ import { generateImage, availableModels, ImageModel } from '@/lib/services/image
 import { useStageStore } from '@/lib/store/stageStore';
 import StockImagePanel from './StockImagePanel';
 import PromptEditor from './PromptEditor';
+import TextGeneratorPanel from './TextGeneratorPanel';
 
 export default function StagePanel() {
   // Zugriff auf den persistenten Store
@@ -36,6 +37,7 @@ export default function StagePanel() {
     textDrafts: any[];
     imageDrafts: any[];
   }>>([]);
+  const [activeTab, setActiveTab] = useState<'text' | 'images' | 'blog'>('images');
 
   // Get prompts from the store
   const { textPrompts, imagePrompts } = usePromptStore();
@@ -576,306 +578,352 @@ export default function StagePanel() {
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-8 pt-24 space-y-12 pb-24">
-        {/* Text Drafts Section */}
-        <div className="space-y-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Textentwürfe</h3>
-            <div className="flex items-center">
-              <button
-                onClick={handleRegenerateTexts}
-                className="p-2.5 bg-[#2c2c2c] hover:bg-[#1a1a1a] rounded-full transition-colors border border-[#2c2c2c] mr-3"
-                title="Alle Texte neu generieren"
-              >
-                <ArrowPathIcon className="h-5 w-5 text-white" />
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-6">
-            {textDrafts.map((draft) => (
-              <div 
-                key={draft.id}
-                className="flex flex-col"
-              >
-                <div
-                  onClick={() => handleTextSelect(draft.id)}
-                  className={`group relative rounded-t-2xl overflow-hidden cursor-pointer transition-all duration-200 border border-gray-100 ${
-                    draft.isSelected
-                      ? 'ring-2 ring-[#2c2c2c] shadow-lg'
-                      : 'hover:ring-2 hover:ring-gray-400 hover:shadow-md'
-                  }`}
-                >
-                  <div className="p-5 bg-white">
-                    <div className="flex justify-between items-start mb-3">
-                      <h3 className="font-medium text-gray-900 truncate">{draft.title || 'Unbenannter Text'}</h3>
-                    </div>
-                    
-                    <div className="mb-3 text-xs text-gray-500">
-                      {draft.contentType || 'Text'} {draft.styleVariant ? `(${draft.styleVariant})` : ''}
-                    </div>
-                    
-                    <div className="h-36 overflow-y-auto text-sm text-gray-700 leading-relaxed">
-                      {draft.content}
-                    </div>
-                    
-                    {draft.tags && draft.tags.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        {draft.tags.slice(0, 3).map((tag, idx) => (
-                          <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                            {tag}
-                          </span>
-                        ))}
-                        {draft.tags.length > 3 && (
-                          <span className="text-xs text-gray-500">+{draft.tags.length - 3}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="absolute top-3 right-3 flex items-center gap-2">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenPromptModal(draft.id, 'text');
-                      }}
-                      className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
-                      title="Text bearbeiten"
-                    >
-                      <PencilIcon className="h-4 w-4 text-gray-600" />
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Im Moment tut diese Schaltfläche nichts, da die Funktion nicht implementiert ist
-                        handleRegenerateTexts();
-                      }}
-                      className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
-                      title="Text neu generieren"
-                    >
-                      <ArrowPathIcon className="h-4 w-4 text-gray-600" />
-                    </button>
-                  </div>
-                </div>
-                
-                <div 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenPromptModal(draft.id, 'text');
-                  }}
-                  className="p-3 bg-white border border-gray-100 rounded-b-2xl cursor-pointer hover:bg-gray-50"
-                >
-                  <p className="text-sm text-gray-600 truncate" title={draft.content}>
-                    {draft.content.length > 60 
-                      ? `${draft.content.substring(0, 60)}...` 
-                      : draft.content}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">Klicken zum Bearbeiten</p>
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Tab Navigation */}
+        <div className="bg-white border border-gray-200 rounded-full p-1 flex w-fit">
+          <button
+            onClick={() => setActiveTab('text')}
+            className={`px-4 py-1.5 rounded-full flex items-center gap-1.5 text-sm font-medium transition-colors ${
+              activeTab === 'text'
+                ? 'bg-[#2c2c2c] text-white'
+                : 'text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <PencilIcon className="h-4 w-4" />
+            Textentwürfe
+          </button>
+          <button
+            onClick={() => setActiveTab('images')}
+            className={`px-4 py-1.5 rounded-full flex items-center gap-1.5 text-sm font-medium transition-colors ${
+              activeTab === 'images'
+                ? 'bg-[#2c2c2c] text-white'
+                : 'text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <PhotoIcon className="h-4 w-4" />
+            Bildentwürfe
+          </button>
+          <button
+            onClick={() => setActiveTab('blog')}
+            className={`px-4 py-1.5 rounded-full flex items-center gap-1.5 text-sm font-medium transition-colors ${
+              activeTab === 'blog'
+                ? 'bg-[#2c2c2c] text-white'
+                : 'text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <SparklesIcon className="h-4 w-4" />
+            Blogbeitrag-Generator
+          </button>
         </div>
 
-        {/* Image Drafts Section */}
-        <div className="space-y-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Bildentwürfe</h3>
-            <div className="flex items-center gap-3">
-              <div className="bg-white border border-gray-200 rounded-full p-1 flex">
+        {/* Text Drafts Section */}
+        {activeTab === 'text' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Textentwürfe</h3>
+              <div className="flex items-center">
                 <button
-                  onClick={() => setActiveImageTab('ai')}
-                  className={`px-4 py-1.5 rounded-full flex items-center gap-1.5 text-sm font-medium transition-colors ${
-                    activeImageTab === 'ai'
-                      ? 'bg-[#2c2c2c] text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <SparklesIcon className="h-4 w-4" />
-                  KI-Generierung
-                </button>
-                <button
-                  onClick={() => setActiveImageTab('stock')}
-                  className={`px-4 py-1.5 rounded-full flex items-center gap-1.5 text-sm font-medium transition-colors ${
-                    activeImageTab === 'stock'
-                      ? 'bg-[#2c2c2c] text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <PhotoIcon className="h-4 w-4" />
-                  Stockbilder
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          {/* AI-Bilder Tab */}
-          {activeImageTab === 'ai' && (
-            <>
-              <div className="flex justify-between items-center">
-                <div className="relative">
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    className="appearance-none bg-white border border-gray-200 text-gray-700 py-2 px-4 pr-8 rounded-full leading-tight focus:outline-none focus:border-gray-400 text-sm"
-                  >
-                    {availableModels.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                    </svg>
-                  </div>
-                </div>
-                <button
-                  onClick={handleRegenerateImages}
+                  onClick={handleRegenerateTexts}
                   className="p-2.5 bg-[#2c2c2c] hover:bg-[#1a1a1a] rounded-full transition-colors border border-[#2c2c2c] mr-3"
-                  title="Alle ausgewählten Bilder neu generieren"
+                  title="Alle Texte neu generieren"
                 >
                   <ArrowPathIcon className="h-5 w-5 text-white" />
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-6 mt-6">
-                {imageDrafts.map((draft) => (
+            </div>
+            <div className="grid grid-cols-2 gap-6">
+              {textDrafts.map((draft) => (
+                <div 
+                  key={draft.id}
+                  className="flex flex-col"
+                >
                   <div
-                    key={draft.id}
-                    className="flex flex-col"
+                    onClick={() => handleTextSelect(draft.id)}
+                    className={`group relative rounded-t-2xl overflow-hidden cursor-pointer transition-all duration-200 border border-gray-100 ${
+                      draft.isSelected
+                        ? 'ring-2 ring-[#2c2c2c] shadow-lg'
+                        : 'hover:ring-2 hover:ring-gray-400 hover:shadow-md'
+                    }`}
                   >
-                    <div
-                      onClick={() => handleImageSelect(draft.id)}
-                      className={`group relative aspect-square rounded-t-2xl overflow-hidden cursor-pointer transition-all duration-200 ${
-                        draft.isSelected
-                          ? 'ring-2 ring-[#2c2c2c] shadow-lg'
-                          : 'hover:ring-2 hover:ring-gray-400 hover:shadow-md'
-                      }`}
-                    >
-                      {draft.status === 'pending' ? (
-                        // Anzeige für noch nicht generierte Bilder
-                        <div className="flex flex-col items-center justify-center h-full bg-gray-100 p-4">
-                          <div className="text-gray-400 mb-3">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                          </div>
-                          <p className="text-sm text-gray-600 text-center mb-3">Bild noch nicht generiert</p>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRegenerateImage(draft.id);
-                            }}
-                            className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full text-sm font-medium hover:bg-[#1a1a1a] transition-colors"
-                          >
-                            Bild generieren
-                          </button>
+                    <div className="p-5 bg-white">
+                      <div className="flex justify-between items-start mb-3">
+                        <h3 className="font-medium text-gray-900 truncate">{draft.title || 'Unbenannter Text'}</h3>
+                      </div>
+                      
+                      <div className="mb-3 text-xs text-gray-500">
+                        {draft.contentType || 'Text'} {draft.styleVariant ? `(${draft.styleVariant})` : ''}
+                      </div>
+                      
+                      <div className="h-36 overflow-y-auto text-sm text-gray-700 leading-relaxed">
+                        {draft.content}
+                      </div>
+                      
+                      {draft.tags && draft.tags.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1">
+                          {draft.tags.slice(0, 3).map((tag, idx) => (
+                            <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                              {tag}
+                            </span>
+                          ))}
+                          {draft.tags.length > 3 && (
+                            <span className="text-xs text-gray-500">+{draft.tags.length - 3}</span>
+                          )}
                         </div>
-                      ) : draft.status === 'generating' ? (
-                        // Anzeige für Bilder im Generierungsprozess
-                        <div className="flex flex-col items-center justify-center h-full bg-gray-100 p-4">
-                          <div className="animate-spin text-gray-400 mb-3">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                          </div>
-                          <p className="text-sm text-gray-600 text-center">Bild wird generiert...</p>
-                        </div>
-                      ) : draft.status === 'error' ? (
-                        // Anzeige für Fehler bei der Generierung
-                        <div className="flex flex-col items-center justify-center h-full bg-red-50 p-4">
-                          <div className="text-red-500 mb-3">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                          </div>
-                          <p className="text-sm text-red-600 text-center mb-3">Fehler bei der Generierung</p>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRegenerateImage(draft.id);
-                            }}
-                            className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full text-sm font-medium hover:bg-[#1a1a1a] transition-colors"
-                          >
-                            Erneut versuchen
-                          </button>
-                        </div>
-                      ) : (
-                        // Anzeige für erfolgreich generierte Bilder
-                        <img
-                          src={draft.url}
-                          alt={draft.title}
-                          className="w-full h-full object-cover"
-                        />
                       )}
-                      <div className="absolute top-3 right-3 flex items-center gap-2">
-                        {/* Ausgewählt-Label wurde entfernt */}
-                        {draft.status !== 'pending' && draft.status !== 'generating' && (
-                          <>
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenPromptModal(draft.id, 'image');
-                              }}
-                              className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
-                              title="Prompt bearbeiten"
-                            >
-                              <PencilIcon className="h-4 w-4 text-gray-600" />
-                            </button>
+                    </div>
+
+                    <div className="absolute top-3 right-3 flex items-center gap-2">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenPromptModal(draft.id, 'text');
+                        }}
+                        className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                        title="Text bearbeiten"
+                      >
+                        <PencilIcon className="h-4 w-4 text-gray-600" />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Im Moment tut diese Schaltfläche nichts, da die Funktion nicht implementiert ist
+                          handleRegenerateTexts();
+                        }}
+                        className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                        title="Text neu generieren"
+                      >
+                        <ArrowPathIcon className="h-4 w-4 text-gray-600" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenPromptModal(draft.id, 'text');
+                    }}
+                    className="p-3 bg-white border border-gray-100 rounded-b-2xl cursor-pointer hover:bg-gray-50"
+                  >
+                    <p className="text-sm text-gray-600 truncate" title={draft.content}>
+                      {draft.content.length > 60 
+                        ? `${draft.content.substring(0, 60)}...` 
+                        : draft.content}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Klicken zum Bearbeiten</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Image Drafts Section */}
+        {activeTab === 'images' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Bildentwürfe</h3>
+              <div className="flex items-center gap-3">
+                <div className="bg-white border border-gray-200 rounded-full p-1 flex">
+                  <button
+                    onClick={() => setActiveImageTab('ai')}
+                    className={`px-4 py-1.5 rounded-full flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                      activeImageTab === 'ai'
+                        ? 'bg-[#2c2c2c] text-white'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <SparklesIcon className="h-4 w-4" />
+                    KI-Generierung
+                  </button>
+                  <button
+                    onClick={() => setActiveImageTab('stock')}
+                    className={`px-4 py-1.5 rounded-full flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                      activeImageTab === 'stock'
+                        ? 'bg-[#2c2c2c] text-white'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <PhotoIcon className="h-4 w-4" />
+                    Stockbilder
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* AI-Bilder Tab */}
+            {activeImageTab === 'ai' && (
+              <>
+                <div className="flex justify-between items-center">
+                  <div className="relative">
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      className="appearance-none bg-white border border-gray-200 text-gray-700 py-2 px-4 pr-8 rounded-full leading-tight focus:outline-none focus:border-gray-400 text-sm"
+                    >
+                      {availableModels.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                      <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                        <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRegenerateImages}
+                    className="p-2.5 bg-[#2c2c2c] hover:bg-[#1a1a1a] rounded-full transition-colors border border-[#2c2c2c] mr-3"
+                    title="Alle ausgewählten Bilder neu generieren"
+                  >
+                    <ArrowPathIcon className="h-5 w-5 text-white" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-6 mt-6">
+                  {imageDrafts.map((draft) => (
+                    <div
+                      key={draft.id}
+                      className="flex flex-col"
+                    >
+                      <div
+                        onClick={() => handleImageSelect(draft.id)}
+                        className={`group relative aspect-square rounded-t-2xl overflow-hidden cursor-pointer transition-all duration-200 ${
+                          draft.isSelected
+                            ? 'ring-2 ring-[#2c2c2c] shadow-lg'
+                            : 'hover:ring-2 hover:ring-gray-400 hover:shadow-md'
+                        }`}
+                      >
+                        {draft.status === 'pending' ? (
+                          // Anzeige für noch nicht generierte Bilder
+                          <div className="flex flex-col items-center justify-center h-full bg-gray-100 p-4">
+                            <div className="text-gray-400 mb-3">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <p className="text-sm text-gray-600 text-center mb-3">Bild noch nicht generiert</p>
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleRegenerateImage(draft.id);
                               }}
-                              className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
-                              title="Bild neu generieren"
+                              className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full text-sm font-medium hover:bg-[#1a1a1a] transition-colors"
                             >
-                              <ArrowPathIcon className="h-4 w-4 text-gray-600" />
+                              Bild generieren
                             </button>
-                            {draft.status === 'completed' && (
+                          </div>
+                        ) : draft.status === 'generating' ? (
+                          // Anzeige für Bilder im Generierungsprozess
+                          <div className="flex flex-col items-center justify-center h-full bg-gray-100 p-4">
+                            <div className="animate-spin text-gray-400 mb-3">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            </div>
+                            <p className="text-sm text-gray-600 text-center">Bild wird generiert...</p>
+                          </div>
+                        ) : draft.status === 'error' ? (
+                          // Anzeige für Fehler bei der Generierung
+                          <div className="flex flex-col items-center justify-center h-full bg-red-50 p-4">
+                            <div className="text-red-500 mb-3">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                            </div>
+                            <p className="text-sm text-red-600 text-center mb-3">Fehler bei der Generierung</p>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRegenerateImage(draft.id);
+                              }}
+                              className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full text-sm font-medium hover:bg-[#1a1a1a] transition-colors"
+                            >
+                              Erneut versuchen
+                            </button>
+                          </div>
+                        ) : (
+                          // Anzeige für erfolgreich generierte Bilder
+                          <img
+                            src={draft.url}
+                            alt={draft.title}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                        <div className="absolute top-3 right-3 flex items-center gap-2">
+                          {/* Ausgewählt-Label wurde entfernt */}
+                          {draft.status !== 'pending' && draft.status !== 'generating' && (
+                            <>
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDownloadImage(draft.id);
+                                  handleOpenPromptModal(draft.id, 'image');
                                 }}
                                 className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
-                                title="Bild herunterladen"
+                                title="Prompt bearbeiten"
                               >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                </svg>
+                                <PencilIcon className="h-4 w-4 text-gray-600" />
                               </button>
-                            )}
-                          </>
-                        )}
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRegenerateImage(draft.id);
+                                }}
+                                className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                                title="Bild neu generieren"
+                              >
+                                <ArrowPathIcon className="h-4 w-4 text-gray-600" />
+                              </button>
+                              {draft.status === 'completed' && (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDownloadImage(draft.id);
+                                  }}
+                                  className="p-1.5 bg-white hover:bg-gray-100 rounded-full transition-colors border border-gray-200"
+                                  title="Bild herunterladen"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                  </svg>
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
+                      {draft.prompt && (
+                        <div 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenPromptModal(draft.id, 'image');
+                          }}
+                          className="p-3 bg-white border border-gray-100 rounded-b-2xl cursor-pointer hover:bg-gray-50"
+                        >
+                          <p className="text-sm text-gray-600 truncate" title={draft.prompt}>
+                            {draft.prompt.length > 60 
+                              ? `${draft.prompt.substring(0, 60)}...` 
+                              : draft.prompt}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">Klicken zum Bearbeiten</p>
+                        </div>
+                      )}
                     </div>
-                    {draft.prompt && (
-                      <div 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenPromptModal(draft.id, 'image');
-                        }}
-                        className="p-3 bg-white border border-gray-100 rounded-b-2xl cursor-pointer hover:bg-gray-50"
-                      >
-                        <p className="text-sm text-gray-600 truncate" title={draft.prompt}>
-                          {draft.prompt.length > 60 
-                            ? `${draft.prompt.substring(0, 60)}...` 
-                            : draft.prompt}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">Klicken zum Bearbeiten</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-          
-          {/* Stockbilder Tab */}
-          {activeImageTab === 'stock' && (
-            <StockImagePanel />
-          )}
-        </div>
+                  ))}
+                </div>
+              </>
+            )}
+            
+            {/* Stockbilder Tab */}
+            {activeImageTab === 'stock' && (
+              <StockImagePanel />
+            )}
+          </div>
+        )}
+        
+        {/* Blogbeitrag-Generator Tab */}
+        {activeTab === 'blog' && (
+          <TextGeneratorPanel />
+        )}
       </div>
 
       {/* Action Bar - Fixed */}

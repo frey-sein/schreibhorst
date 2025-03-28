@@ -11,6 +11,15 @@ export interface TextDraft {
   sourceContext?: string;
 }
 
+export interface BlogPostDraft {
+  prompt: string;
+  htmlContent: string;
+  metaTitle: string;
+  metaDescription: string;
+  modelId: string;
+  createdAt?: Date;
+}
+
 export interface ImageDraft {
   id: number;
   url: string;
@@ -20,6 +29,9 @@ export interface ImageDraft {
   modelId: string;
   width: number;
   height: number;
+  contentType?: string;
+  tags?: string[];
+  sourceContext?: string;
   status?: 'pending' | 'generating' | 'completed' | 'error';
   meta?: {
     provider?: string;
