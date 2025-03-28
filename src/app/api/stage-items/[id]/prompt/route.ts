@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { useStageStore } from '@/lib/store/stageStore';
 
 export async function PUT(
   request: NextRequest,
@@ -16,53 +15,21 @@ export async function PUT(
       );
     }
     
-    // Zugriff auf den Stage-Store
-    const stageStore = useStageStore.getState();
+    // Statt den Store direkt zu verwenden, geben wir einfach eine Erfolgsantwort zurück
+    // Der Client-Code wird dann den Store aktualisieren
     
-    if (itemType === 'text') {
-      // Finde den Text im Store
-      const textDraft = stageStore.textDrafts.find(item => item.id === itemId);
-      
-      if (!textDraft) {
-        return NextResponse.json(
-          { error: 'Text nicht gefunden' }, 
-          { status: 404 }
-        );
-      }
-      
-      // Aktualisiere den Text-Prompt (content)
-      stageStore.updateTextDraft(itemId, { content: prompt });
-      
-      return NextResponse.json({ 
-        success: true,
-        updatedText: true,
-        id: itemId
-      });
-    } else {
-      // Standardmäßig als Bild behandeln
-      // Finde das Bild im Store
-      const imageDraft = stageStore.imageDrafts.find(item => item.id === itemId);
-      
-      if (!imageDraft) {
-        return NextResponse.json(
-          { error: 'Bild nicht gefunden' }, 
-          { status: 404 }
-        );
-      }
-      
-      // Aktualisiere den Bild-Prompt
-      stageStore.updateImageDraft(itemId, { prompt });
-      
-      return NextResponse.json({ 
-        success: true,
-        updatedImage: true,
-        id: itemId
-      });
-    }
+    return NextResponse.json({ 
+      success: true,
+      updatedItem: true,
+      id: itemId,
+      itemType,
+      prompt
+    });
+    
   } catch (error) {
     console.error('Fehler beim Aktualisieren des Prompts:', error);
     return NextResponse.json(
-      { error: 'Interner Serverfehler' }, 
+      { error: `Interner Serverfehler: ${(error instanceof Error ? error.message : String(error))}` }, 
       { status: 500 }
     );
   }

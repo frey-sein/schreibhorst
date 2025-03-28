@@ -38,11 +38,12 @@ export default function PromptEditor({
         body: JSON.stringify({ prompt, itemType })
       });
 
-      if (response.ok) {
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
         onSave(prompt);
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Fehler beim Speichern des Prompts');
+        setError(data.error || 'Fehler beim Speichern des Prompts');
       }
     } catch (error) {
       console.error('Fehler:', error);
