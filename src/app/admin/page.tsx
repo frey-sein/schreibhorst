@@ -278,7 +278,7 @@ export default function AdminPage() {
                         />
                         <label
                           htmlFor="avatar-upload"
-                          className={`inline-block px-4 py-2 text-sm text-center border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors ${
+                          className={`inline-block px-4 py-2 text-sm text-center bg-[#2c2c2c] text-white rounded-md cursor-pointer hover:bg-[#1a1a1a] transition-colors ${
                             isUploadingAvatars ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
                         >

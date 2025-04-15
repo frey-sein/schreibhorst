@@ -205,16 +205,16 @@ export default function Header() {
           {currentUser.role === 'admin' && (
             <Link
               href="/admin"
-              className={`p-2.5 aspect-square bg-white border rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
+              className={`p-2.5 aspect-square rounded-full hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
                 isAdmin 
-                  ? 'border-[#2c2c2c] bg-gray-200 shadow-sm' 
-                  : 'border-gray-100'
+                  ? 'bg-[#1a1a1a] shadow-sm' 
+                  : 'bg-[#2c2c2c]'
               }`}
               title="Verwaltungsbereich"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className={`h-5 w-5 ${isAdmin ? 'text-gray-800' : 'text-gray-600'}`}
+                className="h-5 w-5 text-white"
                 viewBox="0 0 20 20"
                 fill="currentColor"
               >
