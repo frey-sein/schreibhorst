@@ -3,21 +3,67 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useUserStore } from '../../lib/store/userStore';
 import { UsersIcon, ArrowRightOnRectangleIcon, FolderIcon, BookOpenIcon, BeakerIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'user';
+  imageUrl?: string | null;
+}
 
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-  const { getCurrentUser, setCurrentUser } = useUserStore();
-  const [currentUser, setCurrentUserState] = useState(getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
-    setCurrentUserState(getCurrentUser());
-  }, [getCurrentUser]);
+    
+    // Daten des aktuellen Benutzers abrufen
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch('/api/auth/status');
+        const data = await response.json();
+        
+        if (data.authenticated && data.user) {
+          // Basisdaten des Benutzers setzen
+          setCurrentUser(data.user);
+          
+          // Detaillierte Benutzerdaten abrufen (inkl. Profilbild)
+          try {
+            const userResponse = await fetch(`/api/users/${data.user.id}`);
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              setCurrentUser(prev => ({
+                ...prev,
+                ...userData,
+                imageUrl: userData.imageUrl || null
+              }));
+            }
+          } catch (detailError) {
+            console.error('Fehler beim Abrufen der detaillierten Benutzerdaten:', detailError);
+          }
+        } else if (pathname !== '/login') {
+          // Wenn nicht authentifiziert und nicht auf der Login-Seite, zum Login weiterleiten
+          router.push('/login');
+        }
+      } catch (error) {
+        console.error('Fehler beim Abrufen des Benutzerstatus:', error);
+        if (pathname !== '/login') {
+          router.push('/login');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchCurrentUser();
+  }, [pathname, router]);
 
   const isDateimanager = pathname.startsWith('/dateimanager');
   const isWissen = pathname.startsWith('/wissen');
@@ -35,19 +81,36 @@ export default function Header() {
         .slice(0, 2)
     : 'U';
 
-  const handleLogout = () => {
-    // Benutzer abmelden
-    setCurrentUser(null);
-    // Lösche den Cookie
-    document.cookie = 'user-id=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
-    router.push('/login');
+  const handleLogout = async () => {
+    try {
+      // Abmelden über die API
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // Cookie löschen (für den Fall, dass die API das nicht tut)
+      document.cookie = 'user-id=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+      
+      // Zur Login-Seite weiterleiten
+      router.push('/login');
+    } catch (error) {
+      console.error('Fehler beim Logout:', error);
+      // Trotzdem zum Login weiterleiten
+      router.push('/login');
+    }
   };
 
-  // Render nichts während des ersten Mounts
-  if (!mounted) return null;
+  // Render nichts während des ersten Mounts oder beim Laden
+  if (!mounted || loading) return null;
 
-  // Render nichts wenn kein User
+  // Render nichts, wenn kein Benutzer authentifiziert ist
   if (!currentUser) return null;
+  
+  // Wenn die aktuelle Seite die Login-Seite ist, zeige keinen Header an
+  if (pathname === '/login') return null;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-[#f4f4f4]/80 backdrop-blur-md border-b border-gray-100 shadow-md">
@@ -117,6 +180,18 @@ export default function Header() {
                 src={currentUser.imageUrl}
                 alt={currentUser.name}
                 className="w-6 h-6 rounded-full object-cover"
+                onError={(e) => {
+                  console.error('Fehler beim Laden des Profilbilds');
+                  // Wenn das Bild nicht geladen werden kann, zeige Initialen an
+                  e.currentTarget.style.display = 'none';
+                  const parent = e.currentTarget.parentElement;
+                  if (parent) {
+                    const fallback = document.createElement('div');
+                    fallback.className = "w-6 h-6 rounded-full bg-[#2c2c2c] flex items-center justify-center text-white text-xs font-medium";
+                    fallback.textContent = initials;
+                    parent.appendChild(fallback);
+                  }
+                }}
               />
             ) : (
               <div className="w-6 h-6 rounded-full bg-[#2c2c2c] flex items-center justify-center text-white text-xs font-medium">

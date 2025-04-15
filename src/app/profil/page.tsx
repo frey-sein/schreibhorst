@@ -2,26 +2,34 @@
 
 import { useState, useEffect } from 'react';
 import { UserCircleIcon } from '@heroicons/react/24/outline';
-import { useUserStore } from '@/lib/store/userStore';
 import Header from '@/app/components/Header';
+import { useRouter } from 'next/navigation';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'user';
+  imageUrl?: string | null;
+}
 
 export default function ProfilePage() {
-  const { getCurrentUser, updateProfile } = useUserStore();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [currentUser, setCurrentUser] = useState(getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [profileData, setProfileData] = useState<{
     name: string;
     email: string;
     imageUrl: string | null;
-    hashedPassword?: string;
   }>({
-    name: currentUser?.name || '',
-    email: currentUser?.email || '',
-    imageUrl: currentUser?.imageUrl || null
+    name: '',
+    email: '',
+    imageUrl: null
   });
-  const [previewImage, setPreviewImage] = useState<string | null>(currentUser?.imageUrl || null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isEditingPassword, setIsEditingPassword] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -31,24 +39,46 @@ export default function ProfilePage() {
 
   useEffect(() => {
     setMounted(true);
-    setCurrentUser(getCurrentUser());
-  }, [getCurrentUser]);
-
-  useEffect(() => {
-    if (currentUser) {
-      setProfileData({
-        name: currentUser.name,
-        email: currentUser.email,
-        imageUrl: currentUser.imageUrl || ''
-      });
-      setPreviewImage(currentUser.imageUrl);
+    
+    // Hole den aktuellen Benutzer über die API
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch('/api/auth/status');
+        const data = await response.json();
+        
+        if (data.authenticated && data.user) {
+          setCurrentUser(data.user);
+          
+          // Hole detaillierte Benutzerdaten
+          const userResponse = await fetch(`/api/users/${data.user.id}`);
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            setCurrentUser(userData);
+            setProfileData({
+              name: userData.name || '',
+              email: userData.email || '',
+              imageUrl: userData.imageUrl || null
+            });
+            setPreviewImage(userData.imageUrl || null);
+          }
+        } else {
+          // Wenn nicht authentifiziert, zur Login-Seite weiterleiten
+          router.push('/login');
+        }
+      } catch (error) {
+        console.error('Fehler beim Abrufen des Benutzerprofils:', error);
+      }
+    };
+    
+    if (mounted) {
+      fetchCurrentUser();
     }
-  }, [currentUser]);
+  }, [mounted, router]);
 
   // Render nichts während des ersten Mounts
-  if (!mounted) return null;
+  if (!mounted || !currentUser) return null;
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     
     if (file) {
@@ -70,13 +100,49 @@ export default function ProfilePage() {
         return;
       }
 
+      // Zeige Vorschau des Bildes
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
         setPreviewImage(result);
-        setProfileData(prev => ({ ...prev, imageUrl: result }));
       };
       reader.readAsDataURL(file);
+
+      // Lade das Bild hoch
+      setIsUploadingImage(true);
+      setMessage(null);
+      
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('/api/uploads/profile', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Fehler beim Hochladen des Bildes');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.url) {
+          // Aktualisiere den Pfad zur Bilddatei
+          setProfileData(prev => ({ ...prev, imageUrl: data.url }));
+        } else {
+          throw new Error('Unbekannter Fehler beim Hochladen des Bildes');
+        }
+      } catch (error: any) {
+        console.error('Fehler beim Hochladen des Profilbilds:', error);
+        setMessage({
+          type: 'error',
+          text: error.message || 'Fehler beim Hochladen des Profilbilds'
+        });
+      } finally {
+        setIsUploadingImage(false);
+      }
     }
   };
 
@@ -86,16 +152,35 @@ export default function ProfilePage() {
     setMessage(null);
 
     try {
-      await updateProfile(profileData);
-      setMessage({
-        type: 'success',
-        text: 'Profil erfolgreich aktualisiert!'
+      // Aktualisiere Profil über die API
+      const response = await fetch(`/api/users/${currentUser.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: profileData.name,
+          email: profileData.email,
+          imageUrl: profileData.imageUrl
+        })
       });
-    } catch (error) {
+
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentUser(data.user);
+        setMessage({
+          type: 'success',
+          text: 'Profil erfolgreich aktualisiert!'
+        });
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Unbekannter Fehler');
+      }
+    } catch (error: any) {
       console.error('Fehler beim Aktualisieren des Profils:', error);
       setMessage({
         type: 'error',
-        text: 'Fehler beim Aktualisieren des Profils.'
+        text: `Fehler beim Aktualisieren des Profils: ${error.message || 'Unbekannter Fehler'}`
       });
     } finally {
       setIsLoading(false);
@@ -116,20 +201,34 @@ export default function ProfilePage() {
     }
 
     try {
-      await updateProfile({
-        ...profileData,
-        password: passwordData.newPassword
+      const response = await fetch(`/api/users/${currentUser.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          password: passwordData.newPassword
+        })
       });
-      setMessage({ type: 'success', text: 'Passwort erfolgreich geändert!' });
-      setIsEditingPassword(false);
-      setPasswordData({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      });
-    } catch (error) {
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Passwort erfolgreich geändert!' });
+        setIsEditingPassword(false);
+        setPasswordData({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        });
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Unbekannter Fehler');
+      }
+    } catch (error: any) {
       console.error('Fehler beim Ändern des Passworts:', error);
-      setMessage({ type: 'error', text: 'Fehler beim Ändern des Passworts.' });
+      setMessage({ 
+        type: 'error', 
+        text: `Fehler beim Ändern des Passworts: ${error.message || 'Unbekannter Fehler'}` 
+      });
     }
   };
 
@@ -156,11 +255,18 @@ export default function ProfilePage() {
                     <div className="flex-shrink-0">
                       <div className="relative">
                         {previewImage ? (
-                          <img
-                            src={previewImage}
-                            alt="Profilbild"
-                            className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg"
-                          />
+                          <div className="relative w-32 h-32">
+                            <img
+                              src={previewImage}
+                              alt="Profilbild"
+                              className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg"
+                            />
+                            {isUploadingImage && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full">
+                                <div className="animate-spin w-8 h-8 border-4 border-white border-t-transparent rounded-full"></div>
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <div className="w-32 h-32 rounded-full bg-gray-100 border-4 border-white shadow-lg flex items-center justify-center">
                             <UserCircleIcon className="w-20 h-20 text-gray-400" />
@@ -173,10 +279,13 @@ export default function ProfilePage() {
                             onChange={handleImageChange}
                             className="hidden"
                             id="image-upload"
+                            disabled={isUploadingImage}
                           />
                           <label
                             htmlFor="image-upload"
-                            className="p-2.5 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all cursor-pointer inline-flex items-center justify-center"
+                            className={`p-2.5 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all cursor-pointer inline-flex items-center justify-center ${
+                              isUploadingImage ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
                             title="Profilbild ändern"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
@@ -193,7 +302,7 @@ export default function ProfilePage() {
                           type="text"
                           value={profileData.name}
                           onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
-                          className="input-field"
+                          className="input-field w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
                         />
                       </div>
 
@@ -203,16 +312,16 @@ export default function ProfilePage() {
                           type="email"
                           value={profileData.email}
                           onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))}
-                          className="input-field"
+                          className="input-field w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
                         />
                       </div>
 
                       <div className="flex justify-end">
                         <button
                           type="submit"
-                          disabled={isLoading}
+                          disabled={isLoading || isUploadingImage}
                           className={`px-6 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium ${
-                            isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                            (isLoading || isUploadingImage) ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
                         >
                           {isLoading ? 'Wird gespeichert...' : 'Änderungen speichern'}
@@ -259,6 +368,7 @@ export default function ProfilePage() {
                           onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
                           className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
                           required
+                          minLength={6}
                         />
                       </div>
 
@@ -270,10 +380,17 @@ export default function ProfilePage() {
                           onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
                           className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
                           required
+                          minLength={6}
                         />
                       </div>
 
-                      <div className="flex justify-end gap-3">
+                      <div className="flex gap-4">
+                        <button
+                          type="submit"
+                          className="px-6 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
+                        >
+                          Passwort ändern
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
@@ -284,15 +401,9 @@ export default function ProfilePage() {
                               confirmPassword: ''
                             });
                           }}
-                          className="px-4 py-2 text-gray-700 hover:text-gray-900 focus:outline-none text-sm font-medium"
+                          className="px-6 py-2 border border-gray-300 text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium"
                         >
                           Abbrechen
-                        </button>
-                        <button
-                          type="submit"
-                          className="px-6 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
-                        >
-                          Passwort ändern
                         </button>
                       </div>
                     </form>
