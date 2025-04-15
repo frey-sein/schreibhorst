@@ -60,14 +60,14 @@ export default function AvatarSelector({ selectedAvatar, onSelect, isAdminView =
   const filteredAvatars = avatars;
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+    <div className="space-y-1">
+      <div className="flex flex-wrap gap-1">
         {filteredAvatars.map((avatar, index) => (
           <div key={index} className="relative group">
             <div
-              className={`aspect-square rounded-xl overflow-hidden border-2 cursor-pointer transition-all ${
+              className={`w-12 h-12 rounded-sm overflow-hidden border cursor-pointer transition-all ${
                 selectedAvatar === avatar
-                  ? 'border-[#2c2c2c] shadow-md'
+                  ? 'border-[#2c2c2c] shadow-sm'
                   : 'border-transparent hover:border-gray-200'
               }`}
               onClick={() => onSelect(avatar)}
@@ -87,7 +87,7 @@ export default function AvatarSelector({ selectedAvatar, onSelect, isAdminView =
                 />
               ) : (
                 <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 </div>
@@ -95,16 +95,16 @@ export default function AvatarSelector({ selectedAvatar, onSelect, isAdminView =
             </div>
             
             {isAdminView && (
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDeleteAvatar(index, avatar);
                   }}
-                  className="p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                  className="p-1 bg-red-600 text-white rounded-full hover:bg-red-700 focus:outline-none"
                   title="Avatar löschen"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -115,7 +115,7 @@ export default function AvatarSelector({ selectedAvatar, onSelect, isAdminView =
       </div>
       
       {filteredAvatars.length === 0 && (
-        <div className="text-center p-8 text-gray-500 bg-gray-50 rounded-lg">
+        <div className="text-center p-2 text-gray-500 bg-gray-50 rounded-lg text-sm">
           Keine Avatare vorhanden. Bitte laden Sie Avatare hoch.
         </div>
       )}

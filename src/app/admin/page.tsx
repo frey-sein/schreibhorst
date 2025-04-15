@@ -5,7 +5,6 @@ import { useUser } from '../hooks/useUser';
 import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import AvatarSelector from '../components/agents/AvatarSelector';
-import Image from 'next/image';
 import * as knowledgeService from '../../lib/services/knowledgeService';
 
 interface Agent {
@@ -34,6 +33,7 @@ export default function AdminPage() {
   const [selectedCategory, setSelectedCategory] = useState<'male' | 'female'>('male');
   const [isResetting, setIsResetting] = useState(false);
   const [isUploadingAvatars, setIsUploadingAvatars] = useState(false);
+  const [activeTab, setActiveTab] = useState<'avatare' | 'dateisystem' | 'wissensdatenbank' | 'datenbank'>('avatare');
 
   useEffect(() => {
     setMounted(true);
@@ -179,185 +179,195 @@ export default function AdminPage() {
       <main className="flex h-screen pt-[72px]">
         <div className="w-full flex flex-col h-full bg-[#f0f0f0]">
           {/* Header */}
-          <div className="sticky top-[64px] z-20 h-[120px] p-6 border-b border-gray-100 bg-white/80 backdrop-blur-md">
-            <div className="flex justify-between items-start gap-4 w-full">
-              <div className="flex-1">
-                <h2 className="text-xl lg:text-2xl font-light text-gray-900 tracking-tight">Verwaltungsbereich</h2>
-                <p className="text-xs lg:text-sm text-gray-500 mt-1 break-normal">
-                  Administration und Konfiguration des Systems
-                </p>
-              </div>
+          <div className="sticky top-[64px] z-20 bg-white/80 backdrop-blur-md border-b border-gray-100">
+            <div className="p-4 md:p-6">
+              <h2 className="text-xl font-medium text-gray-900">Verwaltungsbereich</h2>
+              <p className="text-sm text-gray-500 mt-1">Administration und Konfiguration des Systems</p>
+            </div>
+            
+            {/* Tab Navigation */}
+            <div className="flex space-x-1 overflow-x-auto px-4 pb-2">
+              <button
+                onClick={() => setActiveTab('avatare')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'avatare'
+                    ? 'bg-[#2c2c2c] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Avatare
+              </button>
+              <button
+                onClick={() => setActiveTab('dateisystem')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'dateisystem'
+                    ? 'bg-[#2c2c2c] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Dateisystem
+              </button>
+              <button
+                onClick={() => setActiveTab('wissensdatenbank')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'wissensdatenbank'
+                    ? 'bg-[#2c2c2c] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Wissensdatenbank
+              </button>
+              <button
+                onClick={() => setActiveTab('datenbank')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'datenbank'
+                    ? 'bg-[#2c2c2c] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Datenbank
+              </button>
             </div>
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 overflow-y-auto p-8 pt-24 space-y-12 pb-24">
+          <div className="flex-1 overflow-y-auto p-4 md:p-6">
             {/* Avatar-Verwaltung */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Avatar-Verwaltung</h3>
-              
-              <div className="p-6 rounded-2xl bg-white border border-gray-100 hover:border-gray-200 hover:shadow-md space-y-8">
-                {/* Upload-Bereich */}
-                <div>
-                  <h4 className="text-base font-semibold text-gray-800">Avatar hochladen</h4>
-                  <p className="text-gray-600 text-sm mt-2">
-                    Laden Sie hier neue Avatare für die Agenten hoch. Unterstützte Formate: JPG, PNG, GIF
-                  </p>
-                  <div className="mt-4 space-y-4">
-                    <div className="flex gap-4">
-                      <label className="flex items-center">
+            {activeTab === 'avatare' && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="p-4 md:p-6 space-y-6">
+                  {/* Upload-Bereich */}
+                  <div>
+                    <h4 className="text-base font-medium text-gray-800">Avatar hochladen</h4>
+                    <p className="text-gray-600 text-sm mt-1">
+                      Unterstützte Formate: JPG, PNG, GIF
+                    </p>
+                    <div className="mt-4 space-y-3">
+                      <div className="flex gap-4">
+                        <label className="flex items-center">
+                          <input
+                            type="radio"
+                            name="category"
+                            value="male"
+                            checked={selectedCategory === 'male'}
+                            onChange={(e) => setSelectedCategory(e.target.value as 'male' | 'female')}
+                            className="mr-2 text-blue-600"
+                          />
+                          <span className="text-sm text-gray-700">Männlich</span>
+                        </label>
+                        <label className="flex items-center">
+                          <input
+                            type="radio"
+                            name="category"
+                            value="female"
+                            checked={selectedCategory === 'female'}
+                            onChange={(e) => setSelectedCategory(e.target.value as 'male' | 'female')}
+                            className="mr-2 text-blue-600"
+                          />
+                          <span className="text-sm text-gray-700">Weiblich</span>
+                        </label>
+                      </div>
+                      <div>
                         <input
-                          type="radio"
-                          name="category"
-                          value="male"
-                          checked={selectedCategory === 'male'}
-                          onChange={(e) => setSelectedCategory(e.target.value as 'male' | 'female')}
-                          className="mr-2 text-blue-600"
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleAvatarUpload}
+                          className="hidden"
+                          id="avatar-upload"
                         />
-                        <span className="text-sm text-gray-700">Männlich</span>
-                      </label>
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="category"
-                          value="female"
-                          checked={selectedCategory === 'female'}
-                          onChange={(e) => setSelectedCategory(e.target.value as 'male' | 'female')}
-                          className="mr-2 text-blue-600"
-                        />
-                        <span className="text-sm text-gray-700">Weiblich</span>
-                      </label>
-                    </div>
-                    <div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleAvatarUpload}
-                        className="hidden"
-                        id="avatar-upload"
-                      />
-                      <label
-                        htmlFor="avatar-upload"
-                        className={`w-full px-4 py-2 text-sm text-center border border-gray-300 rounded-full cursor-pointer hover:bg-gray-50 transition-colors ${
-                          isUploadingAvatars ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                      >
-                        {isUploadingAvatars ? 'Wird hochgeladen...' : 'Avatare auswählen'}
-                      </label>
+                        <label
+                          htmlFor="avatar-upload"
+                          className={`inline-block px-4 py-2 text-sm text-center border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors ${
+                            isUploadingAvatars ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          {isUploadingAvatars ? 'Wird hochgeladen...' : 'Avatare auswählen'}
+                        </label>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Trennlinie */}
-                <div className="border-t border-gray-200"></div>
+                  {/* Trennlinie */}
+                  <div className="border-t border-gray-200"></div>
 
-                {/* Avatar-Übersicht */}
-                <div>
-                  <h4 className="text-base font-semibold text-gray-800">Verfügbare Avatare</h4>
-                  <p className="text-gray-600 text-sm mt-2">
-                    Hier sehen Sie alle verfügbaren Avatar-Bilder. Über das Lösch-Symbol können Sie einzelne Avatare entfernen.
-                  </p>
-                  <div className="mt-6">
-                    <AvatarSelector
-                      selectedAvatar={selectedAvatar}
-                      onSelect={(avatar) => setSelectedAvatar(avatar)}
-                      isAdminView={true}
-                    />
+                  {/* Avatar-Übersicht */}
+                  <div>
+                    <h4 className="text-base font-medium text-gray-800">Verfügbare Avatare</h4>
+                    <div className="mt-2 max-h-[300px] overflow-y-auto">
+                      <AvatarSelector
+                        selectedAvatar={selectedAvatar}
+                        onSelect={(avatar) => setSelectedAvatar(avatar)}
+                        isAdminView={true}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Dateisystem-Verwaltung */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Dateisystem-Verwaltung</h3>
-              
-              <div className="p-6 rounded-2xl bg-white border border-gray-100 hover:border-gray-200 hover:shadow-md">
-                <div className="mb-4">
-                  <h4 className="text-base font-semibold text-gray-800">Dateisystem zurücksetzen</h4>
-                  <p className="text-gray-600 text-sm mt-2">
+            {activeTab === 'dateisystem' && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="p-4 md:p-6">
+                  <h4 className="text-base font-medium text-gray-800">Dateisystem zurücksetzen</h4>
+                  <p className="text-gray-600 text-sm mt-1 mb-4">
                     Dies löscht alle Dateien und Ordner und setzt das Dateisystem auf den Ausgangszustand zurück.
                     Diese Aktion kann nicht rückgängig gemacht werden.
                   </p>
+                  <button
+                    onClick={resetStorage}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all text-sm font-medium"
+                  >
+                    Dateisystem zurücksetzen
+                  </button>
                 </div>
-                <button
-                  onClick={resetStorage}
-                  className="px-5 py-2.5 bg-red-600 text-white rounded-full hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all text-sm font-medium"
-                >
-                  Dateisystem zurücksetzen
-                </button>
               </div>
-            </div>
+            )}
             
             {/* Wissensdatenbank-Verwaltung */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Wissensdatenbank-Verwaltung</h3>
-              
-              <div className="p-6 rounded-2xl bg-white border border-gray-100 hover:border-gray-200 hover:shadow-md">
-                <div className="mb-4">
-                  <h4 className="text-base font-semibold text-gray-800">Wissensdatenbank leeren</h4>
-                  <p className="text-gray-600 text-sm mt-2">
+            {activeTab === 'wissensdatenbank' && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="p-4 md:p-6">
+                  <h4 className="text-base font-medium text-gray-800">Wissensdatenbank leeren</h4>
+                  <p className="text-gray-600 text-sm mt-1 mb-4">
                     Dies löscht alle FAQ-Einträge aus der Wissensdatenbank und setzt sie auf einen leeren Zustand zurück.
                     Diese Aktion kann nicht rückgängig gemacht werden.
                   </p>
+                  <button
+                    onClick={clearKnowledgeBase}
+                    className={`px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all text-sm font-medium ${
+                      isResetting ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    disabled={isResetting}
+                  >
+                    {isResetting ? 'Wird geleert...' : 'Wissensdatenbank leeren'}
+                  </button>
                 </div>
-                <button
-                  onClick={clearKnowledgeBase}
-                  className={`px-5 py-2.5 bg-red-600 text-white rounded-full hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all text-sm font-medium ${
-                    isResetting ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                  disabled={isResetting}
-                >
-                  {isResetting ? 'Wird geleert...' : 'Wissensdatenbank leeren'}
-                </button>
               </div>
-            </div>
-
-            {/* Weitere Verwaltungskategorien */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Benutzer-Verwaltung</h3>
-              <div className="p-6 rounded-2xl bg-white border border-gray-100 hover:border-gray-200 hover:shadow-md">
-                <p className="text-gray-600 text-sm">
-                  Hier können in Zukunft Funktionen für die Benutzer-Verwaltung hinzugefügt werden,
-                  wie z.B. das Zurücksetzen von Passwörtern oder das Verwalten von Benutzerrechten.
-                </p>
-              </div>
-            </div>
-
-            {/* System-Konfiguration */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">System-Konfiguration</h3>
-              <div className="p-6 rounded-2xl bg-white border border-gray-100 hover:border-gray-200 hover:shadow-md">
-                <p className="text-gray-600 text-sm">
-                  Hier können in Zukunft Funktionen für die System-Konfiguration hinzugefügt werden,
-                  wie z.B. das Einstellen von Sicherheitsoptionen oder das Konfigurieren von Backup-Einstellungen.
-                </p>
-              </div>
-            </div>
+            )}
 
             {/* Datenbankverwaltung */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Datenbankverwaltung</h3>
-              <div className="p-6 rounded-2xl bg-white border border-gray-100 hover:border-gray-200 hover:shadow-md space-y-4">
-                <div>
-                  <h4 className="text-base font-semibold text-gray-800">MySQL-Administration</h4>
-                  <p className="text-gray-600 text-sm mt-2">
+            {activeTab === 'datenbank' && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="p-4 md:p-6">
+                  <h4 className="text-base font-medium text-gray-800">MySQL-Administration</h4>
+                  <p className="text-gray-600 text-sm mt-1 mb-4">
                     Verwalten Sie die MySQL-Datenbank direkt über das integrierte Administrator-Tool. 
                     Sie können SQL-Abfragen ausführen und Tabellen anzeigen.
                   </p>
+                  <button 
+                    onClick={() => router.push('/admin/database')}
+                    className="inline-flex items-center px-4 py-2 bg-[#2c2c2c] text-white rounded-md hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                    Datenbank-Administration öffnen
+                  </button>
                 </div>
-                <button 
-                  onClick={() => router.push('/admin/database')}
-                  className="inline-flex items-center px-5 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
-                  Datenbank-Administration öffnen
-                </button>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </main>
