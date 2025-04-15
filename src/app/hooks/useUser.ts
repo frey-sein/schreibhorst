@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUserStore } from '@/lib/store/userStore';
 
-// Diese Schnittstelle muss mit der in userStore übereinstimmen
+// Diese Schnittstelle muss mit der API-Antwort übereinstimmen
 interface User {
   id: string;
   name: string;
@@ -19,25 +18,35 @@ interface UseUserResult {
 }
 
 export function useUser(): UseUserResult {
-  const { getCurrentUser } = useUserStore();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Setze isLoading auf true, um Ladezustand anzuzeigen
     setIsLoading(true);
-    try {
-      // Hole den aktuellen Benutzer aus dem Store
-      const currentUser = getCurrentUser();
-      setUser(currentUser);
-    } catch (error) {
-      console.error('Fehler beim Abrufen des Benutzers:', error);
-      setUser(null);
-    } finally {
-      // Setze isLoading auf false, unabhängig davon, ob erfolgreich oder nicht
-      setIsLoading(false);
-    }
-  }, [getCurrentUser]);
+
+    // Funktion zum Abrufen des aktuellen Benutzers vom API-Endpunkt
+    const fetchUser = async () => {
+      try {
+        const response = await fetch('/api/auth/status');
+        const data = await response.json();
+        
+        if (data.authenticated && data.user) {
+          setUser(data.user);
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Fehler beim Abrufen des Benutzers:', error);
+        setUser(null);
+      } finally {
+        // Setze isLoading auf false, unabhängig davon, ob erfolgreich oder nicht
+        setIsLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
 
   // Bestimme, ob der Benutzer ein Administrator ist
   const isAdmin = user?.role === 'admin';
