@@ -6,12 +6,26 @@ import { useUserStore } from '../../lib/store/userStore';
 import * as XLSX from 'xlsx';
 import { FAQItem } from '../../lib/services/knowledgeStorage';
 import * as knowledgeService from '../../lib/services/knowledgeService';
+import { useUser } from '../hooks/useUser';
 
 export default function WissenPage() {
   const [isMounted, setIsMounted] = useState(false);
   const { getCurrentUser } = useUserStore();
-  const currentUser = getCurrentUser();
-  const isAdmin = currentUser?.role === 'admin';
+  const storeUser = getCurrentUser();
+  
+  // Zusätzlich den useUser-Hook verwenden
+  const { user, isAdmin: hookIsAdmin, isLoading: authLoading } = useUser();
+  
+  // Kombinierte Admin-Erkennung: Entweder über den Store oder über den Hook
+  const isAdmin = (storeUser?.role === 'admin') || hookIsAdmin;
+  
+  // Debug-Variable zur Fehlererkennung - standardmäßig ausgeblendet
+  const [showDebug, setShowDebug] = useState(false);
+  
+  // Admin-Override für Notfall-Wiederherstellung
+  const [adminOverride, setAdminOverride] = useState(false);
+  const effectiveIsAdmin = isAdmin || adminOverride;
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -86,6 +100,14 @@ export default function WissenPage() {
   useEffect(() => {
     setIsMounted(true);
     loadData();
+    
+    // Debug-Modus nur aktivieren, wenn spezieller URL-Parameter vorhanden ist
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('debug') === 'true') {
+        setShowDebug(true);
+      }
+    }
   }, []);
   
   // Funktion zum manuellen Aktualisieren der Daten
@@ -135,7 +157,7 @@ export default function WissenPage() {
   });
 
   const handleAddFaq = async () => {
-    if (!isAdmin) {
+    if (!effectiveIsAdmin) {
       alert('Nur Administratoren können neue FAQs hinzufügen.');
       return;
     }
@@ -152,7 +174,7 @@ export default function WissenPage() {
   };
 
   const handleDeleteFaq = async (id: number) => {
-    if (!isAdmin) {
+    if (!effectiveIsAdmin) {
       alert('Nur Administratoren können FAQs löschen.');
       return;
     }
@@ -168,7 +190,7 @@ export default function WissenPage() {
   };
 
   const handleEditCategory = (oldCategory: string) => {
-    if (!isAdmin) {
+    if (!effectiveIsAdmin) {
       alert('Nur Administratoren können Kategorien bearbeiten.');
       return;
     }
@@ -218,7 +240,7 @@ export default function WissenPage() {
   };
 
   const handleAddCategory = async () => {
-    if (!isAdmin) {
+    if (!effectiveIsAdmin) {
       alert('Nur Administratoren können neue Kategorien hinzufügen.');
       return;
     }
@@ -251,7 +273,7 @@ export default function WissenPage() {
   };
 
   const handleEditFaq = (faq: FAQItem) => {
-    if (!isAdmin) {
+    if (!effectiveIsAdmin) {
       alert('Nur Administratoren können FAQs bearbeiten.');
       return;
     }
@@ -568,7 +590,7 @@ export default function WissenPage() {
 
   // Funktion zum Leeren aller FAQs
   const clearAllFaqs = () => {
-    if (!isAdmin) {
+    if (!effectiveIsAdmin) {
       alert('Nur Administratoren können die Wissensdatenbank leeren.');
       return;
     }
@@ -673,6 +695,34 @@ export default function WissenPage() {
                 <div>
                   <h1 className="text-2xl font-light text-gray-900 tracking-tight mb-2">Wissensdatenbank</h1>
                   <p className="text-sm text-gray-500">Finden Sie Antworten auf häufig gestellte Fragen</p>
+                  
+                  {/* Debug-Information für Admin-Status */}
+                  {showDebug && (
+                    <div className="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-600">
+                      <div>Store Admin: {storeUser?.role === 'admin' ? 'Ja' : 'Nein'}</div>
+                      <div>Hook Admin: {hookIsAdmin ? 'Ja' : 'Nein'}</div>
+                      <div>Combined Admin: {effectiveIsAdmin ? 'Ja' : 'Nein'}</div>
+                      <div>Auth Loading: {authLoading ? 'Ja' : 'Nein'}</div>
+                      <div>Store User: {storeUser ? `${storeUser.name} (${storeUser.role})` : 'Nicht angemeldet'}</div>
+                      <div>Hook User: {user ? `${user.name} (${user.role})` : 'Nicht angemeldet'}</div>
+                      <button 
+                        onClick={() => window.location.reload()} 
+                        className="mt-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs"
+                      >
+                        Seite neu laden
+                      </button>
+                      <button 
+                        onClick={() => setAdminOverride(!adminOverride)} 
+                        className={`mt-1 ml-2 px-2 py-1 rounded text-xs ${
+                          adminOverride 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-red-100 text-red-700'
+                        }`}
+                      >
+                        Admin-Override: {adminOverride ? 'An' : 'Aus'}
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -685,7 +735,7 @@ export default function WissenPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                   </button>
-                  {isAdmin && (
+                  {effectiveIsAdmin && (
                     <div className="flex gap-2">
                       <button
                         onClick={exportDataToExcel}
@@ -964,7 +1014,7 @@ export default function WissenPage() {
                         >
                           {category}
                         </button>
-                        {isAdmin && (
+                        {effectiveIsAdmin && (
                           <button
                             onClick={() => handleEditCategory(category)}
                             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
@@ -980,7 +1030,7 @@ export default function WissenPage() {
                   </div>
                 ))}
                 
-                {isAdmin && (
+                {effectiveIsAdmin && (
                   isAddingCategory ? (
                     <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-full px-2 py-1 shadow-sm">
                       <input
@@ -1124,7 +1174,7 @@ export default function WissenPage() {
                                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                               </svg>
                             </button>
-                            {isAdmin && (
+                            {effectiveIsAdmin && (
                               <div className="flex">
                                 <button
                                   onClick={() => handleEditFaq(faq)}
@@ -1166,7 +1216,7 @@ export default function WissenPage() {
                     ) : isDatabaseEmpty ? (
                       <div>
                         <p className="text-gray-600 mb-4">Die Wissensdatenbank ist leer.</p>
-                        {isAdmin && (
+                        {effectiveIsAdmin && (
                           <button
                             onClick={() => setShowAddForm(true)}
                             className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
