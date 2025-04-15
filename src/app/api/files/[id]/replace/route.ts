@@ -30,9 +30,11 @@ export async function POST(
       size: file.size
     });
 
+    // Benutzer laden und Berechtigungen prüfen
     const currentUser = await getCurrentUser();
     console.log('Benutzer geladen:', currentUser);
     
+    // Prüfen, ob der Benutzer angemeldet ist
     if (!currentUser) {
       console.error('Kein Benutzer gefunden');
       return NextResponse.json(
@@ -40,26 +42,80 @@ export async function POST(
         { status: 401 }
       );
     }
+    
+    // Verbesserte Admin-Prüfung: Stelle sicher, dass das role-Feld existiert und 'admin' ist
+    if (!currentUser.role || currentUser.role !== 'admin') {
+      console.error('Benutzer ist kein Admin:', currentUser);
+      return NextResponse.json(
+        { error: 'Keine Berechtigung zum Ersetzen der Datei' },
+        { status: 403 }
+      );
+    }
 
     // Finde die ursprüngliche Datei
     const uploadsDir = join(process.cwd(), 'public', 'uploads');
+    
+    try {
+      // Stelle sicher, dass das Upload-Verzeichnis existiert
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+        console.log('Upload-Verzeichnis erstellt:', uploadsDir);
+      }
+    } catch (dirError) {
+      console.error('Fehler beim Prüfen/Erstellen des Upload-Verzeichnisses:', dirError);
+    }
+    
     const files = fs.readdirSync(uploadsDir);
     console.log('Vorhandene Dateien:', files);
     
     // Extrahiere den Dateinamen aus der ID
     const idParts = fileId.split('-');
-    const originalFileName = idParts.slice(2).join('-');
+    let originalFileName = '';
+    
+    // Wenn die ID ein Zeitstempel-Format hat (z.B. '1234567890-dateiname.txt')
+    if (idParts.length >= 2 && /^\d+$/.test(idParts[0])) {
+      originalFileName = idParts.slice(1).join('-');
+    } else {
+      // Andernfalls könnte es ein anderes Format sein
+      originalFileName = fileId;
+    }
+    
     console.log('Gesuchter Dateiname:', originalFileName);
 
-    if (!files.includes(originalFileName)) {
+    // Prüfe, ob die Datei existiert
+    const fileExists = files.includes(originalFileName) || files.some(f => f.includes(originalFileName));
+    
+    if (!fileExists) {
       console.error('Ursprüngliche Datei nicht gefunden:', originalFileName);
-      return NextResponse.json(
-        { error: 'Ursprüngliche Datei nicht gefunden' },
-        { status: 404 }
-      );
+      
+      // Erstelle einen neuen Zeitstempel für die Datei
+      const timestamp = Date.now();
+      const newFileName = `${timestamp}-${file.name}`;
+      const filePath = join(uploadsDir, newFileName);
+      
+      // Speichere die neue Datei
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      await writeFile(filePath, buffer);
+      console.log('Neue Datei erstellt, da Original nicht gefunden wurde:', newFileName);
+      
+      // Füge einen Eintrag zur Historie hinzu
+      const historyEntry = addHistoryEntry({
+        fileId,
+        fileName: newFileName,
+        replacedBy: `${currentUser.name} (${currentUser.email || 'keine E-Mail'})`,
+        timestamp: new Date().toISOString(),
+        size: file.size,
+        mimeType: file.type
+      });
+      
+      return NextResponse.json({ 
+        success: true,
+        message: `Neue Datei ${newFileName} wurde erstellt, da Original nicht gefunden wurde`
+      });
     }
 
-    // Behalte den ursprünglichen Dateinamen bei
+    // Behalte den ursprünglichen Dateinamen bei, falls gefunden
     const filePath = join(uploadsDir, originalFileName);
     console.log('Ziel-Dateipfad:', filePath);
 
@@ -73,7 +129,7 @@ export async function POST(
     const historyEntry = addHistoryEntry({
       fileId,
       fileName: originalFileName,
-      replacedBy: `${currentUser.name} (${currentUser.email})`,
+      replacedBy: `${currentUser.name} (${currentUser.email || 'keine E-Mail'})`,
       timestamp: new Date().toISOString(),
       size: file.size,
       mimeType: file.type

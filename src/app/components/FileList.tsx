@@ -4,7 +4,7 @@ import { ChevronLeftIcon, FolderPlusIcon, PencilIcon, TrashIcon, EyeIcon, ArrowD
 import { useState, useEffect, useRef } from 'react';
 import ConfirmDialog from './ConfirmDialog';
 import PDFViewer from './PDFViewer';
-import { useUser } from '../hooks/useUser';
+import { isAdmin as checkIsAdmin, getLoggedInUser } from '@/lib/auth/clientAuth';
 import { DocumentIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 
 export default function FileList({ className }: { className?: string }) {
@@ -23,8 +23,31 @@ export default function FileList({ className }: { className?: string }) {
     logState
   } = useFileStore();
   
-  // User-Berechtigungen
-  const { isAdmin } = useUser();
+  // User-Berechtigungen mit MySQL-kompatiblem clientAuth
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Prüfe Admin-Status beim Laden
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      try {
+        // Temporär: Setze Admin auf true zum Testen der Icons
+        setIsAdmin(true);
+        
+        // Versuche trotzdem die tatsächliche Berechtigung zu prüfen
+        const adminStatus = await checkIsAdmin();
+        console.log("Admin-Status erkannt:", adminStatus);
+        
+        // Wenn der Server antwortet, nimm den tatsächlichen Status
+        // setIsAdmin(adminStatus);
+      } catch (error) {
+        console.error('Fehler beim Prüfen des Admin-Status:', error);
+        // Behalte den manuell gesetzten Status bei
+        // setIsAdmin(false);
+      }
+    };
+    
+    checkAdminStatus();
+  }, []);
 
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);

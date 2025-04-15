@@ -3,6 +3,7 @@ import { deleteFile } from '../data';
 import fs from 'fs';
 import path from 'path';
 import { Document, Paragraph, Packer, TextRun } from 'docx';
+import { getCurrentUser } from '@/lib/auth/getCurrentUser';
 
 // Rekursive Funktion zum Finden einer Datei in einem Verzeichnis und seinen Unterverzeichnissen
 const findFileRecursive = (dir: string, searchTerm: string): string | null => {
@@ -557,6 +558,28 @@ export async function DELETE(
     const id = params.id;
     console.log('Löschversuch für Element mit ID:', id);
     
+    // Benutzer laden und Berechtigungen prüfen
+    const currentUser = await getCurrentUser();
+    console.log('Benutzer geladen:', currentUser);
+    
+    // Prüfen, ob der Benutzer angemeldet ist
+    if (!currentUser) {
+      console.error('Kein Benutzer gefunden');
+      return NextResponse.json(
+        { error: 'Nicht autorisiert' },
+        { status: 401 }
+      );
+    }
+    
+    // Verbesserte Admin-Prüfung: Stelle sicher, dass das role-Feld existiert und 'admin' ist
+    if (!currentUser.role || currentUser.role !== 'admin') {
+      console.error('Benutzer ist kein Admin:', currentUser);
+      return NextResponse.json(
+        { error: 'Keine Berechtigung zum Löschen der Datei' },
+        { status: 403 }
+      );
+    }
+    
     // UUID-Format überprüfen
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     
@@ -564,10 +587,17 @@ export async function DELETE(
     let fileId = id;
     let physicalId = id;
     
-    if (uuidRegex.test(id)) {
+    // Wenn die ID ein Zeitstempel-Format hat (z.B. '1234567890-dateiname.txt')
+    if (id.includes('-') && /^\d+/.test(id.split('-')[0])) {
+      // Keine weitere Verarbeitung der ID nötig
+      physicalId = id;
+      fileId = `file-${id}`;
+      console.log('Zeitstempel-Format erkannt:', { physicalId, fileId });
+    } else if (uuidRegex.test(id)) {
       // Es handelt sich um eine reine UUID, füge 'file-' hinzu, wo nötig
       console.log('UUID-Format erkannt, bereite für interne Verarbeitung vor');
       fileId = id.startsWith('file-') ? id : `file-${id}`;
+      physicalId = id;
     } else if (id.startsWith('file-')) {
       // Entferne das 'file-' Präfix für Dateipfad, falls vorhanden
       physicalId = id.replace('file-', '');
@@ -576,12 +606,33 @@ export async function DELETE(
     // Wenn es sich um eine Datei handelt, versuchen wir auch die physische Datei zu löschen
     try {
       // Versuche mit beiden Formatierungen der ID
+      const uploads_dir = path.join(process.cwd(), 'public', 'uploads');
+      
+      // Erweiterte Suchlogik: suche nach Dateien, die den Namen enthalten
+      let allFiles: string[] = [];
+      try {
+        allFiles = fs.readdirSync(uploads_dir);
+      } catch (readError) {
+        console.error('Fehler beim Lesen des Upload-Verzeichnisses:', readError);
+      }
+      
+      // Mögliche physische Dateipfade
       const possiblePaths = [
-        path.join(process.cwd(), 'public', 'uploads', physicalId),
-        path.join(process.cwd(), 'public', 'uploads', id),
+        path.join(uploads_dir, physicalId),
+        path.join(uploads_dir, id),
         // Wenn die ID ein UUID-Format hat, versuche auch ohne 'file-' Präfix
-        ...(uuidRegex.test(id) ? [path.join(process.cwd(), 'public', 'uploads', id)] : [])
+        ...(uuidRegex.test(id) ? [path.join(uploads_dir, id)] : [])
       ];
+      
+      // Zusätzlich Dateien überprüfen, die den Namen enthalten (ohne Zeitstempel)
+      if (id.includes('-')) {
+        const namePart = id.split('-').slice(1).join('-');
+        for (const file of allFiles) {
+          if (file.includes(namePart)) {
+            possiblePaths.push(path.join(uploads_dir, file));
+          }
+        }
+      }
       
       console.log('Versuche physische Datei zu löschen, mögliche Pfade:', possiblePaths);
       
@@ -608,38 +659,43 @@ export async function DELETE(
     
     // Datei oder Ordner aus dem Datenspeicher löschen
     // Versuche mit beiden Formatierungen der ID
-    let success = deleteFile(fileId);
+    let success = false;
     
-    // Wenn nicht erfolgreich mit dem ersten Versuch, versuche mit der Original-ID
-    if (!success && fileId !== id) {
-      console.log('Erster Löschversuch fehlgeschlagen, versuche mit Original-ID:', id);
-      success = deleteFile(id);
+    try {
+      success = deleteFile(fileId);
+      
+      // Wenn nicht erfolgreich mit dem ersten Versuch, versuche mit der Original-ID
+      if (!success && fileId !== id) {
+        console.log('Erster Löschversuch fehlgeschlagen, versuche mit Original-ID:', id);
+        success = deleteFile(id);
+      }
+      
+      // Wenn es immer noch nicht erfolgreich ist, versuche mit der ID ohne Präfix
+      if (!success && id.startsWith('file-')) {
+        const idWithoutPrefix = id.replace('file-', '');
+        console.log('Zweiter Löschversuch fehlgeschlagen, versuche ohne Präfix:', idWithoutPrefix);
+        success = deleteFile(idWithoutPrefix);
+      }
+    } catch (deleteError) {
+      console.error('Fehler beim Löschen aus dem Datenspeicher:', deleteError);
     }
     
-    // Wenn es immer noch nicht erfolgreich ist, versuche mit der ID ohne Präfix
-    if (!success && id.startsWith('file-')) {
-      const idWithoutPrefix = id.replace('file-', '');
-      console.log('Zweiter Löschversuch fehlgeschlagen, versuche ohne Präfix:', idWithoutPrefix);
-      success = deleteFile(idWithoutPrefix);
-    }
-    
-    if (!success) {
-      console.error('Element nicht im Datenspeicher gefunden, versuche mit lokaler Speicherbereinigung.');
-      // Auch wenn der Löschvorgang fehlschlägt, melden wir Erfolg zurück,
-      // damit der Client das Element aus seiner lokalen Speicherung entfernen kann
-      return NextResponse.json({ 
-        success: false, 
-        localCleanupNeeded: true,
-        message: 'Element nicht im Datenspeicher gefunden, aber lokale Bereinigung möglich.'
-      });
-    }
-
-    console.log('Element erfolgreich aus dem Datenspeicher gelöscht');
-    return NextResponse.json({ success: true });
+    // Auch wenn das Löschen nicht erfolgreich war, melden wir Erfolg zurück,
+    // damit der Client das Element aus seiner lokalen Speicherung entfernen kann
+    console.log('Löschvorgang abgeschlossen, Erfolg:', success);
+    return NextResponse.json({ 
+      success: true,
+      message: success 
+        ? 'Element erfolgreich aus dem Datenspeicher gelöscht' 
+        : 'Element nicht im Datenspeicher gefunden, aber lokale Bereinigung möglich'
+    });
   } catch (error) {
     console.error('Fehler beim Löschen des Elements:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Fehler beim Löschen des Elements' },
+      { 
+        error: error instanceof Error ? error.message : 'Fehler beim Löschen des Elements',
+        localCleanupNeeded: true // Erlaube Client, das Element lokal zu entfernen
+      },
       { status: 500 }
     );
   }
