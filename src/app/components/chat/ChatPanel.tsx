@@ -392,6 +392,20 @@ export default function ChatPanel() {
         console.error('Fehler beim Zurücksetzen der Stage:', error);
       }
       
+      // StageHistory-Store aktualisieren
+      try {
+        const { useStageHistoryStore } = await import('@/lib/store/stageHistoryStore');
+        const stageHistoryStore = useStageHistoryStore.getState();
+        
+        // Setze die aktuelle Chat-ID und lade neue Snapshots
+        stageHistoryStore.setCurrentChatId(newChat.id);
+        await stageHistoryStore.getSnapshots();
+        
+        console.log('StageHistoryStore für neuen Chat aktualisiert');
+      } catch (error) {
+        console.error('Fehler beim Aktualisieren des StageHistoryStore:', error);
+      }
+      
       console.log(`Neuer Chat erstellt: ${newChat.id}`);
     } catch (error) {
       console.error('Fehler beim Erstellen eines neuen Chats:', error);
@@ -464,6 +478,20 @@ export default function ChatPanel() {
         console.log('Stage wurde für Chat-Wechsel zurückgesetzt');
       } catch (error) {
         console.error('Fehler beim Zurücksetzen der Stage:', error);
+      }
+      
+      // StageHistory-Store aktualisieren
+      try {
+        const { useStageHistoryStore } = await import('@/lib/store/stageHistoryStore');
+        const stageHistoryStore = useStageHistoryStore.getState();
+        
+        // Setze die aktuelle Chat-ID und lade neue Snapshots
+        stageHistoryStore.setCurrentChatId(chatId);
+        await stageHistoryStore.getSnapshots();
+        
+        console.log('StageHistoryStore für Chat-Wechsel aktualisiert');
+      } catch (error) {
+        console.error('Fehler beim Aktualisieren des StageHistoryStore:', error);
       }
       
       console.log(`Gewechselt zu Chat ${chatId}`);

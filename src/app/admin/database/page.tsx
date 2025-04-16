@@ -148,8 +148,75 @@ export default function DatabaseAdminPage() {
     // Setze die ausgewählte Tabelle
     setSelectedTable(tableName);
     
-    // Erstelle die Abfrage für diese Tabelle
-    const tableQuery = `SELECT * FROM \`${tableName}\` LIMIT 100;`;
+    // Erstelle eine angepasste Abfrage je nach Tabellentyp
+    let tableQuery = '';
+    
+    // Spezialfall: chat_messages mit neuesten Nachrichten zuerst
+    if (tableName === 'chat_messages') {
+      tableQuery = `
+        SELECT 
+          id, 
+          chat_id, 
+          sender, 
+          SUBSTR(text, 1, 200) AS text_preview, 
+          LENGTH(text) AS text_length,
+          timestamp 
+        FROM \`${tableName}\` 
+        ORDER BY timestamp DESC 
+        LIMIT 100
+      `;
+    }
+    // Spezialfall: chats mit neuesten zuerst
+    else if (tableName === 'chats') {
+      tableQuery = `
+        SELECT 
+          id, 
+          user_id, 
+          title, 
+          last_message_preview,
+          created_at,
+          updated_at
+        FROM \`${tableName}\` 
+        ORDER BY updated_at DESC 
+        LIMIT 100
+      `;
+    }
+    // Spezialfall: stage_snapshots mit neuesten zuerst
+    else if (tableName === 'stage_snapshots') {
+      tableQuery = `
+        SELECT 
+          id, 
+          user_id,
+          chat_id,
+          timestamp,
+          JSON_LENGTH(data) AS data_size
+        FROM \`${tableName}\` 
+        ORDER BY timestamp DESC 
+        LIMIT 100
+      `;
+    }
+    // Spezialfall: images mit neuesten zuerst
+    else if (tableName === 'images') {
+      tableQuery = `
+        SELECT 
+          id, 
+          user_id,
+          title,
+          prompt,
+          modelId,
+          filePath,
+          width,
+          height,
+          created_at
+        FROM \`${tableName}\` 
+        ORDER BY created_at DESC 
+        LIMIT 100
+      `;
+    }
+    // Standardfall
+    else {
+      tableQuery = `SELECT * FROM \`${tableName}\` LIMIT 100;`;
+    }
     
     // Aktualisiere den Abfragetext im State
     setQuery(tableQuery);
@@ -517,6 +584,17 @@ export default function DatabaseAdminPage() {
                                     <span className="text-gray-500 italic">NULL</span>
                                   ) : typeof value === 'object' ? (
                                     JSON.stringify(value)
+                                  ) : key === 'text' || key === 'text_preview' || key === 'prompt' ? (
+                                    <div className="max-w-xs overflow-hidden">
+                                      <div className="truncate" title={String(value)}>
+                                        {String(value)}
+                                      </div>
+                                      {key === 'text_preview' && row.text_length > 200 && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          {`(${row.text_length} Zeichen insgesamt)`}
+                                        </div>
+                                      )}
+                                    </div>
                                   ) : (
                                     String(value)
                                   )}

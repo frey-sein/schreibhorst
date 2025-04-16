@@ -54,14 +54,24 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    // Alle Snapshots löschen
-    await clearStageSnapshots();
+    // Benutzer-ID aus dem Cookie abrufen
+    const userId = request.cookies.get('user-id')?.value;
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Nicht authentifiziert' },
+        { status: 401 }
+      );
+    }
+    
+    // Nur die Snapshots des aktuellen Benutzers löschen
+    await clearStageSnapshots(userId);
     
     return NextResponse.json({
       success: true
     });
   } catch (error) {
-    console.error('Fehler beim Löschen aller Stage-Snapshots:', error);
+    console.error('Fehler beim Löschen der Stage-Snapshots:', error);
     return NextResponse.json(
       { error: 'Snapshots konnten nicht gelöscht werden' },
       { status: 500 }

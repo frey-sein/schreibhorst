@@ -536,13 +536,20 @@ async function getDirectoryStats(): Promise<{ totalSize: number; fileCount: numb
 /**
  * Löscht alle Stage-Snapshots
  */
-export async function clearStageSnapshots(): Promise<void> {
+export async function clearStageSnapshots(userId?: string): Promise<void> {
   // Wenn MySQL verfügbar ist, lösche aus der Datenbank
   if (dbPool) {
     const connection = await dbPool.getConnection();
     try {
-      await connection.execute('DELETE FROM stage_snapshots');
-      console.log('Alle Snapshots aus der Datenbank gelöscht');
+      if (userId) {
+        // Nur die Snapshots des angegebenen Benutzers löschen
+        await connection.execute('DELETE FROM stage_snapshots WHERE user_id = ?', [userId]);
+        console.log(`Alle Snapshots des Benutzers ${userId} aus der Datenbank gelöscht`);
+      } else {
+        // Alle Snapshots löschen (nur für Administratoren)
+        await connection.execute('DELETE FROM stage_snapshots');
+        console.log('Alle Snapshots aus der Datenbank gelöscht');
+      }
     } catch (error) {
       console.error('Fehler beim Löschen der Snapshots aus der Datenbank:', error);
     } finally {
@@ -562,13 +569,32 @@ export async function clearStageSnapshots(): Promise<void> {
     // Lese alle JSON-Dateien im Verzeichnis
     const files = fs.readdirSync(snapshotDir).filter(file => file.endsWith('.json'));
     
-    // Lösche jede Datei
-    for (const file of files) {
-      const filePath = path.join(snapshotDir, file);
-      fs.unlinkSync(filePath);
+    // Wenn eine Benutzer-ID angegeben ist, filtere nach dieser
+    if (userId) {
+      for (const file of files) {
+        const filePath = path.join(snapshotDir, file);
+        try {
+          const content = fs.readFileSync(filePath, 'utf-8');
+          const data = JSON.parse(content);
+          
+          // Lösche nur, wenn die Benutzer-ID übereinstimmt
+          if (data.userId === userId) {
+            fs.unlinkSync(filePath);
+            console.log(`Snapshot ${file} des Benutzers ${userId} aus dem Dateisystem gelöscht`);
+          }
+        } catch (fileError) {
+          console.error(`Fehler beim Verarbeiten der Datei ${file}:`, fileError);
+        }
+      }
+    } else {
+      // Lösche alle Dateien (nur für Administratoren)
+      for (const file of files) {
+        const filePath = path.join(snapshotDir, file);
+        fs.unlinkSync(filePath);
+      }
+      
+      console.log(`${files.length} Snapshots aus dem Dateisystem gelöscht`);
     }
-    
-    console.log(`${files.length} Snapshots aus dem Dateisystem gelöscht`);
   } catch (error) {
     console.error('Fehler beim Löschen der Snapshots aus dem Dateisystem:', error);
   }
