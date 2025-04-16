@@ -3,8 +3,14 @@ import { saveStageSnapshot, getStageSnapshots, clearStageSnapshots } from '@/lib
 
 export async function GET(request: NextRequest) {
   try {
-    // Snapshots aus der Datenbank abrufen
-    const snapshots = await getStageSnapshots();
+    // Benutzer-ID aus dem Cookie abrufen
+    const userId = request.cookies.get('user-id')?.value;
+    
+    // Chat-ID aus der Anfrage abrufen
+    const chatId = request.nextUrl.searchParams.get('chatId') || undefined;
+    
+    // Snapshots aus der Datenbank abrufen, gefiltert nach Benutzer und/oder Chat
+    const snapshots = await getStageSnapshots(userId, chatId);
     return NextResponse.json({ snapshots });
   } catch (error) {
     console.error('Fehler beim Abrufen der Stage-Snapshots:', error);
@@ -18,7 +24,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { id, textDrafts, imageDrafts } = data;
+    const { id, textDrafts, imageDrafts, chatId } = data;
     
     if (!id || !textDrafts || !imageDrafts) {
       return NextResponse.json(
@@ -27,8 +33,11 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Snapshot in der Datenbank speichern
-    await saveStageSnapshot(id, textDrafts, imageDrafts);
+    // Benutzer-ID aus dem Cookie abrufen
+    const userId = request.cookies.get('user-id')?.value;
+    
+    // Snapshot in der Datenbank speichern mit Benutzer- und Chat-ID
+    await saveStageSnapshot(id, textDrafts, imageDrafts, userId, chatId);
     
     return NextResponse.json({
       success: true,

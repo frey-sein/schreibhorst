@@ -46,6 +46,7 @@ export async function initializeDatabase(): Promise<void> {
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS images (
         id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36),
         title VARCHAR(255) NOT NULL,
         prompt TEXT,
         modelId VARCHAR(50) NOT NULL,
@@ -62,6 +63,8 @@ export async function initializeDatabase(): Promise<void> {
       CREATE TABLE IF NOT EXISTS stage_snapshots (
         id VARCHAR(36) NOT NULL PRIMARY KEY,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        user_id VARCHAR(36),
+        chat_id VARCHAR(36),
         data JSON
       )
     `);

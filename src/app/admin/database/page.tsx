@@ -159,6 +159,131 @@ export default function DatabaseAdminPage() {
     executeQuery(tableQuery);
   }, [executeQuery]);
 
+  // Funktion zum Löschen einer Bilddatei im Dateisystem
+  const deleteImageFile = useCallback(async (filePath: string) => {
+    if (!filePath) return false;
+    
+    try {
+      const response = await fetch('/api/admin/delete-image-file', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ filePath }),
+      });
+      
+      const data = await response.json();
+      return data.success;
+    } catch (error) {
+      console.error('Fehler beim Löschen der Bilddatei:', error);
+      return false;
+    }
+  }, []);
+
+  // Funktion zum Löschen eines einzelnen Datensatzes
+  const deleteRecord = useCallback(async (row: any) => {
+    if (!selectedTable) return;
+    
+    // Versuche, den Primärschlüssel zu finden
+    const potentialPrimaryKeys = ['id', 'ID', `${selectedTable}_id`, 'uuid', 'key'];
+    let primaryKeyField = '';
+    let primaryKeyValue = null;
+    
+    // Suche nach bekannten Primärschlüsselnamen
+    for (const key of potentialPrimaryKeys) {
+      if (row[key] !== undefined) {
+        primaryKeyField = key;
+        primaryKeyValue = row[key];
+        break;
+      }
+    }
+    
+    // Wenn kein Primärschlüssel gefunden wurde, versuche den ersten Feldwert
+    if (!primaryKeyField && Object.keys(row).length > 0) {
+      primaryKeyField = Object.keys(row)[0];
+      primaryKeyValue = row[primaryKeyField];
+    }
+    
+    // Wenn immer noch kein Schlüssel gefunden wurde, Fehler anzeigen
+    if (!primaryKeyField || primaryKeyValue === null) {
+      setError('Konnte keinen Primärschlüssel für diesen Datensatz identifizieren');
+      return;
+    }
+    
+    // Zusätzliche Logik für die images-Tabelle
+    let confirmMessage = `Datensatz mit ${primaryKeyField}=${primaryKeyValue} wirklich löschen?`;
+    let isImageTable = selectedTable === 'images';
+    
+    if (isImageTable) {
+      confirmMessage = `Bild mit ${primaryKeyField}=${primaryKeyValue} wirklich löschen? Die Datei wird auch aus dem Dateisystem entfernt.`;
+    }
+    
+    // Bestätigung anfordern
+    if (confirm(confirmMessage)) {
+      // Bei der images-Tabelle zuerst die Datei löschen
+      if (isImageTable && row.filePath) {
+        await deleteImageFile(row.filePath);
+      }
+      
+      // SQL-Abfrage zum Löschen des Datensatzes erstellen
+      const deleteQuery = typeof primaryKeyValue === 'string' 
+        ? `DELETE FROM \`${selectedTable}\` WHERE \`${primaryKeyField}\` = '${primaryKeyValue.replace(/'/g, "''")}'`
+        : `DELETE FROM \`${selectedTable}\` WHERE \`${primaryKeyField}\` = ${primaryKeyValue}`;
+      
+      // Abfrage ausführen
+      executeQuery(deleteQuery);
+    }
+  }, [selectedTable, executeQuery, deleteImageFile]);
+
+  // Funktion zum Löschen aller Datensätze einer Tabelle
+  const deleteAllRecords = useCallback(async (table: string) => {
+    if (!table) return;
+    
+    let confirmMessage = `Wirklich ALLE Daten aus Tabelle "${table}" löschen?`;
+    let isImageTable = table === 'images';
+    
+    if (isImageTable) {
+      confirmMessage = `Wirklich ALLE Bilder aus der Tabelle "${table}" löschen? Alle Dateien werden auch aus dem Dateisystem entfernt.`;
+    }
+    
+    if (confirm(confirmMessage)) {
+      // Bei der images-Tabelle erst alle Dateipfade holen
+      if (isImageTable) {
+        try {
+          // Abfrage ausführen, um alle Dateipfade zu erhalten
+          setIsExecuting(true);
+          const response = await fetch('/api/database/query', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              query: `SELECT filePath FROM \`${table}\` WHERE filePath IS NOT NULL` 
+            }),
+          });
+          
+          const data = await response.json();
+          setIsExecuting(false);
+          
+          if (data.success && Array.isArray(data.results)) {
+            // Lösche alle Bilddateien
+            for (const row of data.results) {
+              if (row.filePath) {
+                await deleteImageFile(row.filePath);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Fehler beim Abrufen der Dateipfade:', error);
+          setIsExecuting(false);
+        }
+      }
+      
+      // Dann Datenbanktabelle leeren
+      executeQuery(`DELETE FROM \`${table}\``);
+    }
+  }, [executeQuery, deleteImageFile]);
+
   // Nicht rendern, wenn die Komponente noch nicht geladen ist oder der Benutzer kein Admin ist
   if (isLoading || !mounted || !isAdmin) {
     return null;
@@ -255,17 +380,29 @@ export default function DatabaseAdminPage() {
                     <div className="space-y-1 max-h-[50vh] overflow-y-auto">
                       {tables.length > 0 ? (
                         tables.map((table) => (
-                          <button
-                            key={table}
-                            onClick={() => viewTable(table)}
-                            className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
-                              selectedTable === table
-                                ? 'bg-[#2c2c2c] text-white'
-                                : 'hover:bg-gray-100 text-gray-700'
-                            }`}
-                          >
-                            {table}
-                          </button>
+                          <div key={table} className="flex items-center justify-between">
+                            <button
+                              onClick={() => viewTable(table)}
+                              className={`flex-1 text-left px-3 py-2 rounded-lg text-sm ${
+                                selectedTable === table
+                                  ? 'bg-[#2c2c2c] text-white'
+                                  : 'hover:bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {table}
+                            </button>
+                            {selectedTable === table && (
+                              <button
+                                onClick={() => deleteAllRecords(table)}
+                                className="ml-2 p-1.5 rounded-full bg-red-100 hover:bg-red-200 text-red-700"
+                                title="Alle Daten löschen"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
                         ))
                       ) : (
                         <p className="text-gray-500 text-sm p-3">Keine Tabellen gefunden.</p>
@@ -347,6 +484,9 @@ export default function DatabaseAdminPage() {
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                              Aktionen
+                            </th>
                             {Object.keys(results[0]).map((key, index) => (
                               <th 
                                 key={`header-${index}-${key || 'empty'}`}
@@ -360,6 +500,17 @@ export default function DatabaseAdminPage() {
                         <tbody className="bg-white divide-y divide-gray-200">
                           {results.map((row, rowIndex) => (
                             <tr key={`row-${rowIndex}`} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 text-sm">
+                                <button
+                                  onClick={() => deleteRecord(row)}
+                                  className="p-1.5 rounded-full bg-red-100 hover:bg-red-200 text-red-700"
+                                  title="Diesen Datensatz löschen"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </td>
                               {Object.entries(row).map(([key, value], cellIndex) => (
                                 <td key={`cell-${rowIndex}-${cellIndex}-${key || 'empty'}`} className="px-3 py-2 text-sm text-gray-700">
                                   {value === null ? (

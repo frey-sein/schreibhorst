@@ -4,12 +4,17 @@ import { saveImage, getAllImages, deleteImage } from '@/lib/services/imageStorag
 // GET /api/images - Alle Bilder abrufen
 export async function GET(request: NextRequest) {
   try {
-    const images = await getAllImages();
-    return NextResponse.json({ images });
+    // Benutzer-ID aus dem Cookie abrufen
+    const userId = request.cookies.get('user-id')?.value;
+    
+    // Bilder abrufen, gefiltert nach Benutzer
+    const images = await getAllImages(userId);
+    
+    return NextResponse.json(images);
   } catch (error) {
     console.error('Fehler beim Abrufen der Bilder:', error);
     return NextResponse.json(
-      { error: 'Bilder konnten nicht abgerufen werden' },
+      { error: 'Fehler beim Abrufen der Bilder' }, 
       { status: 500 }
     );
   }
@@ -18,21 +23,35 @@ export async function GET(request: NextRequest) {
 // POST /api/images - Bild speichern
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const data = await request.json();
+    const { imageData, title, prompt, modelId, width, height, meta } = data;
     
-    if (!body.imageData || !body.metadata) {
+    if (!imageData) {
       return NextResponse.json(
-        { error: 'Unvollständige Bilddaten' },
+        { error: 'Keine Bilddaten erhalten' },
         { status: 400 }
       );
     }
     
-    const savedImage = await saveImage(body.imageData, body.metadata);
+    // Benutzer-ID aus dem Cookie abrufen
+    const userId = request.cookies.get('user-id')?.value;
+    
+    // Bild speichern mit Benutzer-ID
+    const savedImage = await saveImage(imageData, {
+      title: title || 'Unbenanntes Bild',
+      prompt,
+      modelId: modelId || 'unbekannt',
+      width: width || 512,
+      height: height || 512,
+      meta,
+      userId
+    });
+    
     return NextResponse.json(savedImage);
   } catch (error) {
     console.error('Fehler beim Speichern des Bildes:', error);
     return NextResponse.json(
-      { error: 'Bild konnte nicht gespeichert werden' },
+      { error: 'Fehler beim Speichern des Bildes' },
       { status: 500 }
     );
   }
@@ -41,29 +60,24 @@ export async function POST(request: NextRequest) {
 // DELETE /api/images?id=xyz - Bild löschen
 export async function DELETE(request: NextRequest) {
   try {
-    const id = request.nextUrl.searchParams.get('id');
+    const data = await request.json();
+    const { id } = data;
     
     if (!id) {
       return NextResponse.json(
-        { error: 'Keine Bild-ID angegeben' },
+        { error: 'Keine Bild-ID erhalten' },
         { status: 400 }
       );
     }
     
+    // Löschen des Bildes
     const success = await deleteImage(id);
     
-    if (success) {
-      return NextResponse.json({ success: true });
-    } else {
-      return NextResponse.json(
-        { error: 'Bild konnte nicht gelöscht werden' },
-        { status: 404 }
-      );
-    }
+    return NextResponse.json({ success });
   } catch (error) {
     console.error('Fehler beim Löschen des Bildes:', error);
     return NextResponse.json(
-      { error: 'Bild konnte nicht gelöscht werden' },
+      { error: 'Fehler beim Löschen des Bildes' },
       { status: 500 }
     );
   }

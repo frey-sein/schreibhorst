@@ -1,0 +1,161 @@
+/* Stile für Listen in Chat-Nachrichten */
+
+.chat-message {
+  position: relative;
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+/* Verbessertes Layout für Listen in Chat-Nachrichten */
+ol.chat-message {
+  list-style-position: outside;
+  padding-left: 2rem;
+  margin: 1rem 0;
+  counter-reset: list-counter;
+}
+
+ol.chat-message li {
+  counter-increment: list-counter;
+  position: relative;
+  padding-left: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+ol.chat-message li::before {
+  content: counter(list-counter) ".";
+  position: absolute;
+  left: -2rem;
+  width: 1.5rem;
+  text-align: right;
+}
+
+ul.chat-message {
+  list-style-position: outside;
+  padding-left: 2rem;
+  margin: 1rem 0;
+}
+
+ul.chat-message li {
+  position: relative;
+  padding-left: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+ul.chat-message li::before {
+  content: "•";
+  position: absolute;
+  left: -1.5rem;
+  width: 1rem;
+  text-align: center;
+}
+
+/* Container für Nachrichten mit stabilerem Scrollverhalten */
+.messages-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
+  will-change: transform;
+  scroll-behavior: smooth;
+  padding: 1rem;
+}
+
+/* Verbesserte Container für Scrollverhalten */
+.messages-scroll-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.message-wrapper {
+  margin-bottom: 1rem;
+  scroll-margin-bottom: 1rem;
+}
+
+/* Verhindert Layout-Shifts während der Eingabe */
+.chat-input-container {
+  position: sticky;
+  bottom: 0;
+  background-color: white;
+  padding: 1rem;
+  border-top: 1px solid #eaeaea;
+  z-index: 10;
+  will-change: transform;
+}
+
+/* Markdown-Inhalte verbessern */
+.whitespace-pre-wrap.break-words {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.whitespace-pre-wrap.break-words pre {
+  white-space: pre-wrap;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Verhindert, dass Codeblöcke den Container sprengen */
+.markdown-content pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-width: 100%;
+}
+
+/* Verschachtelte Listen */
+.chat-message ul, .chat-message ol {
+  margin: 0.5rem 0 0.5rem 1rem;
+}
+
+/* Stabilisierung des Chat-Containers */
+.chat-message-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-height: calc(100vh - 80px); /* Platz für Header */
+  overflow: hidden;
+  position: relative;
+  contain: layout size; /* Verbessert die Render-Performance */
+}
+
+/* Gewährleiste, dass der Inhalt stabil bleibt */
+.chat-message-item {
+  padding-left: 0; /* Reduziere Padding für bessere Listenausrichtung */
+}
+
+/* Ensure consistent spacing of list items */
+.chat-message > li > * {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Verhindert Sprünge beim Tippen */
+.chat-panel {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  contain: layout; /* Verbessert die Layout-Stabilität */
+}
+
+/* Stelle sicher, dass Nachrichten immer optimal angezeigt werden */
+.markdown-content {
+  width: 100%;
+  contain: content; /* Isoliert Layout-Veränderungen */
+  overflow-anchor: auto; /* Verbessert Scroll-Anker-Verhalten */
+}
+
+/* Verbessertes Scrolling für Container */
+.messages-scroll-container {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 0.5rem; /* Verhindert horizontales Springen */
+  scroll-padding-bottom: 80px; /* Platz für Input */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; /* Für besseres Scrolling auf iOS */
+} 

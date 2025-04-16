@@ -7,28 +7,33 @@ interface StageSnapshot {
   timestamp: Date;
   textDrafts: TextDraft[];
   imageDrafts: ImageDraft[];
+  chatId?: string;
 }
 
 interface StageHistoryStore {
   snapshots: StageSnapshot[];
   currentSnapshotId: string | null;
-  addSnapshot: (textDrafts: TextDraft[], imageDrafts: ImageDraft[]) => Promise<void>;
+  currentChatId: string | null;
+  addSnapshot: (textDrafts: TextDraft[], imageDrafts: ImageDraft[], chatId?: string) => Promise<void>;
   restoreSnapshot: (id: string) => Promise<StageSnapshot | null>;
   getSnapshots: () => Promise<StageSnapshot[]>;
   clearSnapshots: () => Promise<void>;
+  setCurrentChatId: (chatId: string | null) => void;
 }
 
 export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
   snapshots: [],
   currentSnapshotId: null,
+  currentChatId: null,
 
-  addSnapshot: async (textDrafts, imageDrafts) => {
+  addSnapshot: async (textDrafts, imageDrafts, chatId) => {
     // Neues Snapshot-Objekt erstellen
     const newSnapshot: StageSnapshot = {
       id: new Date().getTime().toString(),
       timestamp: new Date(),
       textDrafts: JSON.parse(JSON.stringify(textDrafts)),
-      imageDrafts: JSON.parse(JSON.stringify(imageDrafts))
+      imageDrafts: JSON.parse(JSON.stringify(imageDrafts)),
+      chatId: chatId || (get().currentChatId || undefined)
     };
 
     // Im Store aktualisieren
@@ -47,7 +52,8 @@ export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
         body: JSON.stringify({
           id: newSnapshot.id,
           textDrafts: newSnapshot.textDrafts,
-          imageDrafts: newSnapshot.imageDrafts
+          imageDrafts: newSnapshot.imageDrafts,
+          chatId: newSnapshot.chatId
         })
       });
     } catch (error) {
@@ -91,34 +97,31 @@ export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
   },
 
   getSnapshots: async () => {
-    // Snapshots vom Server laden
     try {
-      const response = await fetch('/api/stage-history');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.snapshots && Array.isArray(data.snapshots)) {
-          const serverSnapshots = data.snapshots.map((snapshot: any) => ({
-            ...snapshot,
-            timestamp: new Date(snapshot.timestamp)
-          }));
-          
-          // Im Store aktualisieren
-          set({ snapshots: serverSnapshots });
-          return serverSnapshots;
-        }
+      // Erstelle URL mit Chat-ID Parameter falls vorhanden
+      let url = '/api/stage-history';
+      const chatId = get().currentChatId;
+      if (chatId) {
+        url += `?chatId=${encodeURIComponent(chatId)}`;
       }
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.snapshots) {
+        const snapshots = data.snapshots.map((snapshot: any) => ({
+          ...snapshot,
+          timestamp: new Date(snapshot.timestamp)
+        }));
+        
+        set({ snapshots });
+        return snapshots;
+      }
+      return [];
     } catch (error) {
-      console.error('Fehler beim Laden der Snapshots vom Server:', error);
+      console.error('Fehler beim Abrufen der Snapshots:', error);
+      return [];
     }
-    
-    // Falls Server-Abruf fehlschlägt, lokale Snapshots zurückgeben
-    const { snapshots } = get();
-    return snapshots.map(snapshot => ({
-      ...snapshot,
-      timestamp: snapshot.timestamp instanceof Date 
-        ? snapshot.timestamp 
-        : new Date(snapshot.timestamp)
-    }));
   },
 
   clearSnapshots: async () => {
@@ -134,4 +137,8 @@ export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
       console.error('Fehler beim Löschen der Snapshots vom Server:', error);
     }
   },
+
+  setCurrentChatId: (chatId) => {
+    set({ currentChatId: chatId });
+  }
 })); 

@@ -50,6 +50,7 @@ export interface ImageDraft {
 // Interface für ein gespeichertes Bild
 export interface SavedImage {
   id: string;
+  user_id?: string;
   title: string;
   prompt?: string;
   modelId: string;
@@ -74,6 +75,7 @@ export async function saveImage(
     width: number;
     height: number;
     meta?: any;
+    userId?: string;
   }
 ): Promise<SavedImage> {
   try {
@@ -92,6 +94,7 @@ export async function saveImage(
     // Erstelle das Ergebnisobjekt
     const savedImage: SavedImage = {
       id,
+      user_id: metadata.userId,
       title: metadata.title,
       prompt: metadata.prompt,
       modelId: metadata.modelId,
@@ -125,10 +128,11 @@ async function saveImageToDatabase(image: SavedImage): Promise<void> {
   try {
     await connection.execute(
       `INSERT INTO images (
-          id, title, prompt, modelId, filePath, width, height, created_at, meta
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          id, user_id, title, prompt, modelId, filePath, width, height, created_at, meta
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         image.id,
+        image.user_id || null,
         image.title,
         image.prompt || null,
         image.modelId,
@@ -149,30 +153,36 @@ async function saveImageToDatabase(image: SavedImage): Promise<void> {
 /**
  * Holt alle Bilder aus der Datenbank oder dem Filesystem
  */
-export async function getAllImages(): Promise<SavedImage[]> {
-  // Temporär immer aus dem Filesystem lesen (Debug)
-  return getImagesFromFilesystem();
-  
+export async function getAllImages(userId?: string): Promise<SavedImage[]> {
   // Wenn MySQL verfügbar ist, nutze die DB
-  /*
   if (dbPool) {
-    return getImagesFromDatabase();
+    return getImagesFromDatabase(userId);
   }
   
-  // Ansonsten aus dem Filesystem lesen
+  // Ansonsten aus dem Filesystem lesen (ohne Benutzerfilterung)
   return getImagesFromFilesystem();
-  */
 }
 
 /**
  * Holt Bilder aus der Datenbank
  */
-async function getImagesFromDatabase(): Promise<SavedImage[]> {
+async function getImagesFromDatabase(userId?: string): Promise<SavedImage[]> {
   if (!dbPool) return [];
   
   const connection = await dbPool.getConnection();
   try {
-    const [rows] = await connection.execute('SELECT * FROM images ORDER BY created_at DESC');
+    // Wenn eine userId angegeben ist, filtere danach
+    let query = 'SELECT * FROM images';
+    const params = [];
+    
+    if (userId) {
+      query += ' WHERE user_id = ? OR user_id IS NULL';
+      params.push(userId);
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    
+    const [rows] = await connection.execute(query, params);
     return (rows as any[]).map(row => ({
       ...row,
       url: `${IMAGE_BASE_URL}/${row.filePath}`,
@@ -222,18 +232,22 @@ async function getImagesFromFilesystem(): Promise<SavedImage[]> {
 export async function saveStageSnapshot(
   id: string,
   textDrafts: any[],
-  imageDrafts: ImageDraft[]
+  imageDrafts: ImageDraft[],
+  userId?: string,
+  chatId?: string
 ): Promise<void> {
   // Wenn MySQL verfügbar ist, speichere in der Datenbank
   if (dbPool) {
     const connection = await dbPool.getConnection();
     try {
       await connection.execute(
-        `INSERT INTO stage_snapshots (id, timestamp, data) VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE timestamp=VALUES(timestamp), data=VALUES(data)`,
+        `INSERT INTO stage_snapshots (id, timestamp, user_id, chat_id, data) VALUES (?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE timestamp=VALUES(timestamp), user_id=VALUES(user_id), chat_id=VALUES(chat_id), data=VALUES(data)`,
         [
           id,
           new Date(),
+          userId || null,
+          chatId || null,
           JSON.stringify({ textDrafts, imageDrafts })
         ]
       );
@@ -255,6 +269,8 @@ export async function saveStageSnapshot(
       const snapshotData = {
         id,
         timestamp: new Date(),
+        userId,
+        chatId,
         textDrafts,
         imageDrafts
       };
@@ -272,9 +288,11 @@ export async function saveStageSnapshot(
 /**
  * Holt alle Stage-Snapshots aus der Datenbank
  */
-export async function getStageSnapshots(): Promise<Array<{
+export async function getStageSnapshots(userId?: string, chatId?: string): Promise<Array<{
   id: string;
   timestamp: Date;
+  userId?: string;
+  chatId?: string;
   textDrafts: any[];
   imageDrafts: ImageDraft[];
 }>> {
@@ -282,13 +300,39 @@ export async function getStageSnapshots(): Promise<Array<{
   if (dbPool) {
     const connection = await dbPool.getConnection();
     try {
-      const [rows] = await connection.execute('SELECT * FROM stage_snapshots ORDER BY timestamp DESC');
+      let query = 'SELECT * FROM stage_snapshots';
+      const params = [];
+      
+      // Filter nach Benutzer und/oder Chat, falls angegeben
+      if (userId || chatId) {
+        const conditions = [];
+        
+        if (userId) {
+          conditions.push('user_id = ?');
+          params.push(userId);
+        }
+        
+        if (chatId) {
+          conditions.push('chat_id = ?');
+          params.push(chatId);
+        }
+        
+        if (conditions.length > 0) {
+          query += ' WHERE ' + conditions.join(' AND ');
+        }
+      }
+      
+      query += ' ORDER BY timestamp DESC';
+      
+      const [rows] = await connection.execute(query, params);
       return (rows as any[]).map(row => {
         // Prüfe, ob row.data bereits ein Objekt oder ein String ist
         const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
         return {
           id: row.id,
           timestamp: new Date(row.timestamp),
+          userId: row.user_id,
+          chatId: row.chat_id,
           textDrafts: data.textDrafts || [],
           imageDrafts: data.imageDrafts || []
         };
@@ -312,7 +356,7 @@ export async function getStageSnapshots(): Promise<Array<{
       // Lese alle JSON-Dateien im Verzeichnis
       const files = fs.readdirSync(snapshotDir).filter(file => file.endsWith('.json'));
       
-      const snapshots = files.map(file => {
+      let snapshots = files.map(file => {
         const filePath = path.join(snapshotDir, file);
         const content = fs.readFileSync(filePath, 'utf-8');
         const data = JSON.parse(content);
@@ -320,10 +364,29 @@ export async function getStageSnapshots(): Promise<Array<{
         return {
           id: data.id,
           timestamp: new Date(data.timestamp),
+          userId: data.userId,
+          chatId: data.chatId,
           textDrafts: data.textDrafts || [],
           imageDrafts: data.imageDrafts || []
         };
       });
+      
+      // Filtere nach Benutzer und/oder Chat, falls angegeben
+      if (userId || chatId) {
+        snapshots = snapshots.filter(snapshot => {
+          let matches = true;
+          
+          if (userId) {
+            matches = matches && snapshot.userId === userId;
+          }
+          
+          if (chatId) {
+            matches = matches && snapshot.chatId === chatId;
+          }
+          
+          return matches;
+        });
+      }
       
       // Sortiere nach Datum (neueste zuerst)
       return snapshots.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());

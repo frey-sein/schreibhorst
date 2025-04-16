@@ -42,62 +42,8 @@ const getValidTextModel = (modelId: string): string => {
 export const useStageStore = create<StageState>()(
   persist(
     (set) => ({
-      textDrafts: [
-        {
-          id: 1,
-          content: "In einem fernen Land, wo die Berge den Himmel berührten und die Wälder voller Geheimnisse waren, lebte ein außergewöhnlicher Drache...",
-          isSelected: false,
-          title: "Drachengeschichte",
-          contentType: "Geschichte",
-          tags: ["Drache", "Fantasy", "Abenteuer"]
-        },
-        {
-          id: 2,
-          content: "Der Drache, den alle nur Funkel nannten, war ein besonderes Wesen. Seine Schuppen glitzerten wie Diamanten im Sonnenlicht...",
-          isSelected: false,
-          title: "Funkel der Drache",
-          contentType: "Kurzgeschichte",
-          tags: ["Drache", "Fantasy"]
-        },
-        {
-          id: 3,
-          content: "Tief in den Bergen, versteckt vor neugierigen Blicken, hatte sich ein junger Drache niedergelassen. Anders als seine Artgenossen...",
-          isSelected: false,
-          title: "Der Bergdrache",
-          contentType: "Erzählung",
-          tags: ["Drache", "Berge", "Einsamkeit"]
-        }
-      ],
-      
-      imageDrafts: [
-        {
-          id: 1,
-          url: "https://images.unsplash.com/photo-1500964757637-c85e8a162699?w=800&auto=format&fit=crop&q=60",
-          title: "Mystische Berglandschaft",
-          isSelected: false,
-          contentType: "Landschaft",
-          tags: ["Berg", "Natur", "Mystisch"],
-          prompt: "Eine atemberaubende mystische Berglandschaft bei Sonnenuntergang, mit Nebelschwaden zwischen den Bergen, warmes goldenes Licht, fotorealistisch, hohe Auflösung."
-        },
-        {
-          id: 2,
-          url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&auto=format&fit=crop&q=60",
-          title: "Neblige Bergspitze",
-          isSelected: false,
-          contentType: "Landschaft",
-          tags: ["Berg", "Nebel", "Natur"],
-          prompt: "Eine einsame Bergspitze im dichten Nebel, mysteriöse Atmosphäre, dramatisches Licht, hochdetailliert, fotorealistisch."
-        },
-        {
-          id: 3,
-          url: "https://images.unsplash.com/photo-1486870591958-9b9d0d1dda99?w=800&auto=format&fit=crop&q=60",
-          title: "Sonnenaufgang in den Bergen",
-          isSelected: false,
-          contentType: "Landschaft",
-          tags: ["Berg", "Sonnenaufgang", "Natur"],
-          prompt: "Majestätischer Sonnenaufgang über einer Bergkette, dramatische Lichtstrahlen, lebendige Farben, Morgennebel im Tal, fotorealistisch, atmosphärisch."
-        }
-      ],
+      textDrafts: [],
+      imageDrafts: [],
       
       selectedModel: availableModels[0].id,
       selectedTextModel: availableTextModels[0].id,
@@ -125,6 +71,20 @@ export const useStageStore = create<StageState>()(
     }),
     {
       name: 'stage-storage',
+      // Speicherung nur für die aktuelle Sitzung
+      storage: {
+        getItem: (name) => {
+          const str = sessionStorage.getItem(name);
+          if (!str) return null;
+          return JSON.parse(str);
+        },
+        setItem: (name, value) => {
+          sessionStorage.setItem(name, JSON.stringify(value));
+        },
+        removeItem: (name) => {
+          sessionStorage.removeItem(name);
+        },
+      },
       // Beim Wiederherstellen aus dem Speicher prüfen, ob das 
       // gespeicherte Modell noch existiert, sonst das erste verfügbare verwenden
       onRehydrateStorage: () => (state) => {

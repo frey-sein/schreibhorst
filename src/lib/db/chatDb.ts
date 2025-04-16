@@ -157,7 +157,7 @@ export async function deleteChat(chatId: string): Promise<boolean> {
 /**
  * Speichert eine einzelne Chatnachricht
  */
-export async function saveChatMessage(message: ChatMessage, chatId: string): Promise<boolean> {
+export async function saveChatMessage(message: ChatMessage, chatId: string, userId?: string): Promise<boolean> {
   const pool = getPool();
   if (!pool) return false;
 
@@ -190,6 +190,22 @@ export async function saveChatMessage(message: ChatMessage, chatId: string): Pro
         'UPDATE chats SET last_message_preview = ?, updated_at = NOW() WHERE id = ?',
         [preview, chatId]
       );
+      
+      // Wenn userId vorhanden ist und der Chat noch keinem Benutzer zugeordnet ist,
+      // dann ordne den Chat diesem Benutzer zu
+      if (userId) {
+        const [chatResult]: any = await pool.execute(
+          'SELECT user_id FROM chats WHERE id = ?',
+          [chatId]
+        );
+        
+        if (chatResult.length > 0 && !chatResult[0].user_id) {
+          await pool.execute(
+            'UPDATE chats SET user_id = ? WHERE id = ?',
+            [userId, chatId]
+          );
+        }
+      }
     }
     
     return true;
@@ -202,7 +218,7 @@ export async function saveChatMessage(message: ChatMessage, chatId: string): Pro
 /**
  * Speichert mehrere Chatnachrichten auf einmal
  */
-export async function saveChatMessages(messages: ChatMessage[], chatId: string): Promise<boolean> {
+export async function saveChatMessages(messages: ChatMessage[], chatId: string, userId?: string): Promise<boolean> {
   const pool = getPool();
   if (!pool) return false;
 
@@ -244,6 +260,22 @@ export async function saveChatMessages(messages: ChatMessage[], chatId: string):
           'UPDATE chats SET last_message_preview = ?, updated_at = NOW() WHERE id = ?',
           [preview, chatId]
         );
+        
+        // Wenn userId vorhanden ist und der Chat noch keinem Benutzer zugeordnet ist,
+        // dann ordne den Chat diesem Benutzer zu
+        if (userId) {
+          const [chatResult]: any = await connection.execute(
+            'SELECT user_id FROM chats WHERE id = ?',
+            [chatId]
+          );
+          
+          if (chatResult.length > 0 && !chatResult[0].user_id) {
+            await connection.execute(
+              'UPDATE chats SET user_id = ? WHERE id = ?',
+              [userId, chatId]
+            );
+          }
+        }
       }
       
       await connection.commit();
@@ -263,11 +295,25 @@ export async function saveChatMessages(messages: ChatMessage[], chatId: string):
 /**
  * Holt alle Nachrichten für einen Chat
  */
-export async function getChatMessages(chatId: string): Promise<ChatMessage[]> {
+export async function getChatMessages(chatId: string, userId?: string): Promise<ChatMessage[]> {
   const pool = getPool();
   if (!pool) return [];
 
   try {
+    // Wenn eine Benutzer-ID angegeben wurde, überprüfen wir, ob der Chat diesem Benutzer gehört
+    if (userId) {
+      const [chatRows]: any = await pool.execute(
+        'SELECT user_id FROM chats WHERE id = ?',
+        [chatId]
+      );
+      
+      // Wenn der Chat einem anderen Benutzer gehört, gebe leeres Array zurück
+      if (chatRows.length > 0 && chatRows[0].user_id && chatRows[0].user_id !== userId) {
+        console.log(`Zugriff verweigert: Chat ${chatId} gehört nicht Benutzer ${userId}`);
+        return [];
+      }
+    }
+    
     const [rows]: any = await pool.execute(
       'SELECT * FROM chat_messages WHERE chat_id = ? ORDER BY timestamp ASC',
       [chatId]
