@@ -133,44 +133,55 @@ export async function generateImage(prompt: string, modelId?: string, title?: st
       console.log('Bild-URL von der API erhalten:', imageUrl);
       const imageData = await downloadImage(imageUrl);
       
-      // Bild im neuen Storage-Service speichern (client-seitig)
-      const savedImage = await ImageStorageClient.saveImage(imageData, {
-        title: title || prompt.substring(0, 50) + '...',
-        prompt: prompt,
-        modelId: model,
-        width: 1024,
-        height: 1024,
-        meta: {
-          provider: 'togetherAI',
-          generationModel: model
+      try {
+        // Bild im neuen Storage-Service speichern (client-seitig)
+        const savedImage = await ImageStorageClient.saveImage(imageData, {
+          title: title || prompt.substring(0, 50) + '...',
+          prompt: prompt,
+          modelId: model,
+          width: 1024,
+          height: 1024,
+          meta: {
+            provider: 'togetherAI',
+            generationModel: model
+          }
+        });
+        
+        // Erfolg mit gespeichertem Bild zurückgeben
+        if (savedImage && savedImage.url) {
+          console.log('Bild erfolgreich lokal gespeichert mit URL:', savedImage.url);
+          // Immer den lokalen Pfad zurückgeben, wenn verfügbar
+          return {
+            success: true,
+            imageUrl: savedImage.url,
+            image: savedImage
+          };
+        } else {
+          console.warn('Bild wurde gespeichert, aber keine URL zurückgegeben');
+          return {
+            success: true,
+            imageUrl,
+            error: 'Bild wurde gespeichert, aber lokale URL fehlt'
+          };
         }
-      });
-      
-      // Erfolg mit gespeichertem Bild zurückgeben
-      if (savedImage && savedImage.url) {
-        console.log('Bild erfolgreich lokal gespeichert mit URL:', savedImage.url);
-        // Immer den lokalen Pfad zurückgeben, wenn verfügbar
+      } catch (storageError: any) {
+        console.error('Fehler beim Speichern des Bildes im lokalen Speicher:', storageError);
+        
+        // Versuche trotzdem, mit der Original-URL fortzufahren
         return {
           success: true,
-          imageUrl: savedImage.url,
-          image: savedImage
-        };
-      } else {
-        console.warn('Bild wurde gespeichert, aber keine URL zurückgegeben');
-        return {
-          success: true,
-          imageUrl,
-          error: 'Bild wurde gespeichert, aber lokale URL fehlt'
+          imageUrl: imageUrl,
+          error: `Bild wurde generiert, aber Speicherung fehlgeschlagen: ${storageError.message || 'Unbekannter Fehler'}`
         };
       }
-    } catch (saveError) {
+    } catch (saveError: any) {
       console.error('Fehler beim Speichern des generierten Bildes:', saveError);
       
       // Wir geben trotzdem die Original-URL zurück, damit das Bild angezeigt werden kann
       return {
         success: true,
         imageUrl: imageUrl,
-        error: 'Bild wurde generiert, konnte aber nicht dauerhaft gespeichert werden'
+        error: `Bild wurde generiert, konnte aber nicht gespeichert werden: ${saveError.message || 'Unbekannter Fehler'}`
       };
     }
   } catch (error) {

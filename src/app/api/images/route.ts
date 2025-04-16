@@ -24,34 +24,58 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { imageData, title, prompt, modelId, width, height, meta } = data;
+    const { imageData, metadata } = data;
     
     if (!imageData) {
+      console.error('POST /api/images: Keine Bilddaten im Request');
       return NextResponse.json(
         { error: 'Keine Bilddaten erhalten' },
         { status: 400 }
       );
     }
     
+    if (!metadata) {
+      console.error('POST /api/images: Keine Metadaten im Request');
+      return NextResponse.json(
+        { error: 'Keine Metadaten erhalten' },
+        { status: 400 }
+      );
+    }
+    
     // Benutzer-ID aus dem Cookie abrufen
     const userId = request.cookies.get('user-id')?.value;
+    console.log('POST /api/images: Request von Benutzer', userId || 'anonym');
     
-    // Bild speichern mit Benutzer-ID
-    const savedImage = await saveImage(imageData, {
-      title: title || 'Unbenanntes Bild',
-      prompt,
-      modelId: modelId || 'unbekannt',
-      width: width || 512,
-      height: height || 512,
-      meta,
-      userId
-    });
+    // Validiere, dass die erforderlichen Metadaten-Felder vorhanden sind
+    const { title, modelId, width, height } = metadata;
+    const meta = metadata.meta || {};
+    const prompt = metadata.prompt || '';
     
-    return NextResponse.json(savedImage);
-  } catch (error) {
-    console.error('Fehler beim Speichern des Bildes:', error);
+    try {
+      // Bild speichern mit Benutzer-ID
+      const savedImage = await saveImage(imageData, {
+        title: title || 'Unbenanntes Bild',
+        prompt,
+        modelId: modelId || 'unbekannt',
+        width: width || 512,
+        height: height || 512,
+        meta,
+        userId
+      });
+      
+      console.log(`POST /api/images: Bild erfolgreich gespeichert mit ID ${savedImage.id}`);
+      return NextResponse.json(savedImage);
+    } catch (saveError: any) {
+      console.error('POST /api/images: Fehler beim Speichern des Bildes:', saveError);
+      return NextResponse.json(
+        { error: `Fehler beim Speichern des Bildes: ${saveError.message || 'Unbekannter Fehler'}` },
+        { status: 500 }
+      );
+    }
+  } catch (error: any) {
+    console.error('POST /api/images: Fehler bei der Verarbeitung des Requests:', error);
     return NextResponse.json(
-      { error: 'Fehler beim Speichern des Bildes' },
+      { error: `Fehler bei der Verarbeitung des Requests: ${error.message || 'Unbekannter Fehler'}` },
       { status: 500 }
     );
   }

@@ -55,6 +55,19 @@ export class ImageStorageClient {
     }
   ): Promise<SavedImage | null> {
     try {
+      if (!imageData) {
+        console.error('Fehler beim Speichern des Bildes: Keine Bilddaten vorhanden');
+        return null;
+      }
+      
+      // Prüfen der Datenlänge, um frühzeitig übermäßig große Datenmengen zu erkennen
+      if (imageData.length > 10000000) { // Grenze bei ca. 10 MB
+        console.warn('Sehr große Bilddaten erkannt: ', (imageData.length / (1024 * 1024)).toFixed(2), 'MB');
+      }
+
+      // Verzögerung hinzufügen, um mögliche Race-Conditions zu vermeiden
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const response = await fetch('/api/images', {
         method: 'POST',
         headers: {
@@ -66,15 +79,33 @@ export class ImageStorageClient {
         })
       });
       
+      // Detailliertere Fehlerbehandlung
       if (!response.ok) {
-        console.error('Fehler beim Speichern des Bildes:', response.statusText);
-        return null;
+        let errorText = '';
+        try {
+          const errorData = await response.json();
+          errorText = errorData.error || response.statusText;
+        } catch (parseError) {
+          // Falls die Antwort kein gültiges JSON ist
+          errorText = `Status ${response.status}: ${response.statusText}`;
+        }
+        
+        console.error('Fehler beim Speichern des Bildes:', errorText);
+        throw new Error(errorText);
       }
       
-      return await response.json();
+      // Antwort parsen und Bild zurückgeben
+      try {
+        const savedImage = await response.json();
+        return savedImage;
+      } catch (parseError) {
+        console.error('Fehler beim Parsen der Antwort:', parseError);
+        throw new Error('Fehler beim Parsen der Serverantwort');
+      }
     } catch (error) {
       console.error('Fehler beim Speichern des Bildes:', error);
-      return null;
+      // Werfe den Fehler weiter, damit der Aufrufer ihn behandeln kann
+      throw error;
     }
   }
   
