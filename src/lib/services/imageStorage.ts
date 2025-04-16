@@ -234,7 +234,8 @@ export async function saveStageSnapshot(
   textDrafts: any[],
   imageDrafts: ImageDraft[],
   userId?: string,
-  chatId?: string
+  chatId?: string,
+  blogPostDraft?: any
 ): Promise<void> {
   // Wenn MySQL verfügbar ist, speichere in der Datenbank
   if (dbPool) {
@@ -248,40 +249,45 @@ export async function saveStageSnapshot(
           new Date(),
           userId || null,
           chatId || null,
-          JSON.stringify({ textDrafts, imageDrafts })
+          JSON.stringify({
+            textDrafts,
+            imageDrafts,
+            blogPostDraft
+          })
         ]
       );
     } catch (error) {
-      console.error('Fehler beim Speichern des Snapshots in der Datenbank:', error);
+      console.error('Fehler beim Speichern des Stage-Snapshots:', error);
     } finally {
       connection.release();
     }
-  } else {
-    // Fallback: Speichere im Dateisystem
-    try {
-      // Stelle sicher, dass das Verzeichnis existiert
-      const snapshotDir = path.join(process.cwd(), 'public/uploads/snapshots');
-      if (!fs.existsSync(snapshotDir)) {
-        fs.mkdirSync(snapshotDir, { recursive: true });
-      }
-      
-      // Erstelle die Snapshot-Datei
-      const snapshotData = {
-        id,
-        timestamp: new Date(),
-        userId,
-        chatId,
-        textDrafts,
-        imageDrafts
-      };
-      
-      const filePath = path.join(snapshotDir, `${id}.json`);
-      fs.writeFileSync(filePath, JSON.stringify(snapshotData));
-      
-      console.log(`Snapshot ${id} im Dateisystem gespeichert`);
-    } catch (error) {
-      console.error('Fehler beim Speichern des Snapshots im Dateisystem:', error);
+    return;
+  }
+  
+  // Fallback: Speichere im Filesystem
+  try {
+    const snapshotsDir = path.join(process.cwd(), 'public/uploads/snapshots');
+    
+    // Stelle sicher, dass das Verzeichnis existiert
+    if (!fs.existsSync(snapshotsDir)) {
+      fs.mkdirSync(snapshotsDir, { recursive: true });
     }
+    
+    // Erstelle einen Dateinamen mit der ID
+    const filePath = path.join(snapshotsDir, `${id}.json`);
+    
+    // Schreibe die Daten in die Datei
+    fs.writeFileSync(filePath, JSON.stringify({
+      id,
+      timestamp: new Date(),
+      userId,
+      chatId,
+      textDrafts,
+      imageDrafts,
+      blogPostDraft
+    }));
+  } catch (error) {
+    console.error('Fehler beim Speichern des Stage-Snapshots im Filesystem:', error);
   }
 }
 

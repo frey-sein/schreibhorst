@@ -399,7 +399,50 @@ export default function ChatPanel() {
         
         // Setze die aktuelle Chat-ID und lade neue Snapshots
         stageHistoryStore.setCurrentChatId(newChat.id);
-        await stageHistoryStore.getSnapshots();
+        const snapshots = await stageHistoryStore.getSnapshots();
+        
+        // Lade den letzten Snapshot für diesen Chat, falls vorhanden
+        if (snapshots.length > 0) {
+          const lastSnapshot = snapshots[0]; // Snapshots sind nach Zeit sortiert, neuester zuerst
+          console.log('Lade letzten Snapshot für Chat:', lastSnapshot.id);
+          
+          // Importiere und verwende useStageStore dynamisch
+          const { useStageStore } = await import('@/lib/store/stageStore');
+          const stageStore = useStageStore.getState();
+          
+          // Wende die gespeicherten Daten aus dem Snapshot auf die Stage an
+          stageStore.setTextDrafts(lastSnapshot.textDrafts || []);
+          stageStore.setImageDrafts(lastSnapshot.imageDrafts || []);
+          
+          // Wenn der Snapshot auch Blog-Post-Daten enthält, diese ebenfalls wiederherstellen
+          if (lastSnapshot.blogPostDraft) {
+            stageStore.setBlogPostDraft(lastSnapshot.blogPostDraft);
+          }
+          
+          console.log('Stage mit Daten aus dem letzten Snapshot initialisiert');
+        } else {
+          // Wenn kein Snapshot existiert, Stage vollständig leeren
+          const { useStageStore } = await import('@/lib/store/stageStore');
+          const stageStore = useStageStore.getState();
+          
+          // Setze Text- und Bildvorschläge zurück
+          stageStore.setTextDrafts([]);
+          stageStore.setImageDrafts([]);
+          // Setze auch den Blogbeitrag-Generator zurück
+          stageStore.setBlogPostDraft(null);
+          
+          // Model und Tab-Auswahl beibehalten
+          const currentModel = stageStore.selectedModel;
+          const currentTextModel = stageStore.selectedTextModel;
+          const currentTab = stageStore.activeImageTab;
+          
+          // Stelle die Modelleinstellungen wieder her
+          stageStore.setSelectedModel(currentModel);
+          stageStore.setSelectedTextModel(currentTextModel);
+          stageStore.setActiveImageTab(currentTab);
+          
+          console.log('Keine Snapshots gefunden - Alle Stage-Daten für diesen Chat wurden gelöscht');
+        }
         
         console.log('StageHistoryStore für neuen Chat aktualisiert');
       } catch (error) {
@@ -487,7 +530,48 @@ export default function ChatPanel() {
         
         // Setze die aktuelle Chat-ID und lade neue Snapshots
         stageHistoryStore.setCurrentChatId(chatId);
-        await stageHistoryStore.getSnapshots();
+        const snapshots = await stageHistoryStore.getSnapshots();
+        
+        // Lade den letzten Snapshot für diesen Chat, falls vorhanden
+        if (snapshots.length > 0) {
+          const lastSnapshot = snapshots[0]; // Snapshots sind nach Zeit sortiert, neuester zuerst
+          console.log('Lade letzten Snapshot für Chat:', lastSnapshot.id);
+          
+          // Importiere und verwende useStageStore dynamisch
+          const { useStageStore } = await import('@/lib/store/stageStore');
+          const stageStore = useStageStore.getState();
+          
+          // Wende die gespeicherten Daten aus dem Snapshot auf die Stage an
+          stageStore.setTextDrafts(lastSnapshot.textDrafts || []);
+          stageStore.setImageDrafts(lastSnapshot.imageDrafts || []);
+          
+          // Wenn der Snapshot auch Blog-Post-Daten enthält, diese ebenfalls wiederherstellen
+          if (lastSnapshot.blogPostDraft) {
+            stageStore.setBlogPostDraft(lastSnapshot.blogPostDraft);
+          }
+          
+          console.log('Stage mit Daten aus dem letzten Snapshot initialisiert');
+        } else {
+          // Wenn kein Snapshot existiert, Stage leeren wie bisher
+          const { useStageStore } = await import('@/lib/store/stageStore');
+          const stageStore = useStageStore.getState();
+          
+          // Speichere aktuelle Einstellungen
+          const currentModel = stageStore.selectedModel;
+          const currentTab = stageStore.activeImageTab;
+          
+          // Setze Text- und Bildvorschläge zurück
+          stageStore.setTextDrafts([]);
+          stageStore.setImageDrafts([]);
+          // Setze auch den Blogbeitrag-Generator zurück
+          stageStore.setBlogPostDraft(null);
+          
+          // Stelle die gespeicherten Einstellungen wieder her
+          stageStore.setSelectedModel(currentModel);
+          stageStore.setActiveImageTab(currentTab);
+          
+          console.log('Keine Snapshots gefunden - Stage wurde für Chat-Wechsel zurückgesetzt');
+        }
         
         console.log('StageHistoryStore für Chat-Wechsel aktualisiert');
       } catch (error) {

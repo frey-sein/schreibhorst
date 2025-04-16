@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { id, textDrafts, imageDrafts, chatId } = data;
+    const { id, textDrafts, imageDrafts, chatId, blogPostDraft } = data;
     
     if (!id || !textDrafts || !imageDrafts) {
       return NextResponse.json(
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     const userId = request.cookies.get('user-id')?.value;
     
     // Snapshot in der Datenbank speichern mit Benutzer- und Chat-ID
-    await saveStageSnapshot(id, textDrafts, imageDrafts, userId, chatId);
+    await saveStageSnapshot(id, textDrafts, imageDrafts, userId, chatId, blogPostDraft);
     
     return NextResponse.json({
       success: true,

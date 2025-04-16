@@ -8,13 +8,14 @@ interface StageSnapshot {
   textDrafts: TextDraft[];
   imageDrafts: ImageDraft[];
   chatId?: string;
+  blogPostDraft?: any;
 }
 
 interface StageHistoryStore {
   snapshots: StageSnapshot[];
   currentSnapshotId: string | null;
   currentChatId: string | null;
-  addSnapshot: (textDrafts: TextDraft[], imageDrafts: ImageDraft[], chatId?: string) => Promise<void>;
+  addSnapshot: (textDrafts: TextDraft[], imageDrafts: ImageDraft[], chatId?: string, blogPostDraft?: any) => Promise<void>;
   restoreSnapshot: (id: string) => Promise<StageSnapshot | null>;
   getSnapshots: () => Promise<StageSnapshot[]>;
   clearSnapshots: () => Promise<void>;
@@ -26,14 +27,15 @@ export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
   currentSnapshotId: null,
   currentChatId: null,
 
-  addSnapshot: async (textDrafts, imageDrafts, chatId) => {
+  addSnapshot: async (textDrafts, imageDrafts, chatId, blogPostDraft) => {
     // Neues Snapshot-Objekt erstellen
     const newSnapshot: StageSnapshot = {
       id: new Date().getTime().toString(),
       timestamp: new Date(),
       textDrafts: JSON.parse(JSON.stringify(textDrafts)),
       imageDrafts: JSON.parse(JSON.stringify(imageDrafts)),
-      chatId: chatId || (get().currentChatId || undefined)
+      chatId: chatId || (get().currentChatId || undefined),
+      blogPostDraft: blogPostDraft ? JSON.parse(JSON.stringify(blogPostDraft)) : undefined
     };
 
     // Im Store aktualisieren
@@ -53,7 +55,8 @@ export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
           id: newSnapshot.id,
           textDrafts: newSnapshot.textDrafts,
           imageDrafts: newSnapshot.imageDrafts,
-          chatId: newSnapshot.chatId
+          chatId: newSnapshot.chatId,
+          blogPostDraft: newSnapshot.blogPostDraft
         })
       });
     } catch (error) {
