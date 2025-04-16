@@ -179,12 +179,19 @@ export class ChatService {
   }
 
   // Methode zum Laden der Nachrichten aus der Datenbank
-  async loadFromDatabase(chatId: string): Promise<ChatMessage[]> {
+  async loadFromDatabase(chatId: string, userId?: string): Promise<ChatMessage[]> {
     try {
       // Stelle sicher, dass der Chat existiert
       if (chatId === 'default') {
+        // Wenn kein spezifischer Chat existiert und kein Benutzer angemeldet ist,
+        // verwende lokalen Speicher statt Datenbank
+        if (!userId) {
+          console.log('Kein Benutzer angemeldet, verwende lokalen Speicher');
+          return [];
+        }
+        
         // Wenn kein spezifischer Chat existiert, erstelle einen neuen
-        const chat = await createChat('Neue Unterhaltung');
+        const chat = await createChat('Neue Unterhaltung', userId);
         if (chat) {
           chatId = chat.id;
         }
@@ -221,23 +228,34 @@ export class ChatService {
   }
 
   // Lade Nachrichten aus lokalem Storage oder Datenbank
-  async loadFromLocalStorage(chatId: string): Promise<ChatMessage[]> {
+  async loadFromLocalStorage(chatId: string, userId?: string): Promise<ChatMessage[]> {
     try {
-      // Versuche zuerst, aus der Datenbank zu laden
-      const dbMessages = await this.loadFromDatabase(chatId);
-      if (dbMessages.length > 0) {
-        return dbMessages;
+      // Wenn Benutzer angemeldet ist, aus Datenbank laden
+      if (userId) {
+        // Versuche zuerst, aus der Datenbank zu laden
+        const dbMessages = await this.loadFromDatabase(chatId, userId);
+        if (dbMessages.length > 0) {
+          return dbMessages;
+        }
       }
       
-      // Fallback zu lokalem Storage wenn Datenbank leer ist
+      // Fallback zu lokalem Storage
       if (typeof window !== 'undefined') {
-        const storedData = localStorage.getItem(`chat_${chatId}`);
+        // Verwende einen benutzerspezifischen Speicherkey, damit Benutzer nicht die Chats anderer Benutzer sehen
+        const storageKey = userId 
+          ? `chat_${userId}_${chatId}` 
+          : `chat_local_${chatId}`;
+          
+        const storedData = localStorage.getItem(storageKey);
+        
         if (storedData) {
           const parsedData = JSON.parse(storedData);
           this.messageHistories[chatId] = parsedData;
           
-          // Speichere die Daten aus dem localStorage auch in der Datenbank
-          await this.saveToDatabase(chatId);
+          // Speichere die Daten aus dem localStorage auch in der Datenbank, falls Benutzer angemeldet ist
+          if (userId) {
+            await this.saveToDatabase(chatId);
+          }
           
           return parsedData;
         }
@@ -251,16 +269,23 @@ export class ChatService {
   }
 
   // Speichere Nachrichten in lokalem Storage und Datenbank
-  async saveToLocalStorage(chatId: string): Promise<boolean> {
+  async saveToLocalStorage(chatId: string, userId?: string): Promise<boolean> {
     try {
       const messages = this.messageHistories[chatId] || [];
       
-      // Speichere in der Datenbank
-      await this.saveToDatabase(chatId);
+      // Wenn Benutzer angemeldet ist, in Datenbank speichern
+      if (userId) {
+        await this.saveToDatabase(chatId);
+      }
       
-      // Speichere auch lokal als Backup
+      // Speichere immer lokal als Backup oder für nicht angemeldete Benutzer
       if (typeof window !== 'undefined') {
-        localStorage.setItem(`chat_${chatId}`, JSON.stringify(messages));
+        // Verwende einen benutzerspezifischen Speicherkey, damit Benutzer nicht die Chats anderer Benutzer sehen
+        const storageKey = userId 
+          ? `chat_${userId}_${chatId}` 
+          : `chat_local_${chatId}`;
+          
+        localStorage.setItem(storageKey, JSON.stringify(messages));
       }
       
       return true;

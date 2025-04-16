@@ -82,6 +82,7 @@ export async function initializeDatabase(): Promise<void> {
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS chats (
         id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36),
         title VARCHAR(255) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

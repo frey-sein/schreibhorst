@@ -9,6 +9,7 @@ export interface DBChat {
   created_at: string;
   updated_at: string;
   last_message_preview?: string;
+  user_id?: string | null;
 }
 
 export interface DBChatMessage {
@@ -35,21 +36,37 @@ export interface DBPromptSuggestion {
 /**
  * Erstellt einen neuen Chat in der Datenbank
  */
-export async function createChat(title: string = 'Neuer Chat'): Promise<DBChat | null> {
+export async function createChat(title: string = 'Neuer Chat', userId?: string): Promise<DBChat | null> {
   const pool = getPool();
   if (!pool) return null;
 
   try {
+    // Überprüfen, ob eine Benutzer-ID vorhanden ist
+    // Da user_id ein Fremdschlüssel ist, müssen wir sicherstellen, dass der Benutzer existiert
+    if (!userId) {
+      console.warn('Versuch, einen Chat ohne Benutzer-ID zu erstellen');
+      // In diesem Fall erstellen wir keinen Chat in der Datenbank
+      // Stattdessen geben wir ein temporäres Chat-Objekt zurück, das nur im In-Memory Storage verwendet wird
+      return {
+        id: uuidv4(),
+        title,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        user_id: null
+      };
+    }
+
     const id = uuidv4();
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     
     await pool.execute(
-      'INSERT INTO chats (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)',
-      [id, title, now, now]
+      'INSERT INTO chats (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      [id, userId, title, now, now]
     );
     
     return {
       id,
+      user_id: userId,
       title,
       created_at: now,
       updated_at: now
@@ -63,13 +80,21 @@ export async function createChat(title: string = 'Neuer Chat'): Promise<DBChat |
 /**
  * Holt alle Chats aus der Datenbank
  */
-export async function getAllChats(): Promise<DBChat[]> {
+export async function getAllChats(userId?: string): Promise<DBChat[]> {
   const pool = getPool();
   if (!pool) return [];
 
   try {
-    const [rows] = await pool.execute('SELECT * FROM chats ORDER BY updated_at DESC');
-    return rows as DBChat[];
+    if (userId) {
+      const [rows] = await pool.execute(
+        'SELECT * FROM chats WHERE user_id = ? ORDER BY updated_at DESC',
+        [userId]
+      );
+      return rows as DBChat[];
+    } else {
+      const [rows] = await pool.execute('SELECT * FROM chats ORDER BY updated_at DESC');
+      return rows as DBChat[];
+    }
   } catch (error) {
     console.error('Fehler beim Abrufen aller Chats:', error);
     return [];

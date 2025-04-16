@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createChat, getAllChats, getChat, updateChat, deleteChat } from '@/lib/db/chatDb';
 
 /**
- * GET /api/chats - Ruft alle Chats ab
+ * GET /api/chats - Holt alle Chats
  */
 export async function GET(req: NextRequest) {
   try {
-    const chats = await getAllChats();
+    // Benutzer-ID aus dem Cookie abrufen
+    const userIdCookie = req.cookies.get('user-id')?.value;
+    
+    // Nur Chats des angemeldeten Benutzers holen
+    const chats = await getAllChats(userIdCookie);
+    
     return NextResponse.json(chats);
   } catch (error) {
     console.error('Fehler beim Abrufen der Chats:', error);
@@ -24,7 +29,18 @@ export async function POST(req: NextRequest) {
   try {
     const { title = 'Neuer Chat' } = await req.json();
     
-    const chat = await createChat(title);
+    // Benutzer-ID aus dem Cookie abrufen
+    const userIdCookie = req.cookies.get('user-id')?.value;
+    
+    // Prüfen, ob ein Benutzer angemeldet ist
+    if (!userIdCookie) {
+      return NextResponse.json(
+        { error: 'Benutzer muss angemeldet sein, um einen Chat zu erstellen' },
+        { status: 401 }
+      );
+    }
+    
+    const chat = await createChat(title, userIdCookie);
     
     if (!chat) {
       return NextResponse.json(

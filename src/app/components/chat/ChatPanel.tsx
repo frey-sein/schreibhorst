@@ -17,6 +17,7 @@ import { ChatAnalyzer } from '@/lib/services/analyzer/chatAnalyzer';
 import { ChatBubbleLeftIcon, PaperClipIcon, PaperAirplaneIcon, SparklesIcon, PlusIcon, ClockIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { DEEP_RESEARCH_MODELS } from '@/lib/constants/chat';
 import ReactMarkdown from 'react-markdown';
+import { useUser } from '@/app/hooks/useUser';
 
 // Erweiterte ChatMessage-Definition mit 'system' als möglichem Sender
 interface ChatMessage {
@@ -206,6 +207,9 @@ export default function ChatPanel() {
   const analyzerService = new ChatAnalyzer();
   const documentService = DocumentService.getInstance();
 
+  // User Hook hinzufügen
+  const { user } = useUser();
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
@@ -220,7 +224,7 @@ export default function ChatPanel() {
       if (currentChatId) {
         try {
           // Versuche Nachrichten aus der Datenbank zu laden
-          const loadedMessages = await chatService.loadFromLocalStorage(currentChatId);
+          const loadedMessages = await chatService.loadFromLocalStorage(currentChatId, user?.id);
           
           if (loadedMessages.length > 0) {
             setMessages(loadedMessages);
@@ -237,7 +241,7 @@ export default function ChatPanel() {
             
             // Speichere die Willkommensnachricht auch in der Datenbank
             chatService.setMessageHistory(currentChatId, [welcomeMessage]);
-            await chatService.saveToLocalStorage(currentChatId);
+            await chatService.saveToLocalStorage(currentChatId, user?.id);
           }
           
           // Scrolle zum Ende des Chats
@@ -250,7 +254,7 @@ export default function ChatPanel() {
     };
     
     loadMessages();
-  }, [currentChatId, chatService, scrollToBottom]);
+  }, [currentChatId, chatService, scrollToBottom, user]);
 
   // Speichern der Nachrichten in der Datenbank bei Änderungen
   useEffect(() => {
@@ -261,7 +265,7 @@ export default function ChatPanel() {
           chatService.setMessageHistory(currentChatId, messages);
           
           // Speichere in der Datenbank
-          await chatService.saveToLocalStorage(currentChatId);
+          await chatService.saveToLocalStorage(currentChatId, user?.id);
           console.log('Nachrichten in der Datenbank aktualisiert');
         } catch (error) {
           console.error('Fehler beim Speichern der Nachrichten:', error);
@@ -272,7 +276,37 @@ export default function ChatPanel() {
     // Speichere Nachrichten, aber nicht zu oft
     const debounceTimer = setTimeout(saveMessages, 1000);
     return () => clearTimeout(debounceTimer);
-  }, [messages, currentChatId, chatService]);
+  }, [messages, currentChatId, chatService, user]);
+
+  // Einmalig alte lokale Daten aufräumen, aber ohne wichtige Daten zu löschen
+  useEffect(() => {
+    const cleanupOldLocalStorage = () => {
+      if (typeof window !== 'undefined') {
+        // Nur die alten Chat-Daten aus dem lokalen Speicher entfernen, die das alte Format haben
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          // Nur die direkt mit chat_ beginnenden Schlüssel entfernen (ohne Benutzer-ID)
+          // und nicht solche, die bereits das neue Format haben (chat_USER-ID_...)
+          if (key && key.startsWith('chat_') && !key.match(/^chat_[0-9a-f-]{36}_/)) {
+            keysToRemove.push(key);
+          }
+        }
+        
+        // Entferne die Schlüssel
+        keysToRemove.forEach(key => {
+          localStorage.removeItem(key);
+          console.log(`Altes Chat-Format entfernt: ${key}`);
+        });
+        
+        if (keysToRemove.length > 0) {
+          console.log('Alte Chat-Daten aufgeräumt');
+        }
+      }
+    };
+    
+    cleanupOldLocalStorage();
+  }, []);
 
   // Funktion zum Erstellen eines neuen Chats
   const handleNewChat = useCallback(async () => {
@@ -286,15 +320,22 @@ export default function ChatPanel() {
         body: JSON.stringify({ title: 'Neuer Chat' }),
       });
       
+      // Behandle verschiedene HTTP-Statusantworten
+      if (response.status === 401) {
+        alert('Sie müssen angemeldet sein, um einen neuen Chat zu erstellen.');
+        return;
+      }
+      
       if (!response.ok) {
-        throw new Error(`Fehler beim Erstellen des Chats: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(`Fehler beim Erstellen des Chats: ${errorData.error || response.status}`);
       }
       
       const newChat = await response.json();
       
       // Speichere den aktuellen Chat vor dem Wechsel
       if (currentChatId !== 'default') {
-        chatService.saveToLocalStorage(currentChatId);
+        chatService.saveToLocalStorage(currentChatId, user?.id);
       }
       
       // Setze die neue Chat-ID
@@ -311,7 +352,7 @@ export default function ChatPanel() {
       
       // Initialisiere den neuen Chat im Service
       chatService.setMessageHistory(newChat.id, [welcomeMessage]);
-      await chatService.saveToLocalStorage(newChat.id);
+      await chatService.saveToLocalStorage(newChat.id, user?.id);
       
       // Schließe den Chatverlauf-Dialog
       setIsHistoryOpen(false);
@@ -355,21 +396,21 @@ export default function ChatPanel() {
     } catch (error) {
       console.error('Fehler beim Erstellen eines neuen Chats:', error);
     }
-  }, [currentChatId, chatService]);
+  }, [currentChatId, chatService, user]);
 
   // Wechsle zu einem bestehenden Chat
   const handleSelectChat = useCallback(async (chatId: string) => {
     try {
       // Speichere den aktuellen Chat vor dem Wechsel
       if (currentChatId !== 'default') {
-        await chatService.saveToLocalStorage(currentChatId);
+        await chatService.saveToLocalStorage(currentChatId, user?.id);
       }
       
       // Setze den neuen Chat
       setCurrentChatId(chatId);
       
       // Lade die Nachrichten für den neuen Chat
-      const loadedMessages = await chatService.loadFromLocalStorage(chatId);
+      const loadedMessages = await chatService.loadFromLocalStorage(chatId, user?.id);
       
       // Aktualisiere die Nachrichten im UI
       if (loadedMessages.length > 0) {
@@ -384,7 +425,7 @@ export default function ChatPanel() {
         };
         setMessages([welcomeMessage]);
         chatService.setMessageHistory(chatId, [welcomeMessage]);
-        await chatService.saveToLocalStorage(chatId);
+        await chatService.saveToLocalStorage(chatId, user?.id);
       }
       
       // Schließe den Chatverlauf-Dialog
@@ -429,7 +470,7 @@ export default function ChatPanel() {
     } catch (error) {
       console.error('Fehler beim Wechseln zu anderem Chat:', error);
     }
-  }, [currentChatId, chatService]);
+  }, [currentChatId, chatService, user]);
 
   // Automatischer Fokus auf das Eingabefeld nach einer Antwort
   useEffect(() => {

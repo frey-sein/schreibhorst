@@ -5,6 +5,7 @@ import { DBChat } from '@/lib/db/chatDb';
 import { PlusIcon, TrashIcon, PencilIcon, ChevronRightIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { useUser } from '@/app/hooks/useUser';
 
 interface ChatListProps {
   onSelectChat: (chatId: string) => void;
@@ -19,8 +20,9 @@ export default function ChatList({ onSelectChat, onNewChat, currentChatId, onClo
   const [error, setError] = useState<string | null>(null);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const { user } = useUser();
 
-  // Lade Chats beim Mounten der Komponente
+  // Lade Chats beim Mounten der Komponente oder wenn sich der Benutzer ändert
   useEffect(() => {
     const fetchChats = async () => {
       setIsLoading(true);
@@ -39,8 +41,10 @@ export default function ChatList({ onSelectChat, onNewChat, currentChatId, onClo
       }
     };
 
-    fetchChats();
-  }, []);
+    if (user) {
+      fetchChats();
+    }
+  }, [user]);
 
   // Funktion zum Löschen eines Chats
   const handleDeleteChat = async (chatId: string, event: React.MouseEvent) => {
