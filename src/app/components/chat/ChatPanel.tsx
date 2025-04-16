@@ -233,7 +233,7 @@ export default function ChatPanel() {
             // Wenn keine Nachrichten gefunden wurden, erstelle eine Willkommensnachricht
             const welcomeMessage: ChatMessage = {
               id: 'welcome',
-              text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
+              text: 'Hallo! Ich bin dein KI-Assistent. Wie kann ich dir helfen?',
               sender: 'assistant',
               timestamp: new Date().toISOString()
             };
@@ -344,7 +344,7 @@ export default function ChatPanel() {
       // Initialisiere mit Willkommensnachricht
       const welcomeMessage: ChatMessage = {
         id: 'welcome',
-        text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
+        text: 'Hallo! Ich bin dein KI-Assistent. Wie kann ich dir helfen?',
         sender: 'assistant',
         timestamp: new Date().toISOString()
       };
@@ -433,7 +433,7 @@ export default function ChatPanel() {
         // Erstelle Willkommensnachricht wenn keine Nachrichten vorhanden
         const welcomeMessage: ChatMessage = {
           id: 'welcome',
-          text: 'Hallo! Ich bin dein KI-Assistent. Ich antworte immer auf Deutsch. Wie kann ich dir helfen?',
+          text: 'Hallo! Ich bin dein KI-Assistent. Wie kann ich dir helfen?',
           sender: 'assistant',
           timestamp: new Date().toISOString()
         };
