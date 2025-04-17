@@ -5,6 +5,7 @@ import { ChatService } from '@/lib/services/chat';
 import { usePromptStore } from '@/lib/store/promptStore';
 import { AnalysisResult, ChatAnalyzer } from '@/lib/services/analyzer/chatAnalyzer';
 import { useChatHistoryStore, type Message as HistoryMessage, type ChatHistory } from '@/lib/store/chatHistoryStore';
+import { useActiveChatStore } from '@/lib/store/activeChatStore';
 import ChatList from './ChatList';
 import { v4 as uuidv4 } from 'uuid';
 import { DocumentService } from '@/lib/services/document/documentService';
@@ -282,7 +283,19 @@ export default function ChatPanel() {
   const [selectedModel, setSelectedModel] = useState<string>(process.env.NEXT_PUBLIC_DEFAULT_MODEL || 'openai/gpt-4-turbo-preview');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [currentChatId, setCurrentChatId] = useState<string>('default');
+  
+  // Verwende den ActiveChatStore anstelle des einfachen States
+  const activeChatStore = useActiveChatStore();
+  const [currentChatId, setCurrentChatIdState] = useState<string>(
+    activeChatStore.getLastActiveChatId()
+  );
+  
+  // Funktion zum Setzen der Chat-ID, die sowohl den lokalen State als auch den persistierten Store aktualisiert
+  const setCurrentChatId = useCallback((chatId: string) => {
+    setCurrentChatIdState(chatId);
+    activeChatStore.setCurrentChatId(chatId);
+  }, [activeChatStore]);
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -436,7 +449,7 @@ export default function ChatPanel() {
         chatService.saveToLocalStorage(currentChatId, user?.id);
       }
       
-      // Setze die neue Chat-ID
+      // Setze die neue Chat-ID (wird jetzt auch im persistenten Store gespeichert)
       setCurrentChatId(newChat.id);
       
       // Initialisiere mit Willkommensnachricht
@@ -551,7 +564,7 @@ export default function ChatPanel() {
     } catch (error) {
       console.error('Fehler beim Erstellen eines neuen Chats:', error);
     }
-  }, [currentChatId, chatService, user]);
+  }, [currentChatId, chatService, user, setCurrentChatId]);
 
   // Wechsle zu einem bestehenden Chat
   const handleSelectChat = useCallback(async (chatId: string) => {
@@ -561,7 +574,7 @@ export default function ChatPanel() {
         await chatService.saveToLocalStorage(currentChatId, user?.id);
       }
       
-      // Setze den neuen Chat
+      // Setze den neuen Chat (wird jetzt auch im persistenten Store gespeichert)
       setCurrentChatId(chatId);
       
       // Lade die Nachrichten für den neuen Chat
@@ -680,7 +693,7 @@ export default function ChatPanel() {
     } catch (error) {
       console.error('Fehler beim Wechseln zu anderem Chat:', error);
     }
-  }, [currentChatId, chatService, user]);
+  }, [chatService, user, setCurrentChatId]);
 
   // Automatischer Fokus auf das Eingabefeld nach einer Antwort
   useEffect(() => {
