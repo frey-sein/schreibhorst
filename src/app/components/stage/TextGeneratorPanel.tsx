@@ -94,11 +94,20 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
     // Wenn bereits ein Stil ausgewählt war, dessen Inhalt aus dem Prompt entfernen
     let cleanedPrompt = prompt;
     if (selectedStyle) {
-      // Entferne den alten Schreibstil-Prompt + Leerzeilen am Anfang
-      cleanedPrompt = prompt.replace(selectedStyle.prompt, '').trimStart();
-      // Entferne zusätzliche Leerzeilen am Anfang
-      while (cleanedPrompt.startsWith('\n')) {
-        cleanedPrompt = cleanedPrompt.substring(1).trimStart();
+      // Entferne den gesamten Schreibstil-Abschnitt
+      const styleMarker = "SCHREIBSTIL:";
+      const contentMarker = "INHALT:";
+      
+      if (prompt.includes(styleMarker) && prompt.includes(contentMarker)) {
+        const contentStartIdx = prompt.indexOf(contentMarker);
+        cleanedPrompt = prompt.substring(contentStartIdx + contentMarker.length).trimStart();
+      } else {
+        // Fallback: Direkten Stil-Text entfernen wenn keine Marker gefunden
+        cleanedPrompt = prompt.replace(selectedStyle.prompt, '').trimStart();
+        // Entferne zusätzliche Leerzeilen am Anfang
+        while (cleanedPrompt.startsWith('\n')) {
+          cleanedPrompt = cleanedPrompt.substring(1).trimStart();
+        }
       }
     }
     
@@ -106,14 +115,28 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
     setSelectedStyle(stil);
     setStyleDropdownOpen(false);
     
-    // Den Schreibstil am Anfang des Prompts hinzufügen
-    const stylePart = `${stil.prompt}\n\n`;
-    setPrompt(stylePart + cleanedPrompt);
+    // Den Schreibstil mit klaren Markierungen am Anfang des Prompts hinzufügen
+    const formattedPrompt = `SCHREIBSTIL:\n${stil.prompt}\n\nINHALT:\n${cleanedPrompt}`;
+    setPrompt(formattedPrompt);
   };
 
   // Funktion zum Zurücksetzen des ausgewählten Schreibstils
   const resetSelectedStyle = () => {
+    // Entferne Schreibstil-Markierung aus dem Prompt
+    let cleanedPrompt = prompt;
+    const styleMarker = "SCHREIBSTIL:";
+    const contentMarker = "INHALT:";
+    
+    if (prompt.includes(styleMarker) && prompt.includes(contentMarker)) {
+      const contentStartIdx = prompt.indexOf(contentMarker);
+      cleanedPrompt = prompt.substring(contentStartIdx + contentMarker.length).trimStart();
+    } else if (selectedStyle) {
+      // Fallback: Direkten Stil-Text entfernen
+      cleanedPrompt = prompt.replace(selectedStyle.prompt, '').trimStart();
+    }
+    
     setSelectedStyle(null);
+    setPrompt(cleanedPrompt);
   };
 
   const handleGenerateText = async () => {
@@ -125,10 +148,25 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
     setIsLoading(true);
     setError(null);
 
-    // Erweitere den Prompt mit dem ausgewählten Schreibstil, falls vorhanden
+    // Stelle sicher, dass der Prompt korrekt strukturiert ist
     let enhancedPrompt = prompt;
-    if (selectedStyle && !prompt.includes(selectedStyle.prompt)) {
-      enhancedPrompt = `${prompt}\n\nVerwende folgenden Schreibstil: ${selectedStyle.prompt}`;
+    
+    // Wenn ein Stil ausgewählt ist, aber die Markierungen fehlen, strukturiere den Prompt
+    if (selectedStyle && 
+        (!prompt.includes("SCHREIBSTIL:") || !prompt.includes("INHALT:"))) {
+      
+      // Extrahiere den Inhalt (alles ohne den Stil)
+      let content = prompt;
+      if (prompt.includes(selectedStyle.prompt)) {
+        content = prompt.replace(selectedStyle.prompt, '').trim();
+        // Entferne überschüssige Leerzeilen
+        while (content.startsWith('\n')) {
+          content = content.substring(1).trim();
+        }
+      }
+      
+      // Formatiere den Prompt neu
+      enhancedPrompt = `SCHREIBSTIL:\n${selectedStyle.prompt}\n\nINHALT:\n${content}`;
     }
 
     try {
