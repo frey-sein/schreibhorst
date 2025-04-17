@@ -32,7 +32,7 @@ export default function StagePanel() {
   const [currentTextId, setCurrentTextId] = useState<number | null>(null);
   const [editingPrompt, setEditingPrompt] = useState("");
   const [editingItemType, setEditingItemType] = useState<'text' | 'image'>('image');
-  const { addSnapshot, getSnapshots, restoreSnapshot, clearSnapshots } = useStageHistoryStore();
+  const { addSnapshot, getSnapshots, restoreSnapshot, clearSnapshots, deleteSnapshot } = useStageHistoryStore();
   const [snapshots, setSnapshots] = useState<Array<{
     id: string;
     timestamp: Date;
@@ -616,6 +616,23 @@ export default function StagePanel() {
     loadInitialImages();
   }, []);
 
+  // Funktion zum Löschen eines einzelnen Snapshots
+  const handleDeleteSnapshot = async (id: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Verhindert das Auslösen des übergeordneten onClick-Events
+    
+    try {
+      if (window.confirm('Möchten Sie diesen Eintrag wirklich löschen?')) {
+        await deleteSnapshot(id);
+        // Aktualisiere die Snapshot-Liste
+        const updatedSnapshots = await getSnapshots();
+        setSnapshots(updatedSnapshots);
+      }
+    } catch (error) {
+      console.error('Fehler beim Löschen des Snapshots:', error);
+      alert('Fehler beim Löschen des Snapshots. Bitte versuchen Sie es erneut.');
+    }
+  };
+
   return (
     <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0]">
       {/* Header */}
@@ -1068,9 +1085,18 @@ export default function StagePanel() {
                           </div>
                         )}
                       </div>
-                      <button className="px-3 py-1.5 bg-gray-900 text-white text-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-800 ml-4">
-                        Wiederherstellen
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => handleDeleteSnapshot(snapshot.id, e)}
+                          className="p-1.5 bg-white hover:bg-red-50 rounded-full transition-colors border border-gray-200 opacity-0 group-hover:opacity-100"
+                          title="Snapshot löschen"
+                        >
+                          <TrashIcon className="h-4 w-4 text-red-500" />
+                        </button>
+                        <button className="px-3 py-1.5 bg-gray-900 text-white text-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-800 ml-4">
+                          Wiederherstellen
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}

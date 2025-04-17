@@ -1,16 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveStageSnapshot, getStageSnapshots, clearStageSnapshots } from '@/lib/services/imageStorage';
+import { saveStageSnapshot, getStageSnapshots, clearStageSnapshots, deleteStageSnapshot } from '@/lib/services/imageStorage';
 
+// GET: Snapshots abrufen
 export async function GET(request: NextRequest) {
   try {
     // Benutzer-ID aus dem Cookie abrufen
     const userId = request.cookies.get('user-id')?.value;
     
+    // Snapshot-ID aus der Anfrage abrufen
+    const id = request.nextUrl.searchParams.get('id');
+    
     // Chat-ID aus der Anfrage abrufen
     const chatId = request.nextUrl.searchParams.get('chatId') || undefined;
     
+    // Wenn eine spezifische ID angefordert wird
+    if (id) {
+      const snapshot = await getStageSnapshots(userId, chatId, id);
+      if (!snapshot || snapshot.length === 0) {
+        return NextResponse.json(
+          { error: 'Snapshot nicht gefunden' },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json({ snapshot: snapshot[0] });
+    }
+    
     // Snapshots aus der Datenbank abrufen, gefiltert nach Benutzer und/oder Chat
     const snapshots = await getStageSnapshots(userId, chatId);
+    
     return NextResponse.json({ snapshots });
   } catch (error) {
     console.error('Fehler beim Abrufen der Stage-Snapshots:', error);
@@ -21,6 +38,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST: Snapshot erstellen
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
@@ -52,10 +70,14 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// DELETE: Snapshot(s) löschen
 export async function DELETE(request: NextRequest) {
   try {
     // Benutzer-ID aus dem Cookie abrufen
     const userId = request.cookies.get('user-id')?.value;
+    
+    // Snapshot-ID aus der Anfrage abrufen
+    const id = request.nextUrl.searchParams.get('id');
     
     if (!userId) {
       return NextResponse.json(
@@ -64,12 +86,21 @@ export async function DELETE(request: NextRequest) {
       );
     }
     
-    // Nur die Snapshots des aktuellen Benutzers löschen
-    await clearStageSnapshots(userId);
-    
-    return NextResponse.json({
-      success: true
-    });
+    if (id) {
+      // Einzelnen Snapshot löschen
+      await deleteStageSnapshot(id, userId);
+      return NextResponse.json({
+        success: true,
+        message: 'Snapshot gelöscht'
+      });
+    } else {
+      // Alle Snapshots des aktuellen Benutzers löschen
+      await clearStageSnapshots(userId);
+      return NextResponse.json({
+        success: true,
+        message: 'Alle Snapshots gelöscht'
+      });
+    }
   } catch (error) {
     console.error('Fehler beim Löschen der Stage-Snapshots:', error);
     return NextResponse.json(

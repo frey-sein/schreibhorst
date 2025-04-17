@@ -33,3 +33,79 @@ body {
     @apply w-full px-4 py-2 text-gray-900 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all placeholder-gray-500;
   }
 }
+
+/* Markdown-Formatierung für Chat-Nachrichten */
+.message-content {
+  white-space: pre-wrap;
+  font-size: 0.875rem;
+}
+
+/* Behebt spezifisch das Problem mit nummerierten Listen */
+.message-content ol,
+.custom-ol {
+  list-style-position: outside !important;
+  list-style-type: decimal !important;
+  margin: 0.5rem 0 1rem !important;
+  padding-left: 2.5rem !important;
+  display: block !important;
+}
+
+.message-content ul,
+.custom-ul {
+  list-style-position: outside !important;
+  list-style-type: disc !important;
+  padding-left: 2rem !important;
+  margin: 0.5rem 0 1rem !important;
+  display: block !important;
+}
+
+.message-content li {
+  display: list-item !important;
+  margin-bottom: 1rem !important;
+  padding-left: 0.5rem !important;
+  line-height: 1.4 !important;
+}
+
+/* Letztes Listenelement braucht keinen Abstand nach unten */
+.message-content li:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Besondere Behandlung für Absätze in Listen */
+.message-content li p {
+  display: inline-block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.message-content p {
+  margin-bottom: 0.5rem;
+  margin-top: 0;
+}
+
+/* Fix für Überschriften in nummerierten Listen */
+.message-content li strong {
+  display: inline-block !important;
+}
+
+/* Zusätzliche Stilregeln für direkt generierten HTML-Content */
+.message-content ol + p,
+.message-content ul + p,
+.custom-ol + p,
+.custom-ul + p {
+  margin-top: 1rem !important;
+}
+
+.message-content p + ol,
+.message-content p + ul,
+p + .custom-ol,
+p + .custom-ul {
+  margin-top: 0.5rem !important;
+}
+
+/* Entfernt unerwünschte Zeilenumbrüche innerhalb von Listen */
+.message-content br,
+.custom-ol br,
+.custom-ul br {
+  display: none !important;
+}

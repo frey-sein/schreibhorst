@@ -2,9 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef, ReactNode, useMemo } from 'react';
 import { ChatService } from '@/lib/services/chat';
-import { AnalyzerService } from '@/lib/services/analyzer';
 import { usePromptStore } from '@/lib/store/promptStore';
-import { AnalysisResult } from '@/lib/services/analyzer/chatAnalyzer';
+import { AnalysisResult, ChatAnalyzer } from '@/lib/services/analyzer/chatAnalyzer';
 import { useChatHistoryStore, type Message as HistoryMessage, type ChatHistory } from '@/lib/store/chatHistoryStore';
 import ChatList from './ChatList';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,11 +12,11 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 import { Document, Paragraph } from 'docx';
-import { ChatAnalyzer } from '@/lib/services/analyzer/chatAnalyzer';
 import { ChatBubbleLeftIcon, PaperClipIcon, PaperAirplaneIcon, SparklesIcon, PlusIcon, ClockIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { DEEP_RESEARCH_MODELS } from '@/lib/constants/chat';
 import ReactMarkdown from 'react-markdown';
 import { useUser } from '@/app/hooks/useUser';
+import DOMPurify from 'dompurify';
 
 // Erweiterte ChatMessage-Definition mit 'system' als möglichem Sender
 interface ChatMessage {
@@ -157,14 +156,111 @@ const components = {
   h1: (props: any) => <h1 className="text-2xl font-bold mb-4 mt-6" {...props} />,
   h2: (props: any) => <h2 className="text-xl font-bold mb-3 mt-5" {...props} />,
   h3: (props: any) => <h3 className="text-lg font-bold mb-2 mt-4" {...props} />,
-  p: (props: any) => <p className="mb-4" {...props} />,
-  ul: (props: any) => <ul className="list-disc pl-5 mb-4 space-y-1" {...props} />,
-  ol: (props: any) => <ol className="list-decimal pl-5 mb-4 space-y-1" {...props} />,
+  p: (props: any) => <p className="mb-2" {...props} />,
+  ul: (props: any) => <ul className="list-disc pl-5 mb-3" {...props} />,
+  ol: (props: any) => <ol className="list-decimal pl-5 mb-3" {...props} />,
   li: (props: any) => <li className="mb-1" {...props} />,
   blockquote: (props: any) => <blockquote className="border-l-4 border-gray-200 pl-4 italic my-4 text-gray-600" {...props} />,
   code: (props: any) => <code className="bg-gray-100 rounded px-1 py-0.5 font-mono text-sm" {...props} />,
   pre: (props: any) => <pre className="bg-gray-100 rounded p-4 overflow-x-auto my-4 font-mono text-sm" {...props} />,
 };
+
+// Neue verbesserte Funktion zur Vorverarbeitung des Texts
+function createMarkdownHTML(text: string): string {
+  // Bereite den Text vor
+  const cleanedText = text.replace(/\n{3,}/g, '\n\n');
+  
+  // Verarbeite zuerst die Inline-Formatierungen, bevor wir die Listen verarbeiten
+  let processedText = cleanedText
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')              // Italic
+    .replace(/`(.*?)`/g, '<code>$1</code>');           // Code
+  
+  // Jetzt die Listen verarbeiten
+  let lines = processedText.split('\n');
+  let inList = false;
+  let listType = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const trimmedLine = lines[i].trim();
+    
+    // Nummerierte Listen erkennen (mit oder ohne Punkt)
+    const numberedListMatch = trimmedLine.match(/^(\d+)\.?\s+(.*)/);
+    if (numberedListMatch) {
+      if (!inList || listType !== 'ol') {
+        // Beginne eine neue Liste
+        lines[i] = '<ol class="custom-ol">' + lines[i];
+        inList = true;
+        listType = 'ol';
+      }
+      
+      // Formatiere den Listeneintrag und behalte Formatierungen bei
+      lines[i] = lines[i].replace(/^(\d+)\.?\s+(.*)/, '<li>$2</li>');
+    } 
+    // Aufzählungslisten erkennen
+    else if (/^[\*\-]\s+/.test(trimmedLine)) {
+      if (!inList || listType !== 'ul') {
+        // Beginne eine neue Liste
+        lines[i] = '<ul class="custom-ul">' + lines[i];
+        inList = true;
+        listType = 'ul';
+      }
+      
+      // Formatiere den Listeneintrag und behalte Formatierungen bei
+      lines[i] = lines[i].replace(/^[\*\-]\s+(.*)/, '<li>$1</li>');
+    }
+    // Wenn wir in einer Liste sind und eine leere Zeile oder eine Zeile ohne Listenelement finden
+    else if (inList && (trimmedLine === '' || !(/^[\*\-\d]/.test(trimmedLine)))) {
+      // Ende der Liste
+      lines[i-1] += (listType === 'ol') ? '</ol>' : '</ul>';
+      inList = false;
+      listType = '';
+    }
+  }
+  
+  // Schließe offene Listen am Ende
+  if (inList) {
+    lines.push((listType === 'ol') ? '</ol>' : '</ul>');
+  }
+  
+  // Konvertiere Absätze - weniger Abstände
+  let html = '';
+  let inParagraph = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    // Überspringe Zeilen, die bereits als HTML formatiert sind
+    if (lines[i].startsWith('<ol') || lines[i].startsWith('<ul') || 
+        lines[i].startsWith('<li>') || lines[i].includes('</ol>') || lines[i].includes('</ul>')) {
+      if (inParagraph) {
+        html += '</p>';
+        inParagraph = false;
+      }
+      html += lines[i];
+    }
+    // Leere Zeile beendet einen Absatz
+    else if (lines[i].trim() === '') {
+      if (inParagraph) {
+        html += '</p>';
+        inParagraph = false;
+      }
+    }
+    // Normale Zeile
+    else {
+      if (!inParagraph) {
+        html += '<p>';
+        inParagraph = true;
+      }
+      html += lines[i] + (i < lines.length - 1 && lines[i+1].trim() !== '' && !inList ? ' ' : '');
+    }
+  }
+  
+  // Schließe offenen Absatz am Ende
+  if (inParagraph) {
+    html += '</p>';
+  }
+  
+  return html;
+}
 
 /**
  * Chat-Panel-Komponente
@@ -197,6 +293,8 @@ export default function ChatPanel() {
   const [deepResearchEnabled, setDeepResearchEnabled] = useState<boolean>(false);
   const [isAborted, setIsAborted] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [analyzeStep, setAnalyzeStep] = useState<string>('');
 
   // Get prompt store functions
   const { addPrompt } = usePromptStore();
@@ -204,7 +302,7 @@ export default function ChatPanel() {
 
   // Initialisiere Services
   const chatService = useMemo(() => ChatService.getInstance(), []);
-  const analyzerService = new ChatAnalyzer();
+  const analyzerService = useMemo(() => new ChatAnalyzer(), []);
   const documentService = DocumentService.getInstance();
 
   // User Hook hinzufügen
@@ -1350,7 +1448,7 @@ export default function ChatPanel() {
     }
   };
 
-  // Füge die analyzeChat-Funktion wieder hinzu
+  // Die analyzeChat-Funktion aktualisieren
   const analyzeChat = async () => {
     if (messages.length < 3) {
       const errorMessage: ChatMessage = {
@@ -1363,13 +1461,26 @@ export default function ChatPanel() {
       return;
     }
     
+    // Setze Analyse-Status auf aktiv
+    setIsAnalyzing(true);
+    setAnalyzeStep('Starte Analyse der Konversation...');
+    
     try {
+      setAnalyzeStep('Extrahiere Textelemente aus dem Gespräch...');
       const analyzerMessages = messages.map(msg => ({
         id: parseInt(msg.id) || Date.now(),
         text: msg.text,
         sender: msg.sender === 'user' ? 'user' : 'ai' as 'user' | 'ai',
         timestamp: new Date(msg.timestamp)
       }));
+      
+      // Kurze Verzögerung für bessere UX
+      await new Promise(resolve => setTimeout(resolve, 700));
+      setAnalyzeStep('KI-gestützte Themenanalyse läuft...');
+      
+      // Weitere Verzögerung für bessere UX
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      setAnalyzeStep('Generiere kreative Vorschläge...');
       
       const results = await analyzerService.analyzeConversation(analyzerMessages);
       
@@ -1384,13 +1495,20 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
           timestamp: new Date().toISOString()
         };
         setMessages(prev => [...prev, feedbackMessage]);
+        setIsAnalyzing(false); // Füge hier einen expliziten Reset hinzu
+        setAnalyzeStep('');
         return;
       }
 
+      setAnalyzeStep('Formatiere Ergebnisse...');
+      
       // Gruppiere Ergebnisse nach Typ
       const textPrompts = results.filter(result => result.type === 'text');
       const imagePrompts = results.filter(result => result.type === 'image');
 
+      // Kurze Verzögerung für bessere UX
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Erzeuge eine JSX-Komponente als String für die Chat-Nachricht
       const analysisMessage: ChatMessage = {
         id: Date.now().toString(),
@@ -1407,6 +1525,9 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
 
       setMessages(prev => [...prev, analysisMessage]);
       setSelectedSuggestions([]);
+
+      // Warte kurz, bevor die Anzeige geschlossen wird
+      await new Promise(resolve => setTimeout(resolve, 300));
     } catch (error) {
       console.error('Analysis error:', error);
       const errorMessage: ChatMessage = {
@@ -1416,6 +1537,10 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      // Stelle sicher, dass dieser Block IMMER ausgeführt wird
+      setIsAnalyzing(false);
+      setAnalyzeStep('');
     }
   };
 
@@ -1528,9 +1653,11 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
                         }}
                       />
                     ) : (
-                      <ReactMarkdown components={components}>
-                        {message.text}
-                      </ReactMarkdown>
+                      <div 
+                        dangerouslySetInnerHTML={{ 
+                          __html: DOMPurify.sanitize(createMarkdownHTML(message.text)) 
+                        }}
+                      />
                     )}
                   </div>
                 </div>
@@ -1645,14 +1772,23 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
             </form>
             <button
               onClick={analyzeChat}
-              className={`px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100 flex items-center space-x-2 ${
+              className={`px-5 py-2.5 ${isAnalyzing ? 'bg-gray-900 text-white' : 'bg-white text-gray-700'} rounded-full hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100 flex items-center space-x-2 ${
                 messages.length < 3 ? 'opacity-50 cursor-not-allowed' : ''
               }`}
-              disabled={messages.length < 3}
+              disabled={messages.length < 3 || isAnalyzing}
               title={messages.length < 3 ? 'Mindestens 3 Nachrichten erforderlich' : 'Chat analysieren'}
             >
-              <SparklesIcon className="w-4 h-4" />
-              <span>Analysieren{messages.length < 3 ? ` (${messages.length}/3)` : ''}</span>
+              {isAnalyzing ? (
+                <>
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                  <span>Analysiere...</span>
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="w-4 h-4" />
+                  <span>Analysieren{messages.length < 3 ? ` (${messages.length}/3)` : ''}</span>
+                </>
+              )}
             </button>
             {selectedSuggestions.length > 0 && (
               <button
@@ -1666,6 +1802,25 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
           </div>
         </div>
       </div>
+
+      {/* Füge die Analyse-Fortschrittsanzeige vor dem Ende der Content Area hinzu */}
+      {/* Fortschrittsanzeige der Analyse */}
+      {isAnalyzing && (
+        <div className="fixed bottom-[80px] left-1/4 transform -translate-x-1/2 z-50">
+          <div className="bg-white rounded-xl shadow-lg p-4 border border-gray-200 flex flex-col items-center space-y-3 w-64">
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin h-5 w-5 border-3 border-gray-900 border-t-transparent rounded-full"></div>
+              <span className="font-medium text-gray-900">Analyzer arbeitet...</span>
+            </div>
+            
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-gray-900 animate-pulse rounded-full" style={{width: '70%'}}></div>
+            </div>
+            
+            <div className="text-xs text-gray-600 text-center">{analyzeStep}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

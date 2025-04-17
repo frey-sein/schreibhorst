@@ -5,6 +5,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import mysql from 'mysql2/promise';
 import { getPool } from '../db/mysql';
+import { PrismaClient } from '@prisma/client';
 
 // Definition des Upload-Verzeichnisses
 const UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/images');
@@ -34,6 +35,9 @@ try {
 } catch (error) {
   console.error('Fehler beim Initialisieren der MySQL-Verbindung:', error);
 }
+
+// Importiere prisma, falls noch nicht vorhanden
+const prisma = new PrismaClient();
 
 // Interface für einen Bild-Entwurf (noch nicht gespeichert)
 export interface ImageDraft {
@@ -617,5 +621,42 @@ export async function clearStageSnapshots(userId?: string): Promise<void> {
     }
   } catch (error) {
     console.error('Fehler beim Löschen der Snapshots aus dem Dateisystem:', error);
+  }
+}
+
+// Neue Funktion, um einen einzelnen Snapshot zu löschen
+export async function deleteStageSnapshot(id: string, userId?: string): Promise<void> {
+  try {
+    console.log(`Lösche Snapshot mit ID ${id} für Benutzer ${userId || 'anonym'}`);
+    
+    // Wenn MySQL verfügbar ist, lösche aus der Datenbank
+    if (dbPool) {
+      const connection = await dbPool.getConnection();
+      try {
+        let query = 'DELETE FROM stage_snapshots WHERE id = ?';
+        const params = [id];
+        
+        // Wenn eine userId angegeben ist, füge sie zur Bedingung hinzu
+        if (userId) {
+          query += ' AND user_id = ?';
+          params.push(userId);
+        }
+        
+        await connection.execute(query, params);
+        console.log(`Snapshot ${id} erfolgreich aus der Datenbank gelöscht`);
+      } catch (error) {
+        console.error(`Fehler beim Löschen des Snapshots ${id} aus der Datenbank:`, error);
+        throw error;
+      } finally {
+        connection.release();
+      }
+    }
+    
+    // Lösche auch eventuell vorhandene Dateien oder andere Ressourcen
+    
+    console.log(`Snapshot ${id} erfolgreich gelöscht`);
+  } catch (error) {
+    console.error(`Fehler beim Löschen des Snapshots ${id}:`, error);
+    throw error;
   }
 } 
