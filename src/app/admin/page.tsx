@@ -33,7 +33,7 @@ export default function AdminPage() {
   const [selectedCategory, setSelectedCategory] = useState<'male' | 'female'>('male');
   const [isResetting, setIsResetting] = useState(false);
   const [isUploadingAvatars, setIsUploadingAvatars] = useState(false);
-  const [activeTab, setActiveTab] = useState<'avatare' | 'dateisystem' | 'wissensdatenbank' | 'datenbank'>('avatare');
+  const [activeTab, setActiveTab] = useState<'avatare' | 'dateisystem' | 'wissensdatenbank' | 'datenbank' | 'system'>('avatare');
 
   useEffect(() => {
     setMounted(true);
@@ -168,6 +168,27 @@ export default function AdminPage() {
     }
   };
 
+  // Funktion zum Zurücksetzen aller Bilder und Snapshots (neue Funktion)
+  const resetAllImagesAndSnapshots = async () => {
+    if (window.confirm('⚠️ WARNUNG: Sind Sie sicher, dass Sie ALLE Bilder und Snapshots für ALLE Benutzer löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden!')) {
+      try {
+        setIsResetting(true);
+        const response = await fetch('/api/admin/reset-everything');
+        const data = await response.json();
+        
+        setIsResetting(false);
+        alert(`Erfolg: ${data.message}\n\nErgebnisse:\nSnapshots DB: ${data.results.snapshots.db.count}\nSnapshots Dateien: ${data.results.snapshots.files.count}\nBilder DB: ${data.results.images.db.count}\nBilder Dateien: ${data.results.images.files.count}`);
+        
+        // Seite neu laden, um alle Änderungen zu sehen
+        window.location.reload();
+      } catch (error) {
+        setIsResetting(false);
+        console.error('Fehler beim Zurücksetzen:', error);
+        alert('Fehler beim Zurücksetzen aller Daten. Bitte überprüfen Sie die Konsole für weitere Details.');
+      }
+    }
+  };
+
   // Nicht rendern, wenn die Komponente noch nicht geladen ist oder der Benutzer kein Admin ist
   if (isLoading || !mounted || !isAdmin) {
     return null;
@@ -226,6 +247,16 @@ export default function AdminPage() {
                 }`}
               >
                 Datenbank
+              </button>
+              <button
+                onClick={() => setActiveTab('system')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'system'
+                    ? 'bg-[#2c2c2c] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                System
               </button>
             </div>
           </div>
@@ -365,6 +396,50 @@ export default function AdminPage() {
                     </svg>
                     Datenbank-Administration öffnen
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* System-Verwaltung */}
+            {activeTab === 'system' && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="p-4 md:p-6 space-y-6">
+                  <h3 className="text-lg font-medium text-gray-900">Systemverwaltung</h3>
+                  <p className="text-sm text-gray-600">
+                    Hier können Sie grundlegende Systemfunktionen ausführen und Systemdaten zurücksetzen.
+                  </p>
+                  
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                      <h4 className="font-medium text-red-800 mb-2">⚠️ Gefährliche Aktionen</h4>
+                      <p className="text-sm text-red-700 mb-4">
+                        Die folgenden Aktionen führen zu dauerhaftem Datenverlust und können nicht rückgängig gemacht werden.
+                      </p>
+                      
+                      <button
+                        onClick={resetAllImagesAndSnapshots}
+                        disabled={isResetting}
+                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                      >
+                        {isResetting ? (
+                          <>
+                            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Wird zurückgesetzt...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            <span>Alle Bilder und Snapshots zurücksetzen</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { UsersIcon, ArrowRightOnRectangleIcon, FolderIcon, BookOpenIcon, BeakerIcon } from '@heroicons/react/24/outline';
+import { UsersIcon, ArrowRightOnRectangleIcon, FolderIcon, BookOpenIcon, BeakerIcon, CogIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 
 interface User {
@@ -172,6 +172,19 @@ export default function Header() {
               <span className={`${isUsers ? 'text-gray-800' : 'text-gray-700'}`}>Benutzer</span>
             </Link>
           )}
+          {currentUser.role === 'admin' && (
+            <Link 
+              href="/admin"
+              className={`flex items-center gap-2 px-3 py-1.5 border rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
+                isAdmin 
+                  ? 'border-[#2c2c2c] bg-gray-200 font-medium shadow-sm' 
+                  : 'bg-white border-gray-100'
+              }`}
+            >
+              <CogIcon className={`h-5 w-5 ${isAdmin ? 'text-gray-800' : 'text-gray-600'}`} />
+              <span className={`${isAdmin ? 'text-gray-800' : 'text-gray-700'}`}>Verwaltung</span>
+            </Link>
+          )}
           <Link 
             href="/profil"
             className={`flex items-center gap-2 px-3 py-1.5 border rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
@@ -205,66 +218,6 @@ export default function Header() {
             )}
             <span className={`${isProfile ? 'text-gray-800' : 'text-gray-700'}`}>{currentUser.name}</span>
           </Link>
-          
-          {/* Admin-Icon (nur für Admins sichtbar) */}
-          {currentUser.role === 'admin' && (
-            <>
-              <Link
-                href="/admin"
-                className={`p-2.5 aspect-square rounded-full hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
-                  isAdmin 
-                    ? 'bg-[#1a1a1a] shadow-sm' 
-                    : 'bg-[#2c2c2c]'
-                }`}
-                title="Verwaltungsbereich"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5 text-white"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </Link>
-              <button
-                onClick={async () => {
-                  if (window.confirm('⚠️ WARNUNG: Sind Sie sicher, dass Sie ALLE Bilder und Snapshots für ALLE Benutzer löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden!')) {
-                    try {
-                      const response = await fetch('/api/admin/reset-everything');
-                      const data = await response.json();
-                      alert(`Erfolg: ${data.message}\n\nErgebnisse:\nSnapshots DB: ${data.results.snapshots.db.count}\nSnapshots Dateien: ${data.results.snapshots.files.count}\nBilder DB: ${data.results.images.db.count}\nBilder Dateien: ${data.results.images.files.count}`);
-                      
-                      // Seite neu laden, um alle Änderungen zu sehen
-                      window.location.reload();
-                    } catch (error) {
-                      console.error('Fehler beim Zurücksetzen:', error);
-                      alert('Fehler beim Zurücksetzen aller Daten. Bitte überprüfen Sie die Konsole für weitere Details.');
-                    }
-                  }
-                }}
-                className="p-2.5 aspect-square rounded-full bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300 transition-all text-sm"
-                title="⚠️ NOTFALL-RESET: Alle Bilder und Entwürfe löschen"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5 text-white"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-            </>
-          )}
           
           {/* Abmelde-Button */}
           <button
