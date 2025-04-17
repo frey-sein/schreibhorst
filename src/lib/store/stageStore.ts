@@ -12,6 +12,7 @@ export interface StageState {
   selectedModel: string;
   selectedTextModel: string;
   selectedVideoModel: string;
+  defaultVideoDuration: number;
   activeImageTab: 'ai' | 'stock';
   blogPostDraft: BlogPostDraft | null;
   chatId: string | null;
@@ -21,6 +22,8 @@ export interface StageState {
   setSelectedModel: (modelId: string) => void;
   setSelectedTextModel: (modelId: string) => void;
   setSelectedVideoModel: (modelId: string) => void;
+  getDefaultDuration: () => number;
+  setDefaultDuration: (duration: number) => void;
   setActiveImageTab: (tab: 'ai' | 'stock') => void;
   setBlogPostDraft: (draft: BlogPostDraft | null) => void;
   setChatId: (chatId: string) => void;
@@ -83,6 +86,7 @@ export const useStageStore = create<StageState>()(
       selectedModel: availableModels[0].id,
       selectedTextModel: availableTextModels[0].id,
       selectedVideoModel: availableVideoModels[0].id,
+      defaultVideoDuration: 2, // Standard-Videodauer in Sekunden
       activeImageTab: 'ai',
       blogPostDraft: null,
       chatId: null,
@@ -125,6 +129,10 @@ export const useStageStore = create<StageState>()(
       setSelectedTextModel: (modelId) => set({ selectedTextModel: getValidTextModel(modelId) }),
       
       setSelectedVideoModel: (modelId) => set({ selectedVideoModel: getValidVideoModel(modelId) }),
+      
+      getDefaultDuration: () => get().defaultVideoDuration,
+      
+      setDefaultDuration: (duration) => set({ defaultVideoDuration: duration }),
       
       setActiveImageTab: (tab) => set({ activeImageTab: tab }),
       
@@ -200,6 +208,7 @@ export const useStageStore = create<StageState>()(
         selectedModel: state.selectedModel,
         selectedTextModel: state.selectedTextModel,
         selectedVideoModel: state.selectedVideoModel,
+        defaultVideoDuration: state.defaultVideoDuration,
         activeImageTab: state.activeImageTab, 
         blogPostDraft: state.blogPostDraft,
         chatId: state.chatId

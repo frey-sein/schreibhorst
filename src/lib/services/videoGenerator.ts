@@ -3,6 +3,11 @@ import { v4 as uuidv4 } from 'uuid';
 // Definition der verfügbaren Videomodelle
 export const availableModels = [
   { id: 'gen-2', name: 'Runway Gen-2' },
+  { id: 'gen-3-alpha', name: 'Runway Gen-3 Alpha' },
+  { id: 'gen-2-cinematic', name: 'Gen-2 Cinematic' },
+  { id: 'gen-2-stylized', name: 'Gen-2 Künstlerisch' },
+  { id: 'gen-3-realistic', name: 'Gen-3 Fotorealistisch' },
+  { id: 'gen-3-motion', name: 'Gen-3 Dynamisch' },
 ];
 
 export interface VideoModel {
@@ -13,7 +18,7 @@ export interface VideoModel {
 export interface GenerateVideoOptions {
   prompt: string;
   modelId: string;
-  duration?: number; // Dauer in Sekunden (im Bereich 1-4)
+  duration?: number; // Dauer in Sekunden (Standard: 1-4s, Gen-3 unterstützt auch 5-10s)
   numberOfFrames?: number; // Anzahl der Frames (im Bereich 24-120)
 }
 
