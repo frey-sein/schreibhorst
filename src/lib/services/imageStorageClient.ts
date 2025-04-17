@@ -23,9 +23,15 @@ export class ImageStorageClient {
   /**
    * Holt alle Bilder über die API
    */
-  static async getAllImages(): Promise<SavedImage[]> {
+  static async getAllImages(chatId?: string): Promise<SavedImage[]> {
     try {
-      const response = await fetch('/api/images');
+      // URL mit optionalem chatId-Parameter erstellen
+      let url = '/api/images';
+      if (chatId) {
+        url += `?chatId=${encodeURIComponent(chatId)}`;
+      }
+      
+      const response = await fetch(url);
       
       if (!response.ok) {
         console.error('Fehler beim Abrufen der Bilder:', response.statusText);
@@ -33,7 +39,7 @@ export class ImageStorageClient {
       }
       
       const data = await response.json();
-      return data.images || [];
+      return data || [];
     } catch (error) {
       console.error('Fehler beim Abrufen der Bilder:', error);
       return [];
@@ -52,6 +58,7 @@ export class ImageStorageClient {
       width: number;
       height: number;
       meta?: any;
+      chatId?: string;
     }
   ): Promise<SavedImage | null> {
     try {

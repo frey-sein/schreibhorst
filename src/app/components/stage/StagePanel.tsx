@@ -13,6 +13,7 @@ import { useStageStore } from '@/lib/store/stageStore';
 import StockImagePanel from './StockImagePanel';
 import PromptEditor from './PromptEditor';
 import TextGeneratorPanel from './TextGeneratorPanel';
+import { ImageStorageClient } from '@/lib/services/imageStorageClient';
 
 export default function StagePanel() {
   // Zugriff auf den persistenten Store
@@ -237,13 +238,25 @@ export default function StagePanel() {
 
   const handleRegenerateImage = async (id: number) => {
     const image = imageDrafts.find(img => img.id === id);
-    if (image && image.prompt) {
-      // Setze den Status auf "generating"
-      updateImageDraft(id, { status: 'generating' });
-      
+    
+    if (!image) return;
+    
+    // Lade die aktuelle Chat-ID aus dem Store
+    const { useStageHistoryStore } = await import('@/lib/store/stageHistoryStore');
+    const currentChatId = useStageHistoryStore.getState().currentChatId;
+    
+    // Setze den Status auf "generiere"
+    updateImageDraft(id, { status: 'generating' });
+    
+    if (image.prompt) {
       try {
-        // Generiere ein neues Bild mit dem Prompt über die Together API
-        const result = await generateImage(image.prompt, selectedModel);
+        // Bild generieren mit der aktuellen Chat-ID
+        const result = await generateImage(
+          image.prompt,
+          selectedModel,
+          image.title,
+          currentChatId || undefined // Chat-ID übergeben
+        );
         
         if (result.success) {
           // Status auf "completed" setzen
@@ -581,6 +594,27 @@ export default function StagePanel() {
     // Aktualisiere den Store mit dem neuen BlogPostDraft
     setBlogPostDraft(newBlogPostDraft);
   };
+
+  // Bei der Initialisierung der Komponente
+  useEffect(() => {
+    // Aktuelle Chat-ID aus dem StageHistoryStore laden
+    const loadInitialImages = async () => {
+      try {
+        const { useStageHistoryStore } = await import('@/lib/store/stageHistoryStore');
+        const currentChatId = useStageHistoryStore.getState().currentChatId;
+        
+        if (currentChatId) {
+          // Lade nur Bilder, die zu diesem Chat gehören
+          const images = await ImageStorageClient.getAllImages(currentChatId);
+          console.log(`${images.length} Bilder für den aktuellen Chat geladen`);
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden der initialen Bilder:', error);
+      }
+    };
+    
+    loadInitialImages();
+  }, []);
 
   return (
     <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0]">

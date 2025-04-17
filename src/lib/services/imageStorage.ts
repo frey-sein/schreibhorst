@@ -60,6 +60,7 @@ export interface SavedImage {
   height: number;
   created_at: Date;
   meta?: any;
+  chat_id?: string;
 }
 
 // Alle Methoden sind als separate asynchrone Funktionen exportiert
@@ -76,6 +77,7 @@ export async function saveImage(
     height: number;
     meta?: any;
     userId?: string;
+    chatId?: string;
   }
 ): Promise<SavedImage> {
   try {
@@ -103,7 +105,8 @@ export async function saveImage(
       width: metadata.width,
       height: metadata.height,
       created_at: new Date(),
-      meta: metadata.meta
+      meta: metadata.meta,
+      chat_id: metadata.chatId
     };
     
     // In MySQL speichern, falls verfügbar
@@ -128,8 +131,8 @@ async function saveImageToDatabase(image: SavedImage): Promise<void> {
   try {
     await connection.execute(
       `INSERT INTO images (
-          id, user_id, title, prompt, modelId, filePath, width, height, created_at, meta
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          id, user_id, title, prompt, modelId, filePath, width, height, created_at, meta, chat_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         image.id,
         image.user_id || null,
@@ -140,7 +143,8 @@ async function saveImageToDatabase(image: SavedImage): Promise<void> {
         image.width,
         image.height,
         image.created_at,
-        JSON.stringify(image.meta || {})
+        JSON.stringify(image.meta || {}),
+        image.chat_id || null
       ]
     );
   } catch (error) {
@@ -153,10 +157,10 @@ async function saveImageToDatabase(image: SavedImage): Promise<void> {
 /**
  * Holt alle Bilder aus der Datenbank oder dem Filesystem
  */
-export async function getAllImages(userId?: string): Promise<SavedImage[]> {
+export async function getAllImages(userId?: string, chatId?: string): Promise<SavedImage[]> {
   // Wenn MySQL verfügbar ist, nutze die DB
   if (dbPool) {
-    return getImagesFromDatabase(userId);
+    return getImagesFromDatabase(userId, chatId);
   }
   
   // Ansonsten aus dem Filesystem lesen (ohne Benutzerfilterung)
@@ -166,18 +170,28 @@ export async function getAllImages(userId?: string): Promise<SavedImage[]> {
 /**
  * Holt Bilder aus der Datenbank
  */
-async function getImagesFromDatabase(userId?: string): Promise<SavedImage[]> {
+async function getImagesFromDatabase(userId?: string, chatId?: string): Promise<SavedImage[]> {
   if (!dbPool) return [];
   
   const connection = await dbPool.getConnection();
   try {
-    // Wenn eine userId angegeben ist, filtere danach
+    // Wenn eine userId oder chatId angegeben ist, filtere danach
     let query = 'SELECT * FROM images';
     const params = [];
+    const conditions = [];
     
     if (userId) {
-      query += ' WHERE user_id = ? OR user_id IS NULL';
+      conditions.push('user_id = ?');
       params.push(userId);
+    }
+    
+    if (chatId) {
+      conditions.push('chat_id = ?');
+      params.push(chatId);
+    }
+    
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
     }
     
     query += ' ORDER BY created_at DESC';

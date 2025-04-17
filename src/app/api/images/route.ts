@@ -7,8 +7,11 @@ export async function GET(request: NextRequest) {
     // Benutzer-ID aus dem Cookie abrufen
     const userId = request.cookies.get('user-id')?.value;
     
-    // Bilder abrufen, gefiltert nach Benutzer
-    const images = await getAllImages(userId);
+    // Chat-ID aus der URL holen
+    const chatId = request.nextUrl.searchParams.get('chatId') || undefined;
+    
+    // Bilder abrufen, gefiltert nach Benutzer und Chat
+    const images = await getAllImages(userId, chatId);
     
     return NextResponse.json(images);
   } catch (error) {
@@ -60,7 +63,8 @@ export async function POST(request: NextRequest) {
         width: width || 512,
         height: height || 512,
         meta,
-        userId
+        userId,
+        chatId: metadata.chatId
       });
       
       console.log(`POST /api/images: Bild erfolgreich gespeichert mit ID ${savedImage.id}`);

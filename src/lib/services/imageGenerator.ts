@@ -69,7 +69,12 @@ async function downloadImage(url: string): Promise<string> {
   }
 }
 
-export async function generateImage(prompt: string, modelId?: string, title?: string): Promise<GenerateImageResponse> {
+export async function generateImage(
+  prompt: string, 
+  modelId?: string, 
+  title?: string, 
+  chatId?: string
+): Promise<GenerateImageResponse> {
   try {
     const apiKey = process.env.NEXT_PUBLIC_TOGETHER_API_KEY;
     
@@ -144,7 +149,8 @@ export async function generateImage(prompt: string, modelId?: string, title?: st
           meta: {
             provider: 'togetherAI',
             generationModel: model
-          }
+          },
+          chatId: chatId // Chat-ID weitergeben
         });
         
         // Erfolg mit gespeichertem Bild zurückgeben
