@@ -3,7 +3,33 @@ import { CircularProgress, Snackbar, Alert } from '@mui/material';
 import { availableTextModels } from '@/lib/services/textGenerator';
 import { useStageStore } from '@/lib/store/stageStore';
 import { BlogPostDraft } from '@/types/stage';
-import { ChevronDownIcon, SparklesIcon, ClockIcon, DocumentDuplicateIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, SparklesIcon, ClockIcon, DocumentDuplicateIcon, ArrowPathIcon, PencilIcon } from '@heroicons/react/24/outline';
+
+// Schnittstelle für Schreibstile aus dem localStorage
+interface Stil {
+  id: string;
+  name: string;
+  beschreibung: string;
+  tags: string[];
+  avatar?: string;
+  prompt: string;
+  beispiel?: string;
+  erstellt: string;
+  bearbeitet?: string;
+}
+
+// Hilfsfunktion zum Laden der Schreibstile
+const loadStile = (): Stil[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const saved = localStorage.getItem('schreibstile');
+    if (!saved) return [];
+    return JSON.parse(saved);
+  } catch (error) {
+    console.error('Fehler beim Laden der Schreibstile:', error);
+    return [];
+  }
+};
 
 interface TextGeneratorPanelProps {
   className?: string;
@@ -20,10 +46,20 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
   const [selectedModel, setSelectedModel] = useState(selectedTextModel);
   const [error, setError] = useState<string | null>(null);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const [styleDropdownOpen, setStyleDropdownOpen] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [schreibstile, setSchreibstile] = useState<Stil[]>([]);
+  const [selectedStyle, setSelectedStyle] = useState<Stil | null>(null);
   
   const modelSelectorRef = useRef<HTMLDivElement>(null);
+  const styleSelectorRef = useRef<HTMLDivElement>(null);
+
+  // Lade Schreibstile
+  useEffect(() => {
+    const stile = loadStile();
+    setSchreibstile(stile);
+  }, []);
 
   // Lade gespeicherte Daten, wenn sie verfügbar sind
   useEffect(() => {
@@ -36,11 +72,14 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
     }
   }, [blogPostDraft, selectedTextModel]);
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (modelSelectorRef.current && !modelSelectorRef.current.contains(event.target as Node)) {
         setModelDropdownOpen(false);
+      }
+      if (styleSelectorRef.current && !styleSelectorRef.current.contains(event.target as Node)) {
+        setStyleDropdownOpen(false);
       }
     }
 
@@ -48,7 +87,34 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [modelSelectorRef]);
+  }, [modelSelectorRef, styleSelectorRef]);
+
+  // Funktion zum Anwenden des ausgewählten Schreibstils
+  const applySelectedStyle = (stil: Stil) => {
+    // Wenn bereits ein Stil ausgewählt war, dessen Inhalt aus dem Prompt entfernen
+    let cleanedPrompt = prompt;
+    if (selectedStyle) {
+      // Entferne den alten Schreibstil-Prompt + Leerzeilen am Anfang
+      cleanedPrompt = prompt.replace(selectedStyle.prompt, '').trimStart();
+      // Entferne zusätzliche Leerzeilen am Anfang
+      while (cleanedPrompt.startsWith('\n')) {
+        cleanedPrompt = cleanedPrompt.substring(1).trimStart();
+      }
+    }
+    
+    // Neuen Stil setzen
+    setSelectedStyle(stil);
+    setStyleDropdownOpen(false);
+    
+    // Den Schreibstil am Anfang des Prompts hinzufügen
+    const stylePart = `${stil.prompt}\n\n`;
+    setPrompt(stylePart + cleanedPrompt);
+  };
+
+  // Funktion zum Zurücksetzen des ausgewählten Schreibstils
+  const resetSelectedStyle = () => {
+    setSelectedStyle(null);
+  };
 
   const handleGenerateText = async () => {
     if (!prompt.trim()) {
@@ -59,6 +125,12 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
     setIsLoading(true);
     setError(null);
 
+    // Erweitere den Prompt mit dem ausgewählten Schreibstil, falls vorhanden
+    let enhancedPrompt = prompt;
+    if (selectedStyle && !prompt.includes(selectedStyle.prompt)) {
+      enhancedPrompt = `${prompt}\n\nVerwende folgenden Schreibstil: ${selectedStyle.prompt}`;
+    }
+
     try {
       const response = await fetch('/api/generateText', {
         method: 'POST',
@@ -66,7 +138,7 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          prompt,
+          prompt: enhancedPrompt,
           modelId: selectedModel
         }),
       });
@@ -88,12 +160,14 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
 
       // Speichere im Store für Persistenz
       const newBlogPostDraft: BlogPostDraft = {
-        prompt,
+        prompt: enhancedPrompt,
         htmlContent,
         metaTitle: newMetaTitle,
         metaDescription: newMetaDescription,
         modelId: selectedModel,
-        createdAt: new Date()
+        createdAt: new Date(),
+        // Speichere auch die Stil-ID des verwendeten Schreibstils
+        styleId: selectedStyle?.id
       };
       
       setBlogPostDraft(newBlogPostDraft);
@@ -207,6 +281,110 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
               )}
             </div>
           </div>
+        </div>
+        
+        {/* Schreibstil-Auswahl */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium text-gray-700">Schreibstil auswählen (optional)</p>
+            {selectedStyle && (
+              <button
+                onClick={resetSelectedStyle}
+                className="text-xs text-red-600 hover:text-red-800"
+              >
+                Zurücksetzen
+              </button>
+            )}
+          </div>
+          
+          <div className="relative" ref={styleSelectorRef}>
+            <button
+              onClick={() => setStyleDropdownOpen(!styleDropdownOpen)}
+              className={`w-full flex items-center justify-between px-4 py-3 bg-white border rounded-lg text-left ${
+                selectedStyle 
+                  ? 'border-[#2c2c2c] text-gray-900' 
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                {selectedStyle ? (
+                  <>
+                    {selectedStyle.avatar ? (
+                      <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 bg-gray-50">
+                        <img 
+                          src={selectedStyle.avatar} 
+                          alt={selectedStyle.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/images/placeholder.svg';
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-gray-100 flex-shrink-0">
+                        <PencilIcon className="h-4 w-4 text-gray-500" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{selectedStyle.name}</div>
+                      <div className="text-sm text-gray-500 max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap">{selectedStyle.beschreibung}</div>
+                    </div>
+                  </>
+                ) : (
+                  <span>Schreibstil auswählen...</span>
+                )}
+              </div>
+              <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+            </button>
+            
+            {styleDropdownOpen && (
+              <div className="absolute w-full mt-2 bg-white rounded-xl shadow-lg border border-gray-200 z-10 max-h-[300px] overflow-y-auto">
+                <div className="p-3">
+                  {schreibstile.length > 0 ? (
+                    schreibstile.map((stil) => (
+                      <button
+                        key={stil.id}
+                        onClick={() => applySelectedStyle(stil)}
+                        className="w-full text-left px-3 py-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 mb-1"
+                      >
+                        {stil.avatar ? (
+                          <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 bg-gray-50">
+                            <img 
+                              src={stil.avatar} 
+                              alt={stil.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '/images/placeholder.svg';
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-gray-100 flex-shrink-0">
+                            <PencilIcon className="h-4 w-4 text-gray-500" />
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <div className="font-medium text-base text-gray-900">{stil.name}</div>
+                          <div className="text-sm text-gray-700 max-w-[400px] overflow-hidden text-ellipsis whitespace-nowrap">{stil.beschreibung}</div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="text-sm text-gray-500 p-3 text-center">
+                      Keine Schreibstile verfügbar. Sie können Stile im Bereich "Stile" erstellen.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {selectedStyle && (
+            <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="text-sm font-medium text-gray-700 mb-1">Ausgewählter Stil wird angewendet:</div>
+              <div className="text-sm text-gray-600 line-clamp-2">{selectedStyle.prompt}</div>
+            </div>
+          )}
         </div>
         
         <div className="mb-6">

@@ -18,6 +18,7 @@ export interface BlogPostDraft {
   metaDescription: string;
   modelId: string;
   createdAt?: Date;
+  styleId?: string;
 }
 
 export interface ImageDraft {

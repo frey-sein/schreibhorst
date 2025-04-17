@@ -79,6 +79,9 @@ export async function generateBlogPost(prompt: string, modelId?: string): Promis
       3. Füge eine SEO-freundliche Meta-Beschreibung hinzu
       4. Verwende semantisches HTML für die Struktur
       5. Mache den Inhalt informativ und leserfreundlich
+      6. Wenn ein Schreibstil vorgegeben wird, halte dich strikt an diesen Stil
+      
+      Wichtig: Achte genau auf Anweisungen zum Schreibstil im Prompt. Wenn der Benutzer einen bestimmten Schreibstil wünscht (z.B. "wissenschaftlich", "kreativ", "formell"), halte dich strikt an diesen Stil.
       
       Antwort als JSON im folgenden Format:
       {
