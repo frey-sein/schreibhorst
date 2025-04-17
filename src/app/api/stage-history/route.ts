@@ -11,6 +11,10 @@ export async function GET(request: NextRequest) {
     const id = request.nextUrl.searchParams.get('id');
     
     // Chat-ID aus der Anfrage abrufen
+    
+    
+    // Parameter für nur manuelle Snapshots
+    const onlyManual = request.nextUrl.searchParams.get('onlyManual') === 'true';
     const chatId = request.nextUrl.searchParams.get('chatId') || undefined;
     
     // Wenn eine spezifische ID angefordert wird
@@ -26,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Snapshots aus der Datenbank abrufen, gefiltert nach Benutzer und/oder Chat
-    const snapshots = await getStageSnapshots(userId, chatId);
+    const snapshots = await getStageSnapshots(userId, chatId, undefined, onlyManual);
     
     return NextResponse.json({ snapshots });
   } catch (error) {
@@ -42,7 +46,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { id, textDrafts, imageDrafts, chatId, blogPostDraft } = data;
+    const { id, textDrafts, imageDrafts, chatId, blogPostDraft, isManualSave = true } = data;
     
     if (!id || !textDrafts || !imageDrafts) {
       return NextResponse.json(
@@ -55,7 +59,7 @@ export async function POST(request: NextRequest) {
     const userId = request.cookies.get('user-id')?.value;
     
     // Snapshot in der Datenbank speichern mit Benutzer- und Chat-ID
-    await saveStageSnapshot(id, textDrafts, imageDrafts, userId, chatId, blogPostDraft);
+    await saveStageSnapshot(id, textDrafts, imageDrafts, userId, chatId, blogPostDraft, isManualSave);
     
     return NextResponse.json({
       success: true,

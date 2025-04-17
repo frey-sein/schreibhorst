@@ -9,30 +9,61 @@ import { useUser } from '@/app/hooks/useUser';
 export default function Home() {
   const { user } = useUser();
   const [storeResetDone, setStoreResetDone] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   
-  // Effect zum Zurücksetzen des Stage-Stores
+  // Effect zum Laden der Stage-Daten
   useEffect(() => {
+    setIsMounted(true);
+    
     if (user && !storeResetDone) {
-      const resetStores = async () => {
+      const loadStoredData = async () => {
         try {
           // Dynamisch importieren, um clientseitige Rendering-Fehler zu vermeiden
-          const { resetStage } = await import('@/lib/store/stageStore');
-          // Stage zurücksetzen
-          resetStage();
+          const { useStageStore } = await import('@/lib/store/stageStore');
+          const { useStageHistoryStore } = await import('@/lib/store/stageHistoryStore');
           
-          // sessionStorage für stage-storage leeren
-          sessionStorage.removeItem('stage-storage');
+          // Importiere die Funktion, aber führe sie nicht aus, um vorhandene Daten zu behalten
+          // const { resetStage } = await import('@/lib/store/stageStore');
           
-          console.log('Stage wurde bei App-Start zurückgesetzt');
+          // Aktiviere die Hydration des Zustandsspeichers
+          const storeState = useStageStore.getState();
+          
+          // Versuche, vorhandene Daten wiederherzustellen - ohne explizite Typprüfung
+          // @ts-ignore - Zugriff auf interne persist-Methoden
+          if (storeState && storeState.persist?.rehydrate) {
+            // @ts-ignore - Zugriff auf interne persist-Methoden
+            storeState.persist.rehydrate();
+          }
+          
+          // ChatId abrufen, wenn verfügbar
+          const currentChatId = storeState.chatId;
+          
+          // Falls eine Chat-ID vorhanden ist, versuche den letzten Snapshot zu laden
+          if (currentChatId) {
+            const stageHistoryStore = useStageHistoryStore.getState();
+            stageHistoryStore.setCurrentChatId(currentChatId);
+            
+            // Snapshots abrufen
+            const snapshots = await stageHistoryStore.getSnapshots();
+            console.log(`${snapshots.length} Snapshots für Chat ${currentChatId} gefunden`);
+          }
+          
+          console.log('Stage-Daten wurden geladen');
+          
           setStoreResetDone(true);
         } catch (error) {
-          console.error('Fehler beim Zurücksetzen der Stage:', error);
+          console.error('Fehler beim Laden der Stage-Daten:', error);
         }
       };
       
-      resetStores();
+      loadStoredData();
     }
   }, [user, storeResetDone]);
+  
+  // Nur clientseitiges Rendering
+  if (!isMounted) {
+    return null; // oder eine einfache Ladeansicht
+  }
   
   return (
     <>

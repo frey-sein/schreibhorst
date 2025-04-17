@@ -357,6 +357,14 @@ export default function ChatPanel() {
           
           // Scrolle zum Ende des Chats
           setTimeout(scrollToBottom, 100);
+          
+          // Nach dem Laden der Nachrichten auch den letzten Stage-Snapshot laden
+          try {
+            const { loadLatestSnapshotForChat } = await import('@/lib/store/stageStore');
+            await loadLatestSnapshotForChat(currentChatId);
+          } catch (error) {
+            console.error('Fehler beim Laden des letzten Stage-Snapshots:', error);
+          }
         } catch (error) {
           console.error('Fehler beim Laden der Nachrichten:', error);
           console.error('Die Chatnachrichten konnten nicht geladen werden.');
@@ -510,7 +518,7 @@ export default function ChatPanel() {
         
         // Setze die aktuelle Chat-ID und lade neue Snapshots
         stageHistoryStore.setCurrentChatId(newChat.id);
-        const snapshots = await stageHistoryStore.getSnapshots();
+        const snapshots = await stageHistoryStore.getSnapshots(true); // true = onlyManual
         
         // Lade den letzten Snapshot für diesen Chat, falls vorhanden
         if (snapshots.length > 0) {
@@ -641,7 +649,7 @@ export default function ChatPanel() {
         
         // Setze die aktuelle Chat-ID und lade neue Snapshots
         stageHistoryStore.setCurrentChatId(chatId);
-        const snapshots = await stageHistoryStore.getSnapshots();
+        const snapshots = await stageHistoryStore.getSnapshots(true); // true = onlyManual
         
         // Lade den letzten Snapshot für diesen Chat, falls vorhanden
         if (snapshots.length > 0) {

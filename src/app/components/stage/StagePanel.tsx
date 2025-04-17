@@ -182,10 +182,10 @@ export default function StagePanel() {
   const handleSave = async () => {
     try {
       // Speichere den aktuellen Zustand im History-Store
-      await addSnapshot(textDrafts, imageDrafts);
+      await addSnapshot(textDrafts, imageDrafts, undefined, undefined, true); // true für isManualSave
       
-      // Lade die Snapshots neu
-      const loadedSnapshots = await getSnapshots();
+      // Lade die Snapshots neu (mit dem Parameter true für nur manuelle Snapshots)
+      const loadedSnapshots = await getSnapshots(true);
       setSnapshots(loadedSnapshots);
       
       // Der aktuelle Zustand ist bereits im Stage-Store gespeichert
@@ -345,7 +345,7 @@ export default function StagePanel() {
     if (isHistoryOpen) {
       const loadSnapshots = async () => {
         try {
-          const loadedSnapshots = await getSnapshots();
+          const loadedSnapshots = await getSnapshots(true); // true für onlyManual - nur manuell gespeicherte Snapshots laden
           setSnapshots(loadedSnapshots);
         } catch (error) {
           console.error('Fehler beim Laden der Snapshots:', error);

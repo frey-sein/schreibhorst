@@ -253,20 +253,22 @@ export async function saveStageSnapshot(
   imageDrafts: ImageDraft[],
   userId?: string,
   chatId?: string,
-  blogPostDraft?: any
+  blogPostDraft?: any,
+  isManualSave: boolean = false
 ): Promise<void> {
   // Wenn MySQL verfügbar ist, speichere in der Datenbank
   if (dbPool) {
     const connection = await dbPool.getConnection();
     try {
       await connection.execute(
-        `INSERT INTO stage_snapshots (id, timestamp, user_id, chat_id, data) VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO stage_snapshots (id, timestamp, user_id, chat_id, manual_save, data) VALUES (?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE timestamp=VALUES(timestamp), user_id=VALUES(user_id), chat_id=VALUES(chat_id), data=VALUES(data)`,
         [
           id,
           new Date(),
           userId || null,
           chatId || null,
+          isManualSave,
           JSON.stringify({
             textDrafts,
             imageDrafts,
@@ -312,13 +314,14 @@ export async function saveStageSnapshot(
 /**
  * Holt alle Stage-Snapshots aus der Datenbank
  */
-export async function getStageSnapshots(userId?: string, chatId?: string): Promise<Array<{
+export async function getStageSnapshots(userId?: string, chatId?: string, id?: string, onlyManual: boolean = false): Promise<Array<{
   id: string;
   timestamp: Date;
   userId?: string;
   chatId?: string;
   textDrafts: any[];
   imageDrafts: ImageDraft[];
+  isManualSave?: boolean;
 }>> {
   // Wenn MySQL verfügbar ist, nutze die Datenbank
   if (dbPool) {
@@ -327,23 +330,30 @@ export async function getStageSnapshots(userId?: string, chatId?: string): Promi
       let query = 'SELECT * FROM stage_snapshots';
       const params = [];
       
-      // Filter nach Benutzer und/oder Chat, falls angegeben
-      if (userId || chatId) {
-        const conditions = [];
-        
-        if (userId) {
-          conditions.push('user_id = ?');
-          params.push(userId);
-        }
-        
-        if (chatId) {
-          conditions.push('chat_id = ?');
-          params.push(chatId);
-        }
-        
-        if (conditions.length > 0) {
-          query += ' WHERE ' + conditions.join(' AND ');
-        }
+      // Filter nach Benutzer, Chat-ID, manueller Speicherung oder spezifischer ID
+      const conditions = [];
+      
+      if (userId) {
+        conditions.push('user_id = ?');
+        params.push(userId);
+      }
+      
+      if (chatId) {
+        conditions.push('chat_id = ?');
+        params.push(chatId);
+      }
+      
+      if (id) {
+        conditions.push('id = ?');
+        params.push(id);
+      }
+      
+      if (onlyManual) {
+        conditions.push('manual_save = 1');
+      }
+      
+      if (conditions.length > 0) {
+        query += ' WHERE ' + conditions.join(' AND ');
       }
       
       query += ' ORDER BY timestamp DESC';
@@ -358,7 +368,8 @@ export async function getStageSnapshots(userId?: string, chatId?: string): Promi
           userId: row.user_id,
           chatId: row.chat_id,
           textDrafts: data.textDrafts || [],
-          imageDrafts: data.imageDrafts || []
+          imageDrafts: data.imageDrafts || [],
+          isManualSave: row.manual_save === 1
         };
       });
     } catch (error) {
@@ -391,12 +402,18 @@ export async function getStageSnapshots(userId?: string, chatId?: string): Promi
           userId: data.userId,
           chatId: data.chatId,
           textDrafts: data.textDrafts || [],
-          imageDrafts: data.imageDrafts || []
+          imageDrafts: data.imageDrafts || [],
+          isManualSave: data.isManualSave || false
         };
       });
       
+      // Filtere nach spezifischer ID, falls angegeben
+      if (id) {
+        snapshots = snapshots.filter(snapshot => snapshot.id === id);
+      }
+      
       // Filtere nach Benutzer und/oder Chat, falls angegeben
-      if (userId || chatId) {
+      if (userId || chatId || onlyManual) {
         snapshots = snapshots.filter(snapshot => {
           let matches = true;
           
@@ -406,6 +423,10 @@ export async function getStageSnapshots(userId?: string, chatId?: string): Promi
           
           if (chatId) {
             matches = matches && snapshot.chatId === chatId;
+          }
+          
+          if (onlyManual) {
+            matches = matches && snapshot.isManualSave === true;
           }
           
           return matches;

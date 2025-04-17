@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { MagnifyingGlassIcon, ArrowTopRightOnSquareIcon, ChevronLeftIcon, ChevronRightIcon, SparklesIcon, ArrowPathIcon, StarIcon, PlusIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { searchStockImages, activeStockImageProviders, StockImageResult } from '@/lib/services/stockImageSearch';
 import { useStageStore } from '@/lib/store/stageStore';
@@ -8,6 +8,7 @@ import { ImageDraft } from '@/types/stage';
 import { simplifyPrompt, simplifyPromptLocally } from '@/lib/services/promptSimplifier';
 
 export default function StockImagePanel() {
+  const [isClient, setIsClient] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProvider, setSelectedProvider] = useState(() => {
     const pixabayProvider = activeStockImageProviders.find(p => p.id === 'pixabay');
@@ -181,9 +182,14 @@ export default function StockImagePanel() {
     handleSearch(searchQuery);
   };
   
+  // Stellen Sie sicher, dass der Code nur clientseitig ausgeführt wird
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4">
+    <div className={isClient ? "space-y-6" : "flex justify-between items-center"}>
+      <div className={isClient ? "flex flex-col gap-4" : "relative"}>
         {/* Suchformular */}
         <div className="flex gap-2">
           <div className="relative flex-1">

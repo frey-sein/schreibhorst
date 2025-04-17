@@ -9,15 +9,16 @@ interface StageSnapshot {
   imageDrafts: ImageDraft[];
   chatId?: string;
   blogPostDraft?: any;
+  isManualSave?: boolean; // Neues Flag für manuelle Speicherung
 }
 
 interface StageHistoryStore {
   snapshots: StageSnapshot[];
   currentSnapshotId: string | null;
   currentChatId: string | null;
-  addSnapshot: (textDrafts: TextDraft[], imageDrafts: ImageDraft[], chatId?: string, blogPostDraft?: any) => Promise<void>;
+  addSnapshot: (textDrafts: TextDraft[], imageDrafts: ImageDraft[], chatId?: string, blogPostDraft?: any, isManualSave?: boolean) => Promise<void>;
   restoreSnapshot: (id: string) => Promise<StageSnapshot | null>;
-  getSnapshots: () => Promise<StageSnapshot[]>;
+  getSnapshots: (onlyManual?: boolean) => Promise<StageSnapshot[]>;
   clearSnapshots: () => Promise<void>;
   setCurrentChatId: (chatId: string | null) => void;
   deleteSnapshot: (id: string) => Promise<void>;
@@ -28,7 +29,7 @@ export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
   currentSnapshotId: null,
   currentChatId: null,
 
-  addSnapshot: async (textDrafts, imageDrafts, chatId, blogPostDraft) => {
+  addSnapshot: async (textDrafts, imageDrafts, chatId, blogPostDraft, isManualSave = false) => {
     // Neues Snapshot-Objekt erstellen
     const newSnapshot: StageSnapshot = {
       id: new Date().getTime().toString(),
@@ -36,7 +37,8 @@ export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
       textDrafts: JSON.parse(JSON.stringify(textDrafts)),
       imageDrafts: JSON.parse(JSON.stringify(imageDrafts)),
       chatId: chatId || (get().currentChatId || undefined),
-      blogPostDraft: blogPostDraft ? JSON.parse(JSON.stringify(blogPostDraft)) : undefined
+      blogPostDraft: blogPostDraft ? JSON.parse(JSON.stringify(blogPostDraft)) : undefined,
+      isManualSave: isManualSave, // Flag für manuelle Speicherung
     };
 
     // Im Store aktualisieren
@@ -57,7 +59,8 @@ export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
           textDrafts: newSnapshot.textDrafts,
           imageDrafts: newSnapshot.imageDrafts,
           chatId: newSnapshot.chatId,
-          blogPostDraft: newSnapshot.blogPostDraft
+          blogPostDraft: newSnapshot.blogPostDraft,
+          isManualSave: newSnapshot.isManualSave
         })
       });
     } catch (error) {
@@ -100,13 +103,17 @@ export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
     return null;
   },
 
-  getSnapshots: async () => {
+  getSnapshots: async (onlyManual = false) => {
     try {
       // Erstelle URL mit Chat-ID Parameter falls vorhanden
       let url = '/api/stage-history';
       const chatId = get().currentChatId;
       if (chatId) {
         url += `?chatId=${encodeURIComponent(chatId)}`;
+      }
+      
+      if (onlyManual) {
+        url += url.includes("?") ? "&onlyManual=true" : "?onlyManual=true";
       }
       
       const response = await fetch(url);
