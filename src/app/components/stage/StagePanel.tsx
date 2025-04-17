@@ -14,6 +14,8 @@ import StockImagePanel from './StockImagePanel';
 import PromptEditor from './PromptEditor';
 import TextGeneratorPanel from './TextGeneratorPanel';
 import { ImageStorageClient } from '@/lib/services/imageStorageClient';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 export default function StagePanel() {
   // Zugriff auf den persistenten Store
@@ -654,6 +656,124 @@ export default function StagePanel() {
     }
   };
 
+  // Funktion zum Exportieren aller Inhalte als ZIP-Datei
+  const handleExport = async () => {
+    try {
+      const zip = new JSZip();
+      const blogFolder = zip.folder("blog");
+      const imagesFolder = zip.folder("bilder");
+      const textFolder = zip.folder("texte");
+      
+      // Hole den aktuellen BlogPostDraft aus dem Store
+      const { useStageStore } = await import('@/lib/store/stageStore');
+      const currentBlogPostDraft = useStageStore.getState().blogPostDraft;
+      
+      // Blogbeitrag exportieren, falls vorhanden
+      if (currentBlogPostDraft) {
+        // Erstelle eine info.txt Datei mit Meta-Informationen
+        let blogInfo = `TITEL: ${currentBlogPostDraft.metaTitle || 'Kein Titel'}\n`;
+        blogInfo += `META-BESCHREIBUNG: ${currentBlogPostDraft.metaDescription || 'Keine Beschreibung'}\n`;
+        blogInfo += `ERSTELLT AM: ${currentBlogPostDraft.createdAt ? format(new Date(currentBlogPostDraft.createdAt), "d. MMMM yyyy, HH:mm:ss", { locale: de }) : 'Unbekannt'}\n`;
+        blogInfo += `PROMPT: ${currentBlogPostDraft.prompt || 'Kein Prompt'}\n`;
+        blogInfo += `MODELL: ${currentBlogPostDraft.modelId || 'Unbekannt'}\n\n`;
+        
+        blogFolder?.file("info.txt", blogInfo);
+        
+        // Speichere den HTML-Inhalt
+        if (currentBlogPostDraft.htmlContent) {
+          blogFolder?.file("inhalt.html", currentBlogPostDraft.htmlContent);
+          
+          // Extrahiere Text aus HTML (vereinfachte Version ohne HTML-Tags)
+          const textContent = currentBlogPostDraft.htmlContent
+            .replace(/<[^>]*>?/gm, '')
+            .replace(/&nbsp;/g, ' ')
+            .trim();
+          
+          blogFolder?.file("inhalt.txt", textContent);
+        }
+      }
+      
+      // Textentwürfe exportieren
+      textDrafts.forEach((text, index) => {
+        const textInfo = `TITEL: ${text.title || 'Unbenannter Text'}\n` +
+                       `TYP: ${text.contentType || 'Text'}\n` +
+                       `STIL: ${text.styleVariant || 'Standard'}\n` +
+                       `TAGS: ${text.tags ? text.tags.join(', ') : 'Keine Tags'}\n` +
+                       `QUELLE: ${text.sourceContext || 'Unbekannt'}\n\n` +
+                       `INHALT:\n${text.content || 'Kein Inhalt'}`;
+        
+        textFolder?.file(`text_${index + 1}.txt`, textInfo);
+      });
+      
+      // Bildentwürfe exportieren
+      const imageExportPromises = imageDrafts.map(async (image, index) => {
+        // Bilde hinzufügen (Datei aus URL oder Base64)
+        if (image.url && image.url !== '/images/placeholder.svg' && !image.url.includes('error.svg')) {
+          try {
+            // Für lokale Bilder
+            if (image.url.startsWith('/')) {
+              const response = await fetch(image.url);
+              if (response.ok) {
+                const blob = await response.blob();
+                const fileName = `bild_${index + 1}${getFileExtension(image.url) || '.png'}`;
+                imagesFolder?.file(fileName, blob);
+              }
+            } 
+            // Für externe Bilder
+            else {
+              // Versuche, das Bild zu laden
+              const response = await fetch(image.url, { mode: 'no-cors' });
+              if (response.ok) {
+                const blob = await response.blob();
+                const fileName = `bild_${index + 1}${getFileExtension(image.url) || '.png'}`;
+                imagesFolder?.file(fileName, blob);
+              }
+            }
+            
+            // Informationen zum Bild in einer separaten Datei
+            const imageInfo = `TITEL: ${image.title || 'Unbetiteltes Bild'}\n` +
+                           `PROMPT: ${image.prompt || 'Kein Prompt'}\n` +
+                           `MODELL: ${image.modelId || 'Unbekannt'}\n` +
+                           `TAGS: ${image.meta?.tags ? image.meta.tags.join(', ') : 'Keine Tags'}\n` +
+                           `QUELLE: ${image.sourceContext || 'Unbekannt'}`;
+            
+            imagesFolder?.file(`bild_${index + 1}_info.txt`, imageInfo);
+          } catch (error) {
+            console.error(`Fehler beim Exportieren von Bild ${index + 1}:`, error);
+          }
+        }
+      });
+      
+      // Warte, bis alle Bilder verarbeitet wurden
+      await Promise.all(imageExportPromises);
+      
+      // Gesamtzusammenfassung erstellen
+      const summary = `SCHREIBHORST EXPORT\n` +
+                     `Erstellt am: ${format(new Date(), "d. MMMM yyyy, HH:mm:ss", { locale: de })}\n\n` +
+                     `Inhalt:\n` +
+                     `- ${textDrafts.length} Textentwürfe\n` +
+                     `- ${imageDrafts.length} Bildentwürfe\n` +
+                     `- ${currentBlogPostDraft ? '1 Blogbeitrag' : 'Kein Blogbeitrag'}\n`;
+      
+      zip.file("README.txt", summary);
+      
+      // ZIP-Datei generieren und herunterladen
+      const content = await zip.generateAsync({ type: "blob" });
+      const fileName = `schreibhorst_export_${format(new Date(), "yyyy-MM-dd_HH-mm", { locale: de })}.zip`;
+      saveAs(content, fileName);
+      
+    } catch (error) {
+      console.error('Fehler beim Exportieren:', error);
+      alert('Beim Exportieren ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.');
+    }
+  };
+  
+  // Hilfsfunktion zum Ermitteln der Dateiendung aus einer URL
+  const getFileExtension = (url: string): string | null => {
+    const match = url.match(/\.([a-zA-Z0-9]+)(?:[?#]|$)/);
+    return match ? `.${match[1].toLowerCase()}` : null;
+  };
+
   return (
     <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0]">
       {/* Header */}
@@ -1039,7 +1159,10 @@ export default function StagePanel() {
             >
               <ClockIcon className="w-5 h-5" />
             </button>
-            <button className="px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100 ml-auto">
+            <button 
+              onClick={handleExport}
+              className="px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100 ml-auto"
+            >
               Exportieren
             </button>
           </div>
