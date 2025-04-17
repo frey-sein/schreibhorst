@@ -5,10 +5,12 @@
 // Debugging-Informationen für Umgebungsvariablen
 const pixabayEnabled = process.env.NEXT_PUBLIC_ENABLE_PIXABAY === 'true';
 const pixabayKeyExists = !!process.env.PIXABAY_API_KEY;
+const unsplashKeyExists = !!process.env.NEXT_PUBLIC_UNSPLASH_API_KEY;
 
 console.log('API-Konfiguration geladen:');
 console.log('- NEXT_PUBLIC_ENABLE_PIXABAY:', pixabayEnabled ? 'aktiviert' : 'deaktiviert');
 console.log('- PIXABAY_API_KEY:', pixabayKeyExists ? 'vorhanden' : 'fehlt');
+console.log('- NEXT_PUBLIC_UNSPLASH_API_KEY:', unsplashKeyExists ? 'vorhanden' : 'fehlt');
 
 export const apiConfig = {
   // Pixabay-API-Konfiguration
@@ -32,6 +34,13 @@ export const apiConfig = {
     defaultModel: 'openai/gpt-3.5-turbo-instruct'
   },
   
+  // Unsplash Konfiguration
+  unsplash: {
+    apiKey: process.env.NEXT_PUBLIC_UNSPLASH_API_KEY || '',
+    isEnabled: !!process.env.NEXT_PUBLIC_UNSPLASH_API_KEY,
+    baseUrl: 'https://api.unsplash.com/'
+  },
+  
   // Konfigurationen für weitere APIs können hier hinzugefügt werden
 };
 
@@ -43,8 +52,8 @@ export const stockImageConfig = {
     searchUrl: 'https://pixabay.com/images/search/'
   },
   unsplash: {
-    apiKey: process.env.UNSPLASH_API_KEY || '',
-    isEnabled: true, // Temporär auf true gesetzt
+    apiKey: process.env.NEXT_PUBLIC_UNSPLASH_API_KEY || '',
+    isEnabled: Boolean(process.env.NEXT_PUBLIC_UNSPLASH_API_KEY),
     baseUrl: 'https://api.unsplash.com/',
     searchUrl: 'https://unsplash.com/s/'
   }
@@ -53,7 +62,7 @@ export const stockImageConfig = {
 /**
  * Hilfsfunktion zur Verwendung auf der Serverseite, um den API-Schlüssel zu bekommen
  */
-export function getServerApiKey(service: 'pixabay' | 'togetherAi' | 'openRouter'): string {
+export function getServerApiKey(service: 'pixabay' | 'togetherAi' | 'openRouter' | 'unsplash'): string {
   const key = apiConfig[service].apiKey;
   if (!key) {
     console.warn(`API-Schlüssel für '${service}' fehlt oder ist leer`);
@@ -64,7 +73,7 @@ export function getServerApiKey(service: 'pixabay' | 'togetherAi' | 'openRouter'
 /**
  * Prüft, ob ein Dienst aktiviert ist (kann auf Client und Server verwendet werden)
  */
-export function isServiceEnabled(service: 'pixabay' | 'togetherAi' | 'openRouter'): boolean {
+export function isServiceEnabled(service: 'pixabay' | 'togetherAi' | 'openRouter' | 'unsplash'): boolean {
   if (service === 'pixabay') {
     const isEnabled = apiConfig.pixabay.isEnabled;
     const hasKey = !!apiConfig.pixabay.apiKey;
@@ -73,6 +82,11 @@ export function isServiceEnabled(service: 'pixabay' | 'togetherAi' | 'openRouter
     return status;
   } else if (service === 'openRouter') {
     return !!apiConfig.openRouter.apiKey;
+  } else if (service === 'unsplash') {
+    const hasKey = !!apiConfig.unsplash.apiKey;
+    const status = apiConfig.unsplash.isEnabled && hasKey;
+    console.log(`Unsplash-Status: API-Schlüssel=${hasKey ? 'vorhanden' : 'fehlt'}, Gesamtstatus=${status ? 'aktiv' : 'inaktiv'}`);
+    return status;
   }
   
   // Andere Dienste können hier hinzugefügt werden

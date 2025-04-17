@@ -38,6 +38,9 @@ export interface SearchStockImagesResponse {
 // Prüft, ob Pixabay aktiviert ist
 const isPixabayEnabled = isServiceEnabled('pixabay');
 
+// Prüft, ob Unsplash aktiviert ist
+const isUnsplashEnabled = isServiceEnabled('unsplash');
+
 // Stelle sicher, dass Pixabay aktiviert wird, wenn NEXT_PUBLIC_ENABLE_PIXABAY=true gesetzt ist
 // (Überschreibe das Ergebnis von isServiceEnabled, falls API-Probleme es deaktiviert haben)
 const forceEnablePixabay = process.env.NEXT_PUBLIC_ENABLE_PIXABAY === 'true';
@@ -50,7 +53,7 @@ export const stockImageProviders: StockImageProvider[] = [
     logo: 'https://pixabay.com/static/img/logo.svg',
     baseUrl: stockImageConfig.pixabay.searchUrl,
     description: 'Kostenlose Bilder und Royalty-free Stock',
-    isActive: true
+    isActive: isPixabayEnabled || forceEnablePixabay
   },
   {
     id: 'unsplash',
@@ -58,12 +61,12 @@ export const stockImageProviders: StockImageProvider[] = [
     logo: 'https://unsplash.com/assets/core/logo-black.svg',
     baseUrl: 'https://unsplash.com/s/',
     description: 'Hochwertige freie Bilder',
-    isActive: false
+    isActive: isUnsplashEnabled
   }
 ];
 
 // Nur aktive Anbieter anzeigen
-export const activeStockImageProviders = stockImageProviders;
+export const activeStockImageProviders = stockImageProviders.filter(provider => provider.isActive);
 
 // Beispiel-Tags für verschiedene Suchbegriffe
 const tagsByKeyword: Record<string, string[]> = {
@@ -187,7 +190,9 @@ async function searchMockProvider(
       }
       
       // Mische die Tags und begrenze sie auf maximal 8
-      tags = [...new Set(tags)].sort(() => Math.random() - 0.5).slice(0, 8);
+      // Konvertiere das Set zu einem Array, um die Iteration zu ermöglichen
+      const uniqueTags = Array.from(new Set(tags));
+      const mixedTags = uniqueTags.sort(() => Math.random() - 0.5).slice(0, 8);
       
       // Erstelle ein zufälliges Bild mit Unsplash-API
       const imageId = Math.floor(Math.random() * 1000) + 1;
@@ -205,7 +210,7 @@ async function searchMockProvider(
         fullSizeUrl: imageUrl,
         title: `${query.charAt(0).toUpperCase() + query.slice(1)} Bild ${index + 1}`,
         provider,
-        tags,
+        tags: mixedTags,
         licenseInfo: provider.id === 'unsplash' || provider.id === 'pixabay' 
           ? 'Kostenlose Nutzung unter Namensnennung' 
           : 'Kommerzielle Lizenz erforderlich',
@@ -232,77 +237,92 @@ async function searchMockProvider(
   }
 }
 
-// iStock-Suchfunktion
-async function searchIStock(query: string, page: number = 1, perPage: number = 20): Promise<SearchStockImagesResponse> {
-  const config = stockImageConfig.istock;
-  
-  if (!config.isEnabled) {
-    return {
-      success: false,
-      error: 'iStock API ist nicht konfiguriert',
-      results: [],
-      provider: 'istock'
-    };
-  }
-
+/**
+ * Sucht über die Unsplash API nach Bildern
+ * @param query Suchbegriff
+ * @param page Seitennummer (optional)
+ * @param perPage Ergebnisse pro Seite (optional)
+ * @returns Promise mit den Suchergebnissen
+ */
+async function searchUnsplash(
+  query: string,
+  page: number = 1,
+  perPage: number = 20
+): Promise<SearchStockImagesResponse> {
   try {
-    // Authentifizierung
-    const authResponse = await fetch('https://api.gettyimages.com/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: `grant_type=client_credentials&client_id=${config.apiKey}&client_secret=${config.apiSecret}`
-    });
-
-    const authData = await authResponse.json();
+    const unsplashApiKey = process.env.NEXT_PUBLIC_UNSPLASH_API_KEY;
     
-    if (!authResponse.ok) {
-      throw new Error('Authentifizierung fehlgeschlagen');
+    if (!unsplashApiKey) {
+      throw new Error('Unsplash API-Key nicht konfiguriert');
     }
 
-    // Bildsuche
-    const searchResponse = await fetch(`${config.baseUrl}search/images?phrase=${encodeURIComponent(query)}&page=${page}&page_size=${perPage}&fields=id,title,preview,referral_destinations,keywords`, {
-      headers: {
-        'Api-Key': config.apiKey,
-        'Authorization': `Bearer ${authData.access_token}`
+    // Rufe die Unsplash API auf
+    const response = await fetch(
+      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&page=${page}&per_page=${perPage}`,
+      {
+        headers: {
+          'Authorization': `Client-ID ${unsplashApiKey}`
+        }
       }
-    });
+    );
 
-    const data = await searchResponse.json();
-
-    if (!searchResponse.ok) {
-      throw new Error(data.error || 'Fehler bei der Suche');
+    if (!response.ok) {
+      throw new Error(`Unsplash API Fehler: ${response.status}`);
     }
 
-    // Formatiere die Ergebnisse
-    const results: StockImageResult[] = data.images.map((image: any) => ({
-      id: image.id,
-      title: image.title,
-      thumbnailUrl: image.preview.url,
-      fullSizeUrl: image.referral_destinations[0].uri,
-      downloadUrl: image.referral_destinations[0].uri,
-      provider: stockImageProviders.find(p => p.id === 'istock')!,
-      tags: image.keywords || [],
-      licenseInfo: 'iStock Lizenz erforderlich',
-      author: image.artist || undefined
-    }));
+    const data = await response.json();
+    
+    if (!data.results) {
+      throw new Error('Ungültige Antwort von Unsplash API');
+    }
 
     return {
       success: true,
-      results,
-      provider: 'istock',
-      totalResults: data.total_count,
-      page
+      results: data.results.map((photo: any) => {
+        // Generiere Tags aus der Beschreibung oder dem alt_description, wenn keine Tags vorhanden sind
+        let tags: string[] = [];
+        
+        // Wenn photo.tags existiert und ein Array ist
+        if (photo.tags && Array.isArray(photo.tags) && photo.tags.length > 0) {
+          tags = photo.tags.map((tag: any) => tag.title || '');
+        } else {
+          // Extrahiere Wörter aus der Beschreibung oder alt_description
+          const description = photo.description || photo.alt_description || '';
+          if (description) {
+            // Teile die Beschreibung in Wörter auf und entferne kurze Wörter
+            tags = description
+              .split(/\s+/)
+              .filter((word: string) => word.length > 3)
+              .slice(0, 5);
+          }
+        }
+        
+        // Stelle sicher, dass wir einen anständigen Titel haben
+        const title = photo.description || photo.alt_description || `Unsplash Bild ${photo.id.substring(0, 5)}`;
+        
+        return {
+          id: photo.id,
+          thumbnailUrl: photo.urls.small,
+          fullSizeUrl: photo.urls.regular,
+          downloadUrl: photo.urls.full,
+          title: title.charAt(0).toUpperCase() + title.slice(1), // Erster Buchstabe groß
+          provider: stockImageProviders.find(p => p.id === 'unsplash')!,
+          tags: tags.filter(tag => tag && tag.trim().length > 0),
+          licenseInfo: 'Unsplash Lizenz',
+          author: photo.user.name
+        };
+      }),
+      totalResults: data.total,
+      page,
+      provider: 'unsplash'
     };
-
   } catch (error) {
-    console.error('iStock API Fehler:', error);
+    console.error('Fehler bei der Unsplash-Suche:', error);
     return {
       success: false,
-      error: 'Fehler bei der iStock-Suche',
       results: [],
-      provider: 'istock'
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler bei der Unsplash-Suche',
+      provider: 'unsplash'
     };
   }
 }
@@ -334,15 +354,7 @@ export async function searchStockImages(
     case 'pixabay':
       return searchPixabay(query, page, perPage);
     case 'unsplash':
-      // Temporärer Mock für Unsplash
-      return {
-        success: false,
-        results: [],
-        error: 'Unsplash API noch nicht konfiguriert',
-        provider: 'unsplash'
-      };
-    case 'istock':
-      return searchIStock(query, page, perPage);
+      return searchUnsplash(query, page, perPage);
     default:
       return {
         success: false,

@@ -44,28 +44,39 @@ export default function StockImagePanel() {
   }, [imageDrafts]);
   
   // Prompt-Vereinfachung mit API oder lokalem Fallback
+  const [simplifyMethod, setSimplifyMethod] = useState<'ai' | 'local' | null>(null);
+  
   const handleSimplifyPrompt = async (prompt: string) => {
     setIsSimplifying(true);
     setErrorMessage('');
+    setSimplifyMethod(null);
     
     try {
-      // Versuche zuerst die API-Vereinfachung
+      // Versuche zuerst die KI-basierte Vereinfachung
+      setSimplifyMethod('ai');
+      
+      // Kurze Verzögerung, damit der Benutzer den Statuswechsel bemerkt
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       const result = await simplifyPrompt(prompt);
       
       if (result.success && result.simplifiedPrompt) {
         setSearchQuery(result.simplifiedPrompt);
+        
+        // Starte die Suche automatisch mit dem vereinfachten Prompt
+        setTimeout(() => {
+          handleSearch(result.simplifiedPrompt);
+        }, 500);
       } else {
-        // Fallback zur lokalen Vereinfachung
-        const simplified = simplifyPromptLocally(prompt);
-        setSearchQuery(simplified);
+        // Bei einem Fehler
+        setErrorMessage('Vereinfachung konnte nicht durchgeführt werden.');
       }
     } catch (error) {
       console.error('Fehler bei der Prompt-Vereinfachung:', error);
-      // Einfachen lokalen Fallback verwenden
-      const simplified = simplifyPromptLocally(prompt);
-      setSearchQuery(simplified);
+      setErrorMessage('Vereinfachung konnte nicht durchgeführt werden.');
     } finally {
       setIsSimplifying(false);
+      setSimplifyMethod(null);
     }
   };
   
@@ -249,12 +260,24 @@ export default function StockImagePanel() {
         
         {/* Anzeige während der Prompt-Vereinfachung */}
         {isSimplifying && (
-          <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl">
-            <div className="flex items-center gap-2">
-              <div className="animate-spin">
-                <StarIcon className="h-4 w-4 text-gray-600" />
+          <div className="p-4 bg-gray-50 border border-gray-100 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="animate-spin h-5 w-5 text-blue-500">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
               </div>
-              <p className="text-sm text-gray-700">Vereinfache den Prompt für die Stockbildsuche...</p>
+              <div>
+                <p className="text-sm font-medium text-gray-700">
+                  {simplifyMethod === 'ai' 
+                    ? 'KI identifiziert relevante Suchbegriffe...' 
+                    : 'Vereinfache Prompt für Stockbildsuche...'}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Wir extrahieren die 2-3 wichtigsten Wörter für optimale Suchergebnisse
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -313,20 +336,43 @@ export default function StockImagePanel() {
                   <img
                     src={image.thumbnailUrl}
                     alt={image.title}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                   />
                 </div>
-                <div className="mt-2 space-y-2">
+                <div className="mt-2">
+                  {/* Titel und Anbieter */}
+                  <div className="mb-1">
+                    <h3 className="text-sm font-medium text-gray-900 truncate">
+                      {image.title}
+                    </h3>
+                    <p className="text-xs text-gray-500 truncate">
+                      {image.provider.name}
+                    </p>
+                  </div>
+                  
+                  {/* Aktionsleiste */}
                   <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-sm font-medium text-gray-900 truncate">
-                        {image.title}
-                      </h3>
-                      <p className="text-xs text-gray-500">
-                        {image.provider.name}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-2">
+                    {/* Tags */}
+                    {image.tags && image.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 flex-1">
+                        {image.tags.slice(0, 3).map((tag, index) => (
+                          <span 
+                            key={index} 
+                            className="px-2 py-0.5 bg-gray-100 rounded-full text-xs text-gray-600"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                        {image.tags.length > 3 && (
+                          <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs text-gray-600">
+                            +{image.tags.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Aktionsbuttons */}
+                    <div className="flex items-center space-x-3 ml-2">
                       <a
                         href={image.fullSizeUrl}
                         target="_blank"
@@ -366,24 +412,6 @@ export default function StockImagePanel() {
                       </button>
                     </div>
                   </div>
-                  
-                  {image.tags && image.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {image.tags.slice(0, 3).map((tag, index) => (
-                        <span 
-                          key={index} 
-                          className="px-2 py-0.5 bg-gray-100 rounded-full text-xs text-gray-600"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      {image.tags.length > 3 && (
-                        <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs text-gray-600">
-                          +{image.tags.length - 3}
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             ))}
