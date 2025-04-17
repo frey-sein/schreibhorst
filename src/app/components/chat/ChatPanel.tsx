@@ -13,11 +13,19 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 import { Document, Paragraph } from 'docx';
-import { ChatBubbleLeftIcon, PaperClipIcon, PaperAirplaneIcon, SparklesIcon, PlusIcon, ClockIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { DEEP_RESEARCH_MODELS } from '@/lib/constants/chat';
+import {
+  PlusIcon,
+  ClockIcon,
+  PaperClipIcon,
+  PaperAirplaneIcon,
+  MagnifyingGlassIcon,
+  ChevronDownIcon,
+  SparklesIcon
+} from '@heroicons/react/24/outline';
 import ReactMarkdown from 'react-markdown';
 import { useUser } from '@/app/hooks/useUser';
 import DOMPurify from 'dompurify';
+import { DEEP_RESEARCH_MODELS } from '@/lib/constants/chat';
 
 // Erweiterte ChatMessage-Definition mit 'system' als möglichem Sender
 interface ChatMessage {
@@ -308,6 +316,8 @@ export default function ChatPanel() {
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analyzeStep, setAnalyzeStep] = useState<string>('');
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const modelSelectorRef = useRef<HTMLDivElement>(null);
 
   // Get prompt store functions
   const { addPrompt } = usePromptStore();
@@ -775,6 +785,27 @@ export default function ChatPanel() {
     .message-content {
       white-space: pre-wrap;
       font-size: 0.875rem;
+    }
+    
+    /* Benutzerdefinierte Scrollbar-Stile */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background-color: #f5f5f5;
+      border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #d1d5db;
+      border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background-color: #9ca3af;
+    }
+    /* Firefox Scrollbar-Stil */
+    .custom-scrollbar {
+      scrollbar-width: thin;
+      scrollbar-color: #d1d5db #f5f5f5;
     }
   `;
 
@@ -1565,6 +1596,20 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
     }
   };
 
+  // Schließe Modell-Dropdown wenn außerhalb geklickt wird
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (modelSelectorRef.current && !modelSelectorRef.current.contains(event.target as Node)) {
+        setModelDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [modelSelectorRef]);
+
   return (
     <div className="w-1/2 flex flex-col h-full bg-[#f0f0f0] relative">
       {/* Inline CSS als Fallback */}
@@ -1604,25 +1649,62 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
             >
               <ClockIcon className="w-5 h-5" />
             </button>
-            <div className="w-48 lg:w-64 shrink-0">
-              <select
-                value={selectedModel}
-                onChange={(e) => {
-                  const newModel = e.target.value;
-                  setSelectedModel(newModel);
-                  // Wenn das neue Modell kein Deep Research unterstützt, deaktiviere den Deep Research Modus
-                  if (!supportsDeepResearch(newModel)) {
-                    setDeepResearchEnabled(false);
-                  }
-                }}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-sm bg-white text-gray-900 font-medium appearance-none bg-no-repeat bg-[right_1rem_center] bg-[length:1.5em_1.5em] bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%236B7280%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20d%3D%22M10%203a1%201%200%2001.707.293l3%203a1%201%200%2001-1.414%201.414L10%205.414%207.707%207.707a1%201%200%2001-1.414-1.414l3-3A1%201%200%200110%203zm-3.707%209.293a1%201%200%20011.414%200L10%2014.586l2.293-2.293a1%201%200%20011.414%201.414l-3%203a1%201%200%2001-1.414%200l-3-3a1%201%200%20010-1.414z%22%20clip-rule%3D%22evenodd%22%2F%3E%3C%2Fsvg%3E')]"
+            
+            {/* Neuer Modell-Auswahlbutton im Stil des Blogbeitrags-Generators */}
+            <div className="relative shrink-0" ref={modelSelectorRef}>
+              <button
+                onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm w-56 lg:w-64"
+                title="Modell wechseln"
               >
-                {AVAILABLE_MODELS.map((model) => (
-                  <option key={model.id} value={model.id} className="text-gray-900">
-                    {model.name}
-                  </option>
-                ))}
-              </select>
+                <SparklesIcon className="h-4 w-4 text-amber-500 shrink-0" />
+                <span className="truncate">
+                  {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel.split('/')[1]}
+                </span>
+                <ChevronDownIcon className="h-3 w-3 text-gray-500 ml-auto" />
+              </button>
+              
+              {modelDropdownOpen && (
+                <div className="absolute right-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                  <div className="p-2">
+                    <div className="text-xs font-medium text-gray-500 mb-1 px-2">
+                      KI-Modell wählen
+                    </div>
+                    <div className="max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+                      {AVAILABLE_MODELS.map((model) => (
+                        <button
+                          key={model.id}
+                          onClick={() => {
+                            const newModel = model.id;
+                            setSelectedModel(newModel);
+                            setModelDropdownOpen(false);
+                            // Wenn das neue Modell kein Deep Research unterstützt, deaktiviere den Deep Research Modus
+                            if (!supportsDeepResearch(newModel)) {
+                              setDeepResearchEnabled(false);
+                            }
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded transition-colors flex items-center gap-2 ${
+                            selectedModel === model.id
+                              ? 'bg-gray-100 text-gray-900 shadow-inner'
+                              : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          <SparklesIcon 
+                            className={`h-4 w-4 ${
+                              selectedModel === model.id
+                                ? 'text-amber-500'
+                                : 'text-gray-400'
+                            }`} 
+                          />
+                          <div>
+                            <div className="font-medium text-sm">{model.name}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

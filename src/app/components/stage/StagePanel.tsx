@@ -645,7 +645,7 @@ export default function StagePanel() {
       if (window.confirm('Möchten Sie diesen Eintrag wirklich löschen?')) {
         await deleteSnapshot(id);
         // Aktualisiere die Snapshot-Liste
-        const updatedSnapshots = await getSnapshots();
+        const updatedSnapshots = await getSnapshots(true); // true für onlyManual - nur manuell gespeicherte Snapshots laden
         setSnapshots(updatedSnapshots);
       }
     } catch (error) {
