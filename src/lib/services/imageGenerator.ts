@@ -12,28 +12,22 @@ export interface ImageModel {
 
 export const availableModels: ImageModel[] = [
   {
-    id: 'stabilityai/stable-diffusion-xl-base-1.0',
-    name: 'Stable Diffusion XL',
+    id: 'black-forest-labs/FLUX.1-schnell',
+    name: 'FLUX.1 [schnell]',
     provider: 'Together AI',
-    description: 'Hohe Qualität mit guter Balance aus Geschwindigkeit und Detailgrad'
+    description: 'Schnelles FLUX-Modell für effiziente Bildgenerierung'
   },
   {
     id: 'black-forest-labs/FLUX.1-dev',
-    name: 'FLUX.1 (Dev)',
-    provider: 'Together AI / Black Forest Labs',
-    description: 'Fortschrittliches Modell für kreative Bildgenerierung'
-  },
-  {
-    id: 'black-forest-labs/FLUX.1',
-    name: 'FLUX.1',
-    provider: 'Together AI / Black Forest Labs',
-    description: 'Produktionsversion des FLUX.1 Modells für hochwertige Bildgenerierung'
-  },
-  {
-    id: 'runwayml/stable-diffusion-v1-5',
-    name: 'Stable Diffusion 1.5',
+    name: 'FLUX.1 [dev]',
     provider: 'Together AI',
-    description: 'Grundlegendes Modell mit guter Vielseitigkeit'
+    description: 'Höhere Qualität als schnell-Variante für detailliertere Bilder'
+  },
+  {
+    id: 'black-forest-labs/FLUX.1.1-pro',
+    name: 'FLUX1.1 [pro]',
+    provider: 'Together AI',
+    description: 'Premium-Bildgenerierungsmodell mit höchster Qualität'
   }
 ];
 
@@ -87,13 +81,31 @@ export async function generateImage(
     }
 
     // Wenn kein Modell angegeben wurde, verwende das Standardmodell
-    let model = modelId || 'stabilityai/stable-diffusion-xl-base-1.0';
+    let model = modelId || 'black-forest-labs/FLUX.1-schnell';
 
     // Prüfe, ob das Modell in der Liste verfügbar ist
     const isValidModel = availableModels.some(m => m.id === model);
     if (!isValidModel) {
       console.warn(`Das ausgewählte Modell "${model}" ist nicht in der Liste der verfügbaren Modelle. Verwende Standardmodell.`);
-      model = 'stabilityai/stable-diffusion-xl-base-1.0';
+      model = 'black-forest-labs/FLUX.1-schnell';
+    }
+
+    // Standardwerte für die Anfrage
+    const requestBody: any = {
+      model: model,
+      prompt: prompt,
+      n: 1, // Anzahl der zu generierenden Bilder
+      size: '1024x1024', // Standard-Bildgröße für Together AI
+      response_format: 'url' // URL statt Base64
+    };
+
+    // Zusätzliche Parameter für bestimmte Modelle
+    if (model.includes('FLUX.1.1-pro')) {
+      requestBody.steps = 10; // Mehr Schritte für bessere Qualität bei Pro-Modell
+    } else if (model.includes('FLUX.1-dev')) {
+      requestBody.steps = 8; // Mittlere Anzahl an Schritten für Dev-Modell
+    } else if (model.includes('FLUX.1-schnell')) {
+      requestBody.steps = 4; // Wenige Schritte für das schnelle Modell
     }
 
     const response = await fetch('https://api.together.xyz/v1/images/generations', {
@@ -102,13 +114,7 @@ export async function generateImage(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify({
-        model: model,
-        prompt: prompt,
-        n: 1, // Anzahl der zu generierenden Bilder
-        size: '1024x1024', // Standard-Bildgröße für Together AI (FLUX akzeptiert scheinbar nur Standard-Größen)
-        response_format: 'url' // URL statt Base64
-      })
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {

@@ -20,6 +20,7 @@ interface StageHistoryStore {
   getSnapshots: () => Promise<StageSnapshot[]>;
   clearSnapshots: () => Promise<void>;
   setCurrentChatId: (chatId: string | null) => void;
+  deleteSnapshot: (id: string) => Promise<void>;
 }
 
 export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
@@ -143,5 +144,22 @@ export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
 
   setCurrentChatId: (chatId) => {
     set({ currentChatId: chatId });
+  },
+  
+  deleteSnapshot: async (id) => {
+    // Im lokalen Store löschen
+    set(state => ({
+      snapshots: state.snapshots.filter(snapshot => snapshot.id !== id),
+      currentSnapshotId: state.currentSnapshotId === id ? null : state.currentSnapshotId
+    }));
+    
+    // Vom Server löschen
+    try {
+      await fetch(`/api/stage-history?id=${id}`, {
+        method: 'DELETE'
+      });
+    } catch (error) {
+      console.error('Fehler beim Löschen des Snapshots vom Server:', error);
+    }
   }
 })); 

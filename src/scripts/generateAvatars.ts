@@ -96,7 +96,7 @@ async function generateAvatar(config: AvatarConfig): Promise<void> {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'stabilityai/stable-diffusion-xl-base-1.0',
+      model: 'black-forest-labs/FLUX.1-schnell',
       prompt: config.prompt,
       n: 1,
       size: '512x512',

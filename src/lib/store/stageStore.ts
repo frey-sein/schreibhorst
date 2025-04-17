@@ -24,7 +24,7 @@ export interface StageState {
 // Hilfsfunktion: Stellt sicher, dass das Modell in der verfügbaren Liste ist
 const getValidModel = (modelId: string): string => {
   const isValid = availableModels.some(model => model.id === modelId);
-  return isValid ? modelId : 'stabilityai/stable-diffusion-xl-base-1.0';
+  return isValid ? modelId : 'black-forest-labs/FLUX.1-schnell';
 };
 
 // Hilfsfunktion: Stellt sicher, dass das Text-Modell in der verfügbaren Liste ist
