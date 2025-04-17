@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { UsersIcon, ArrowRightOnRectangleIcon, FolderIcon, BookOpenIcon, BeakerIcon, CogIcon } from '@heroicons/react/24/outline';
+import { UsersIcon, ArrowRightOnRectangleIcon, FolderIcon, BookOpenIcon, BeakerIcon, CogIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 
 interface User {
@@ -68,6 +68,7 @@ export default function Header() {
   const isDateimanager = pathname.startsWith('/dateimanager');
   const isWissen = pathname.startsWith('/wissen');
   const isAgents = pathname.startsWith('/agents');
+  const isStile = pathname.startsWith('/stile');
   const isProfile = pathname.startsWith('/profil');
   const isUsers = pathname.startsWith('/benutzer');
   const isAdmin = pathname.startsWith('/admin');
@@ -83,11 +84,6 @@ export default function Header() {
 
   const handleLogout = async () => {
     try {
-      // Zuerst alle Stage-Snapshots des aktuellen Benutzers löschen
-      await fetch('/api/stage-history', {
-        method: 'DELETE'
-      });
-      
       // Abmelden über die API
       await fetch('/api/auth/logout', {
         method: 'POST',
@@ -145,6 +141,17 @@ export default function Header() {
           >
             <BookOpenIcon className={`h-5 w-5 ${isWissen ? 'text-gray-800' : 'text-gray-600'}`} />
             <span className={`${isWissen ? 'text-gray-800' : 'text-gray-700'}`}>Wissen</span>
+          </Link>
+          <Link 
+            href="/stile"
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
+              isStile 
+                ? 'border-[#2c2c2c] bg-gray-200 font-medium shadow-sm' 
+                : 'bg-white border-gray-100'
+            }`}
+          >
+            <PencilSquareIcon className={`h-5 w-5 ${isStile ? 'text-gray-800' : 'text-gray-600'}`} />
+            <span className={`${isStile ? 'text-gray-800' : 'text-gray-700'}`}>Stile</span>
           </Link>
           {currentUser.role === 'admin' && (
             <Link 
