@@ -321,6 +321,7 @@ export async function getStageSnapshots(userId?: string, chatId?: string, id?: s
   chatId?: string;
   textDrafts: any[];
   imageDrafts: ImageDraft[];
+  blogPostDraft?: any;
   isManualSave?: boolean;
 }>> {
   // Wenn MySQL verfügbar ist, nutze die Datenbank
@@ -369,6 +370,7 @@ export async function getStageSnapshots(userId?: string, chatId?: string, id?: s
           chatId: row.chat_id,
           textDrafts: data.textDrafts || [],
           imageDrafts: data.imageDrafts || [],
+          blogPostDraft: data.blogPostDraft || null,
           isManualSave: row.manual_save === 1
         };
       });
@@ -403,6 +405,7 @@ export async function getStageSnapshots(userId?: string, chatId?: string, id?: s
           chatId: data.chatId,
           textDrafts: data.textDrafts || [],
           imageDrafts: data.imageDrafts || [],
+          blogPostDraft: data.blogPostDraft || null,
           isManualSave: data.isManualSave || false
         };
       });

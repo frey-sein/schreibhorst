@@ -38,6 +38,7 @@ export default function StagePanel() {
     timestamp: Date;
     textDrafts: any[];
     imageDrafts: any[];
+    blogPostDraft?: any;
   }>>([]);
   const [activeTab, setActiveTab] = useState<'text' | 'images' | 'blog'>('images');
 
@@ -181,8 +182,12 @@ export default function StagePanel() {
 
   const handleSave = async () => {
     try {
-      // Speichere den aktuellen Zustand im History-Store
-      await addSnapshot(textDrafts, imageDrafts, undefined, undefined, true); // true für isManualSave
+      // Hole den aktuellen BlogPostDraft aus dem Store
+      const { useStageStore } = await import('@/lib/store/stageStore');
+      const currentBlogPostDraft = useStageStore.getState().blogPostDraft;
+      
+      // Speichere den aktuellen Zustand im History-Store, inklusive BlogPostDraft
+      await addSnapshot(textDrafts, imageDrafts, undefined, currentBlogPostDraft, true); // true für isManualSave
       
       // Lade die Snapshots neu (mit dem Parameter true für nur manuelle Snapshots)
       const loadedSnapshots = await getSnapshots(true);
@@ -332,6 +337,22 @@ export default function StagePanel() {
         // Aktualisiere beide Stores - History und Stage
         setTextDrafts(snapshot.textDrafts);
         setImageDrafts(snapshot.imageDrafts);
+        
+        // Aktualisiere den Blogbeitrag-Generator-Status
+        // Wichtig: Setze auf null, wenn kein Blogbeitrag im Snapshot existiert
+        setBlogPostDraft(snapshot.blogPostDraft || null);
+        
+        // Erzwinge ein Re-Rendering, wenn wir im Blogbeitrag-Tab sind
+        // indem wir kurz zu einem anderen Tab wechseln und zurück
+        if (activeTab === 'blog') {
+          // Kurzzeitig zu einem anderen Tab wechseln
+          setActiveTab('images');
+          // Und nach einer kurzen Verzögerung zurück zum Blog-Tab
+          setTimeout(() => {
+            setActiveTab('blog');
+          }, 10);
+        }
+        
         setIsHistoryOpen(false);
       }
     } catch (error) {
@@ -1071,6 +1092,7 @@ export default function StagePanel() {
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
                           {format(new Date(snapshot.timestamp), "HH:mm:ss", { locale: de })} Uhr • {snapshot.textDrafts.length} Texte, {snapshot.imageDrafts.length} Bilder
+                          {snapshot.blogPostDraft ? ', 1 Blogbeitrag' : ''}
                         </p>
                         {snapshot.imageDrafts.length > 0 && (
                           <div className="flex gap-2 mt-2 overflow-x-auto pb-2">
