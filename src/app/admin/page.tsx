@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import AvatarSelector from '../components/agents/AvatarSelector';
 import * as knowledgeService from '../../lib/services/knowledgeService';
+import { useUserStore, UserProfile } from '../../lib/store/userStore';
+import { UserCircleIcon, PencilIcon, TrashIcon, PlusIcon } from '@heroicons/react/24/outline';
 
 interface Agent {
   id: string;
@@ -33,7 +35,35 @@ export default function AdminPage() {
   const [selectedCategory, setSelectedCategory] = useState<'male' | 'female'>('male');
   const [isResetting, setIsResetting] = useState(false);
   const [isUploadingAvatars, setIsUploadingAvatars] = useState(false);
-  const [activeTab, setActiveTab] = useState<'avatare' | 'dateisystem' | 'wissensdatenbank' | 'datenbank' | 'system'>('avatare');
+  const [activeTab, setActiveTab] = useState<'avatare' | 'dateisystem' | 'wissensdatenbank' | 'datenbank' | 'system' | 'benutzer'>('avatare');
+  
+  // Benutzerverwaltung Zustände
+  const { users, addUser, updateUser, deleteUser, currentUser } = useUserStore();
+  const [isAddingUser, setIsAddingUser] = useState(false);
+  const [editingUser, setEditingUser] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  const [newUser, setNewUser] = useState<{
+    name: string;
+    email: string;
+    role: 'admin' | 'user';
+  }>({
+    name: '',
+    email: '',
+    role: 'user'
+  });
+
+  const [editingUserData, setEditingUserData] = useState<{
+    name: string;
+    email: string;
+    role: 'admin' | 'user';
+    password?: string;
+  }>({
+    name: '',
+    email: '',
+    role: 'user',
+    password: ''
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -189,6 +219,73 @@ export default function AdminPage() {
     }
   };
 
+  // Benutzerverwaltungsfunktionen
+  const handleAddUser = () => {
+    if (!newUser.name || !newUser.email) {
+      setMessage({ type: 'error', text: 'Bitte fülle alle Pflichtfelder aus.' });
+      return;
+    }
+
+    addUser({
+      name: newUser.name,
+      email: newUser.email,
+      role: newUser.role,
+      imageUrl: null
+    });
+
+    setNewUser({ name: '', email: '', role: 'user' });
+    setIsAddingUser(false);
+    setMessage({ type: 'success', text: 'Benutzer erfolgreich erstellt!' });
+  };
+
+  const handleEditUser = (userId: string) => {
+    const userToEdit = users.find(u => u.id === userId);
+    if (userToEdit) {
+      setEditingUser(userId);
+      setEditingUserData({
+        name: userToEdit.name,
+        email: userToEdit.email,
+        role: userToEdit.role,
+        password: ''
+      });
+    }
+  };
+
+  const handleUpdateUser = () => {
+    if (!editingUser || !editingUserData.name || !editingUserData.email) {
+      setMessage({ type: 'error', text: 'Bitte fülle alle Pflichtfelder aus.' });
+      return;
+    }
+
+    const userToUpdate: Partial<UserProfile> & { password?: string } = {
+      name: editingUserData.name,
+      email: editingUserData.email,
+      role: editingUserData.role
+    };
+
+    if (editingUserData.password) {
+      userToUpdate.password = editingUserData.password;
+    }
+
+    updateUser(editingUser, userToUpdate);
+
+    setEditingUser(null);
+    setEditingUserData({ name: '', email: '', role: 'user', password: '' });
+    setMessage({ type: 'success', text: 'Benutzer erfolgreich aktualisiert!' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingUser(null);
+    setEditingUserData({ name: '', email: '', role: 'user', password: '' });
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    if (window.confirm('Möchtest du diesen Benutzer wirklich löschen?')) {
+      deleteUser(userId);
+      setMessage({ type: 'success', text: 'Benutzer erfolgreich gelöscht!' });
+    }
+  };
+
   // Nicht rendern, wenn die Komponente noch nicht geladen ist oder der Benutzer kein Admin ist
   if (isLoading || !mounted || !isAdmin) {
     return null;
@@ -247,6 +344,16 @@ export default function AdminPage() {
                 }`}
               >
                 Datenbank
+              </button>
+              <button
+                onClick={() => setActiveTab('benutzer')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'benutzer'
+                    ? 'bg-[#2c2c2c] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Benutzer
               </button>
               <button
                 onClick={() => setActiveTab('system')}
@@ -396,6 +503,211 @@ export default function AdminPage() {
                     </svg>
                     Datenbank-Administration öffnen
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* Benutzerverwaltung */}
+            {activeTab === 'benutzer' && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="p-4 md:p-6">
+                  <div className="flex justify-between items-center mb-6">
+                    <h4 className="text-base font-medium text-gray-800">Benutzerverwaltung</h4>
+                    <button
+                      onClick={() => setIsAddingUser(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
+                    >
+                      <PlusIcon className="w-5 h-5" />
+                      <span>Neuer Benutzer</span>
+                    </button>
+                  </div>
+
+                  {message && (
+                    <div className={`mb-6 p-4 rounded-lg ${
+                      message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+                    }`}>
+                      {message.text}
+                    </div>
+                  )}
+
+                  {/* Neuer Benutzer Formular */}
+                  {isAddingUser && (
+                    <div className="mb-6 p-6 border border-gray-200 rounded-xl bg-gray-50">
+                      <h2 className="text-lg font-medium text-gray-900 mb-4">Neuen Benutzer erstellen</h2>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                          <input
+                            type="text"
+                            value={newUser.name}
+                            onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
+                            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                            placeholder="Name des Benutzers"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail</label>
+                          <input
+                            type="email"
+                            value={newUser.email}
+                            onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
+                            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                            placeholder="E-Mail-Adresse"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Rolle</label>
+                          <select
+                            value={newUser.role}
+                            onChange={(e) => setNewUser(prev => ({ ...prev, role: e.target.value as 'admin' | 'user' }))}
+                            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                          >
+                            <option value="user">Benutzer</option>
+                            <option value="admin">Administrator</option>
+                          </select>
+                        </div>
+                        <div className="flex justify-end gap-3">
+                          <button
+                            onClick={() => setIsAddingUser(false)}
+                            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium"
+                          >
+                            Abbrechen
+                          </button>
+                          <button
+                            onClick={handleAddUser}
+                            className="px-4 py-2 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 transition-all text-sm font-medium"
+                          >
+                            Benutzer erstellen
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Benutzerliste */}
+                  <div className="space-y-4">
+                    {users.map(user => (
+                      <div
+                        key={user.id}
+                        className="p-4 border border-gray-200 rounded-xl hover:border-gray-300 transition-colors"
+                      >
+                        {editingUser === user.id ? (
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-lg font-medium text-gray-900">Benutzer bearbeiten</h3>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={handleCancelEdit}
+                                  className="p-2 text-gray-600 hover:text-gray-900 focus:outline-none"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={handleUpdateUser}
+                                  className="p-2 text-green-600 hover:text-green-700 focus:outline-none"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                            <div className="space-y-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                                <input
+                                  type="text"
+                                  value={editingUserData.name}
+                                  onChange={(e) => setEditingUserData(prev => ({ ...prev, name: e.target.value }))}
+                                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail</label>
+                                <input
+                                  type="email"
+                                  value={editingUserData.email}
+                                  onChange={(e) => setEditingUserData(prev => ({ ...prev, email: e.target.value }))}
+                                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Rolle</label>
+                                <select
+                                  value={editingUserData.role}
+                                  onChange={(e) => setEditingUserData(prev => ({ ...prev, role: e.target.value as 'admin' | 'user' }))}
+                                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                                >
+                                  <option value="user">Benutzer</option>
+                                  <option value="admin">Administrator</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Neues Passwort (optional)</label>
+                                <input
+                                  type="password"
+                                  value={editingUserData.password}
+                                  onChange={(e) => setEditingUserData(prev => ({ ...prev, password: e.target.value }))}
+                                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2c2c2c]/20 text-gray-900"
+                                  placeholder="Leer lassen, um Passwort nicht zu ändern"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-4">
+                              <div className="flex-shrink-0">
+                                {user.imageUrl ? (
+                                  <img
+                                    src={user.imageUrl}
+                                    alt={user.name}
+                                    className="w-10 h-10 rounded-full"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                    <UserCircleIcon className="w-6 h-6 text-gray-500" />
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <h3 className="text-sm font-medium text-gray-900">{user.name}</h3>
+                                <p className="text-sm text-gray-500">{user.email}</p>
+                                <div className="mt-1">
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                    user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                                  }`}>
+                                    {user.role === 'admin' ? 'Administrator' : 'Benutzer'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleEditUser(user.id)}
+                                className="p-2 text-gray-600 hover:text-gray-900 focus:outline-none"
+                                title="Benutzer bearbeiten"
+                              >
+                                <PencilIcon className="w-5 h-5" />
+                              </button>
+                              {/* Nicht erlauben, den aktuellen Benutzer zu löschen */}
+                              {currentUser && currentUser !== user.id && (
+                                <button
+                                  onClick={() => handleDeleteUser(user.id)}
+                                  className="p-2 text-red-600 hover:text-red-700 focus:outline-none"
+                                  title="Benutzer löschen"
+                                >
+                                  <TrashIcon className="w-5 h-5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

@@ -161,19 +161,6 @@ export default function Header() {
           )}
           {currentUser.role === 'admin' && (
             <Link 
-              href="/benutzer"
-              className={`flex items-center gap-2 px-3 py-1.5 border rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
-                isUsers 
-                  ? 'border-[#2c2c2c] bg-gray-200 font-medium shadow-sm' 
-                  : 'bg-white border-gray-100'
-              }`}
-            >
-              <UsersIcon className={`h-5 w-5 ${isUsers ? 'text-gray-800' : 'text-gray-600'}`} />
-              <span className={`${isUsers ? 'text-gray-800' : 'text-gray-700'}`}>Benutzer</span>
-            </Link>
-          )}
-          {currentUser.role === 'admin' && (
-            <Link 
               href="/admin"
               className={`flex items-center gap-2 px-3 py-1.5 border rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm ${
                 isAdmin 
