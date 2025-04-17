@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Header from '../../../components/Header';
 import { TagIcon, PhotoIcon, XMarkIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
+import AvatarSelector from '../../../components/agents/AvatarSelector';
 
 interface Stil {
   id: string;
@@ -258,9 +259,41 @@ export default function EditStilPage() {
                 {/* Avatar/Bild URL */}
                 <div>
                   <label htmlFor="avatar" className="block text-sm font-medium text-gray-700 mb-1">
-                    Bild URL (optional)
+                    Avatar auswählen
                   </label>
-                  <div className="flex gap-3 items-center">
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-500 mb-2">Wählen Sie einen Avatar aus der Galerie:</p>
+                    <AvatarSelector
+                      selectedAvatar={avatar}
+                      onSelect={(selectedAvatar) => setAvatar(selectedAvatar)}
+                    />
+                  </div>
+                  
+                  {avatar && (
+                    <div className="flex items-center gap-3 mt-4 p-3 bg-gray-50 rounded-lg">
+                      <p className="text-sm font-medium text-gray-700">Ausgewählter Avatar:</p>
+                      <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                        <img 
+                          src={avatar} 
+                          alt="Ausgewählter Avatar" 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/images/placeholder.svg';
+                          }} 
+                        />
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => setAvatar('')}
+                        className="text-xs text-red-600 hover:text-red-800 ml-auto"
+                      >
+                        Avatar entfernen
+                      </button>
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-3 items-center mt-6">
+                    <p className="text-sm text-gray-500">Oder geben Sie eine eigene Bild-URL ein:</p>
                     <input
                       type="text"
                       id="avatar"
@@ -269,22 +302,6 @@ export default function EditStilPage() {
                       className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#2c2c2c] focus:border-[#2c2c2c] text-gray-900"
                       placeholder="URL zu einem Bild, das den Stil repräsentiert"
                     />
-                    {avatar ? (
-                      <div className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                        <img 
-                          src={avatar} 
-                          alt="Vorschau" 
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/images/placeholder.svg';
-                          }} 
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-gray-100 border border-gray-200">
-                        <PhotoIcon className="h-6 w-6 text-gray-400" />
-                      </div>
-                    )}
                   </div>
                 </div>
 

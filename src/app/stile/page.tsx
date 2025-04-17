@@ -76,10 +76,21 @@ const saveStile = (stile: Stil[]) => {
 export default function StilePage() {
   const [stile, setStile] = useState<Stil[]>(MOCK_STILE);
   const router = useRouter();
+  const [avatars, setAvatars] = useState<string[]>([]);
 
   // Lade Stile nur auf Client-Seite
   useEffect(() => {
     setStile(loadStile());
+    
+    // Avatare aus localStorage laden
+    try {
+      const storedAvatars = localStorage.getItem('avatars');
+      if (storedAvatars) {
+        setAvatars(JSON.parse(storedAvatars));
+      }
+    } catch (error) {
+      console.error('Fehler beim Laden der Avatare:', error);
+    }
   }, []);
 
   const handleEditStil = (stilId: string) => {
@@ -152,6 +163,11 @@ export default function StilePage() {
                           height={64}
                           className="object-cover w-full h-full"
                           priority
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.onerror = null; // Verhindert Endlosschleifen
+                            target.src = "/images/placeholder.svg";
+                          }}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gray-100">
