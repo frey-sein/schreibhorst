@@ -42,4 +42,26 @@ export interface ImageDraft {
     tags?: string[];
     [key: string]: any;
   };
+}
+
+export interface VideoDraft {
+  id: number;
+  url?: string;
+  title: string;
+  prompt?: string;
+  isSelected: boolean;
+  modelId: string;
+  duration: number; // Dauer in Sekunden
+  contentType?: string;
+  tags?: string[];
+  sourceContext?: string;
+  status?: 'pending' | 'generating' | 'completed' | 'error';
+  jobId?: string; // ID des Runway-Jobs
+  meta?: {
+    provider?: string;
+    format?: string;
+    fps?: number;
+    tags?: string[];
+    [key: string]: any;
+  };
 } 

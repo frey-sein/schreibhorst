@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePromptStore } from '@/lib/store/promptStore';
 import { useStageHistoryStore } from '@/lib/store/stageHistoryStore';
 import { TextDraft, ImageDraft, BlogPostDraft } from '@/types/stage';
-import { ClockIcon, TrashIcon, ArrowPathIcon, PhotoIcon, SparklesIcon, PencilIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
+import { ClockIcon, TrashIcon, ArrowPathIcon, PhotoIcon, SparklesIcon, PencilIcon, PaperAirplaneIcon, DocumentTextIcon, VideoCameraIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { createPortal } from 'react-dom';
@@ -13,6 +13,7 @@ import { useStageStore } from '@/lib/store/stageStore';
 import StockImagePanel from './StockImagePanel';
 import PromptEditor from './PromptEditor';
 import TextGeneratorPanel from './TextGeneratorPanel';
+import VideoGeneratorPanel from './VideoGeneratorPanel';
 import { ImageStorageClient } from '@/lib/services/imageStorageClient';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -22,6 +23,7 @@ export default function StagePanel() {
   const { 
     textDrafts, setTextDrafts,
     imageDrafts, setImageDrafts,
+    videoDrafts, setVideoDrafts,
     updateTextDraft, updateImageDraft,
     selectedModel, setSelectedModel,
     selectedTextModel, setBlogPostDraft,
@@ -42,7 +44,7 @@ export default function StagePanel() {
     imageDrafts: any[];
     blogPostDraft?: any;
   }>>([]);
-  const [activeTab, setActiveTab] = useState<'text' | 'images' | 'blog'>('images');
+  const [activeTab, setActiveTab] = useState<'text' | 'images' | 'blog' | 'videos'>('images');
 
   // Get prompts from the store
   const { textPrompts, imagePrompts } = usePromptStore();
@@ -793,7 +795,7 @@ export default function StagePanel() {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-8 pt-24 space-y-12 pb-24">
+      <div className="flex-1 overflow-y-auto p-8 pt-20 space-y-12 pb-24">
         {/* Tab Navigation */}
         <div className="bg-white border border-gray-200 rounded-full p-1 flex w-fit">
           <button
@@ -819,6 +821,17 @@ export default function StagePanel() {
             Bildentwürfe
           </button>
           <button
+            onClick={() => setActiveTab('videos')}
+            className={`px-4 py-1.5 rounded-full flex items-center gap-1.5 text-sm font-medium transition-colors ${
+              activeTab === 'videos'
+                ? 'bg-[#2c2c2c] text-white'
+                : 'text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <VideoCameraIcon className="h-4 w-4" />
+            Videos
+          </button>
+          <button
             onClick={() => setActiveTab('blog')}
             className={`px-4 py-1.5 rounded-full flex items-center gap-1.5 text-sm font-medium transition-colors ${
               activeTab === 'blog'
@@ -826,7 +839,7 @@ export default function StagePanel() {
                 : 'text-gray-700 hover:bg-gray-100'
             }`}
           >
-            <SparklesIcon className="h-4 w-4" />
+            <PencilSquareIcon className="h-4 w-4" />
             Blogbeitrag-Generator
           </button>
         </div>
@@ -1133,6 +1146,13 @@ export default function StagePanel() {
             {activeImageTab === 'stock' && (
               <StockImagePanel />
             )}
+          </div>
+        )}
+        
+        {/* Videos Section */}
+        {activeTab === 'videos' && (
+          <div className="space-y-4">
+            <VideoGeneratorPanel />
           </div>
         )}
         

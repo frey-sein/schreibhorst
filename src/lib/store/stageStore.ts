@@ -1,26 +1,32 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { TextDraft, ImageDraft, BlogPostDraft } from '@/types/stage';
+import { TextDraft, ImageDraft, BlogPostDraft, VideoDraft } from '@/types/stage';
 import { availableModels } from '@/lib/services/imageGenerator';
 import { availableTextModels } from '@/lib/services/textGenerator';
+import { availableModels as availableVideoModels } from '@/lib/services/videoGenerator';
 
 export interface StageState {
   textDrafts: TextDraft[];
   imageDrafts: ImageDraft[];
+  videoDrafts: VideoDraft[];
   selectedModel: string;
   selectedTextModel: string;
+  selectedVideoModel: string;
   activeImageTab: 'ai' | 'stock';
   blogPostDraft: BlogPostDraft | null;
   chatId: string | null;
   setTextDrafts: (drafts: TextDraft[]) => void;
   setImageDrafts: (drafts: ImageDraft[]) => void;
+  setVideoDrafts: (drafts: VideoDraft[]) => void;
   setSelectedModel: (modelId: string) => void;
   setSelectedTextModel: (modelId: string) => void;
+  setSelectedVideoModel: (modelId: string) => void;
   setActiveImageTab: (tab: 'ai' | 'stock') => void;
   setBlogPostDraft: (draft: BlogPostDraft | null) => void;
   setChatId: (chatId: string) => void;
   updateTextDraft: (id: number, updates: Partial<TextDraft>) => void;
   updateImageDraft: (id: number, updates: Partial<ImageDraft>) => void;
+  updateVideoDraft: (id: number, updates: Partial<VideoDraft>) => void;
   saveToDatabase: () => Promise<void>;
 }
 
@@ -42,14 +48,26 @@ const getValidTextModel = (modelId: string): string => {
   return isValid ? modelId : 'openai/gpt-4-turbo-preview';
 };
 
+// Hilfsfunktion: Stellt sicher, dass das Video-Modell in der verfügbaren Liste ist
+const getValidVideoModel = (modelId: string): string => {
+  const isValid = availableVideoModels.some(model => model.id === modelId);
+  return isValid ? modelId : availableVideoModels[0].id;
+};
+
 // Hilfsfunktion: Speichert den aktuellen Zustand als Snapshot
-const saveCurrentStateAsSnapshot = async (textDrafts: TextDraft[], imageDrafts: ImageDraft[], chatId: string | null, blogPostDraft: BlogPostDraft | null) => {
+const saveCurrentStateAsSnapshot = async (
+  textDrafts: TextDraft[],
+  imageDrafts: ImageDraft[],
+  videoDrafts: VideoDraft[],
+  chatId: string | null,
+  blogPostDraft: BlogPostDraft | null
+) => {
   if (!chatId) return;
   
   try {
     const { useStageHistoryStore } = await import('@/lib/store/stageHistoryStore');
     const stageHistoryStore = useStageHistoryStore.getState();
-    await stageHistoryStore.addSnapshot(textDrafts, imageDrafts, chatId, blogPostDraft);
+    await stageHistoryStore.addSnapshotWithVideos(textDrafts, imageDrafts, videoDrafts, chatId, blogPostDraft);
     console.log('Stage-Snapshot automatisch gespeichert');
   } catch (error) {
     console.error('Fehler beim automatischen Speichern des Stage-Snapshots:', error);
@@ -61,31 +79,64 @@ export const useStageStore = create<StageState>()(
     (set, get) => ({
       textDrafts: [],
       imageDrafts: [],
+      videoDrafts: [],
       selectedModel: availableModels[0].id,
       selectedTextModel: availableTextModels[0].id,
+      selectedVideoModel: availableVideoModels[0].id,
       activeImageTab: 'ai',
       blogPostDraft: null,
       chatId: null,
       
       setTextDrafts: (drafts) => {
         set({ textDrafts: drafts });
-        saveCurrentStateAsSnapshot(drafts, get().imageDrafts, get().chatId, get().blogPostDraft);
+        saveCurrentStateAsSnapshot(
+          drafts, 
+          get().imageDrafts, 
+          get().videoDrafts,
+          get().chatId, 
+          get().blogPostDraft
+        );
       },
       
       setImageDrafts: (drafts) => {
         set({ imageDrafts: drafts });
-        saveCurrentStateAsSnapshot(get().textDrafts, drafts, get().chatId, get().blogPostDraft);
+        saveCurrentStateAsSnapshot(
+          get().textDrafts, 
+          drafts, 
+          get().videoDrafts,
+          get().chatId, 
+          get().blogPostDraft
+        );
+      },
+      
+      setVideoDrafts: (drafts) => {
+        set({ videoDrafts: drafts });
+        saveCurrentStateAsSnapshot(
+          get().textDrafts, 
+          get().imageDrafts, 
+          drafts,
+          get().chatId, 
+          get().blogPostDraft
+        );
       },
       
       setSelectedModel: (modelId) => set({ selectedModel: getValidModel(modelId) }),
       
       setSelectedTextModel: (modelId) => set({ selectedTextModel: getValidTextModel(modelId) }),
       
+      setSelectedVideoModel: (modelId) => set({ selectedVideoModel: getValidVideoModel(modelId) }),
+      
       setActiveImageTab: (tab) => set({ activeImageTab: tab }),
       
       setBlogPostDraft: (draft) => {
         set({ blogPostDraft: draft });
-        saveCurrentStateAsSnapshot(get().textDrafts, get().imageDrafts, get().chatId, draft);
+        saveCurrentStateAsSnapshot(
+          get().textDrafts, 
+          get().imageDrafts, 
+          get().videoDrafts,
+          get().chatId, 
+          draft
+        );
       },
       
       setChatId: (chatId) => set({ chatId }),
@@ -95,7 +146,13 @@ export const useStageStore = create<StageState>()(
           draft.id === id ? { ...draft, ...updates } : draft
         );
         set({ textDrafts: newDrafts });
-        saveCurrentStateAsSnapshot(newDrafts, get().imageDrafts, get().chatId, get().blogPostDraft);
+        saveCurrentStateAsSnapshot(
+          newDrafts, 
+          get().imageDrafts, 
+          get().videoDrafts,
+          get().chatId, 
+          get().blogPostDraft
+        );
       },
       
       updateImageDraft: (id, updates) => {
@@ -103,8 +160,34 @@ export const useStageStore = create<StageState>()(
           draft.id === id ? { ...draft, ...updates } : draft
         );
         set({ imageDrafts: newDrafts });
-        saveCurrentStateAsSnapshot(get().textDrafts, newDrafts, get().chatId, get().blogPostDraft);
+        saveCurrentStateAsSnapshot(
+          get().textDrafts, 
+          newDrafts, 
+          get().videoDrafts,
+          get().chatId, 
+          get().blogPostDraft
+        );
       },
+      
+      updateVideoDraft: (id, updates) => {
+        const newDrafts = get().videoDrafts.map((draft) =>
+          draft.id === id ? { ...draft, ...updates } : draft
+        );
+        set({ videoDrafts: newDrafts });
+        saveCurrentStateAsSnapshot(
+          get().textDrafts, 
+          get().imageDrafts, 
+          newDrafts,
+          get().chatId, 
+          get().blogPostDraft
+        );
+      },
+      
+      saveToDatabase: async () => {
+        // Implementierung für die Zukunft: Speichere den aktuellen Zustand in eine Datenbank
+        console.log('saveToDatabase wird in einem späteren Update implementiert');
+        return Promise.resolve();
+      }
     }),
     {
       name: 'stage-storage',
@@ -113,14 +196,16 @@ export const useStageStore = create<StageState>()(
       partialize: (state) => ({
         textDrafts: state.textDrafts,
         imageDrafts: state.imageDrafts,
+        videoDrafts: state.videoDrafts,
         selectedModel: state.selectedModel,
         selectedTextModel: state.selectedTextModel,
+        selectedVideoModel: state.selectedVideoModel,
         activeImageTab: state.activeImageTab, 
         blogPostDraft: state.blogPostDraft,
         chatId: state.chatId
       }),
       skipHydration: true, // Überspringt die automatische Hydration
-onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => (state) => {
         if (state) {
           // Prüfen, ob gespeicherte Modelle noch verfügbar sind
           const modelExists = availableModels.some(model => model.id === state.selectedModel);
@@ -131,6 +216,11 @@ onRehydrateStorage: () => (state) => {
           const textModelExists = availableTextModels.some(model => model.id === state.selectedTextModel);
           if (!textModelExists) {
             state.selectedTextModel = availableTextModels[0].id;
+          }
+          
+          const videoModelExists = availableVideoModels.some(model => model.id === state.selectedVideoModel);
+          if (!videoModelExists) {
+            state.selectedVideoModel = availableVideoModels[0].id;
           }
         }
       }

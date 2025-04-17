@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { TextDraft, ImageDraft } from '@/types/stage';
+import { TextDraft, ImageDraft, VideoDraft } from '@/types/stage';
 
 interface StageSnapshot {
   id: string;
   timestamp: Date;
   textDrafts: TextDraft[];
   imageDrafts: ImageDraft[];
+  videoDrafts?: VideoDraft[];
   chatId?: string;
   blogPostDraft?: any;
   isManualSave?: boolean; // Neues Flag für manuelle Speicherung
@@ -17,6 +18,7 @@ interface StageHistoryStore {
   currentSnapshotId: string | null;
   currentChatId: string | null;
   addSnapshot: (textDrafts: TextDraft[], imageDrafts: ImageDraft[], chatId?: string, blogPostDraft?: any, isManualSave?: boolean) => Promise<void>;
+  addSnapshotWithVideos: (textDrafts: TextDraft[], imageDrafts: ImageDraft[], videoDrafts: VideoDraft[], chatId?: string, blogPostDraft?: any, isManualSave?: boolean) => Promise<void>;
   restoreSnapshot: (id: string) => Promise<StageSnapshot | null>;
   getSnapshots: (onlyManual?: boolean) => Promise<StageSnapshot[]>;
   clearSnapshots: () => Promise<void>;
@@ -65,6 +67,47 @@ export const useStageHistoryStore = create<StageHistoryStore>((set, get) => ({
       });
     } catch (error) {
       console.error('Fehler beim Speichern des Snapshots:', error);
+    }
+  },
+
+  addSnapshotWithVideos: async (textDrafts, imageDrafts, videoDrafts, chatId, blogPostDraft, isManualSave = false) => {
+    // Neues Snapshot-Objekt erstellen
+    const newSnapshot: StageSnapshot = {
+      id: new Date().getTime().toString(),
+      timestamp: new Date(),
+      textDrafts: JSON.parse(JSON.stringify(textDrafts)),
+      imageDrafts: JSON.parse(JSON.stringify(imageDrafts)),
+      videoDrafts: JSON.parse(JSON.stringify(videoDrafts)),
+      chatId: chatId || (get().currentChatId || undefined),
+      blogPostDraft: blogPostDraft ? JSON.parse(JSON.stringify(blogPostDraft)) : undefined,
+      isManualSave: isManualSave, // Flag für manuelle Speicherung
+    };
+
+    // Im Store aktualisieren
+    set(state => ({
+      snapshots: [newSnapshot, ...state.snapshots],
+      currentSnapshotId: newSnapshot.id
+    }));
+
+    // Zum Server senden und persistent speichern
+    try {
+      await fetch('/api/stage-history', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id: newSnapshot.id,
+          textDrafts: newSnapshot.textDrafts,
+          imageDrafts: newSnapshot.imageDrafts,
+          videoDrafts: newSnapshot.videoDrafts,
+          chatId: newSnapshot.chatId,
+          blogPostDraft: newSnapshot.blogPostDraft,
+          isManualSave: newSnapshot.isManualSave
+        })
+      });
+    } catch (error) {
+      console.error('Fehler beim Speichern des Snapshots mit Videos:', error);
     }
   },
 

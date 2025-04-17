@@ -26,16 +26,21 @@ import ReactMarkdown from 'react-markdown';
 import { useUser } from '@/app/hooks/useUser';
 import DOMPurify from 'dompurify';
 import { DEEP_RESEARCH_MODELS } from '@/lib/constants/chat';
+import { ChatMessage } from '@/types/chat';
+
+// Definiere zuerst den Role-Typ ohne system
+type Role = 'user' | 'assistant';
 
 // Erweiterte ChatMessage-Definition mit 'system' als möglichem Sender
 interface ChatMessage {
   id: string;
   text: string;
-  sender: 'user' | 'assistant' | 'system';
+  sender: Role;
   timestamp: string;
   promptsData?: {
     textPrompts: AnalysisResult[];
     imagePrompts: AnalysisResult[];
+    videoPrompts: AnalysisResult[];
   };
 }
 
@@ -985,15 +990,17 @@ export default function ChatPanel() {
   const PromptSelectionView = ({ 
     textPrompts = [], 
     imagePrompts = [], 
+    videoPrompts = [],
     selectedPrompts = [], 
     onPromptSelect 
   }: { 
     textPrompts: AnalysisResult[],
     imagePrompts: AnalysisResult[],
+    videoPrompts: AnalysisResult[],
     selectedPrompts: AnalysisResult[],
     onPromptSelect: (prompt: AnalysisResult | { sendAll: true }) => void
   }) => {
-    const [filter, setFilter] = useState<'all' | 'text' | 'image'>('all');
+    const [filter, setFilter] = useState<'all' | 'text' | 'image' | 'video'>('all');
     const [expandedPrompts, setExpandedPrompts] = useState<string[]>([]);
     
     const togglePromptExpand = (promptId: string) => {
@@ -1005,10 +1012,12 @@ export default function ChatPanel() {
     };
     
     const filteredPrompts = filter === 'all' 
-      ? [...textPrompts, ...imagePrompts]
+      ? [...textPrompts, ...imagePrompts, ...videoPrompts]
       : filter === 'text' 
         ? textPrompts
-        : imagePrompts;
+        : filter === 'image'
+          ? imagePrompts
+          : videoPrompts;
     
     return (
       <div className="space-y-4 bg-white rounded-lg shadow-sm border border-gray-100 p-4">
@@ -1021,7 +1030,7 @@ export default function ChatPanel() {
             }`}
             onClick={() => setFilter('all')}
           >
-            Alle ({textPrompts.length + imagePrompts.length})
+            Alle ({textPrompts.length + imagePrompts.length + videoPrompts.length})
           </button>
           <button 
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
@@ -1038,6 +1047,14 @@ export default function ChatPanel() {
             onClick={() => setFilter('image')}
           >
             Bild ({imagePrompts.length})
+          </button>
+          <button 
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              filter === 'video' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+            }`}
+            onClick={() => setFilter('video')}
+          >
+            Video ({videoPrompts.length})
           </button>
         </div>
         
@@ -1065,8 +1082,10 @@ export default function ChatPanel() {
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           {prompt.type === 'text' ? (
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                          ) : (
+                          ) : prompt.type === 'image' ? (
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                           )}
                         </svg>
                         <h4 className="font-medium text-gray-900">{prompt.title}</h4>
@@ -1224,6 +1243,42 @@ export default function ChatPanel() {
     if (file) {
       setSelectedFile(file);
       handleFileUpload(file);
+    }
+  };
+
+  // Bei Erstellung oder Wechsel des Chats:
+  const resetStageForNewChat = async () => {
+    try {
+      // Prompt-Store leeren
+      const promptStore = usePromptStore.getState();
+      promptStore.clearPrompts();
+      console.log('Prompt-Store geleert');
+      
+      // Stage zurücksetzen - Leere die Text-, Bild- und Videovorschläge
+      const { useStageStore } = await import('@/lib/store/stageStore');
+      const stageStore = useStageStore.getState();
+      
+      // Speichere aktuelle Einstellungen
+      const currentModel = stageStore.selectedModel;
+      const currentTextModel = stageStore.selectedTextModel;
+      const currentVideoModel = stageStore.selectedVideoModel;
+      const currentTab = stageStore.activeImageTab;
+      
+      // Setze Text- und Bildvorschläge zurück
+      stageStore.setTextDrafts([]);
+      stageStore.setImageDrafts([]);
+      stageStore.setVideoDrafts([]);
+      stageStore.setBlogPostDraft(null);
+      
+      // Stelle die gespeicherten Einstellungen wieder her
+      stageStore.setSelectedModel(currentModel);
+      stageStore.setSelectedTextModel(currentTextModel);
+      stageStore.setSelectedVideoModel(currentVideoModel);
+      stageStore.setActiveImageTab(currentTab);
+      
+      console.log('Stage wurde zurückgesetzt');
+    } catch (error) {
+      console.error('Fehler beim Zurücksetzen der Stage:', error);
     }
   };
 
@@ -1532,7 +1587,7 @@ export default function ChatPanel() {
       
       // Weitere Verzögerung für bessere UX
       await new Promise(resolve => setTimeout(resolve, 1200));
-      setAnalyzeStep('Generiere kreative Vorschläge...');
+      setAnalyzeStep('Generiere kreative Vorschläge für Texte, Bilder und Videos...');
       
       const results = await analyzerService.analyzeConversation(analyzerMessages);
       
@@ -1557,6 +1612,7 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
       // Gruppiere Ergebnisse nach Typ
       const textPrompts = results.filter(result => result.type === 'text');
       const imagePrompts = results.filter(result => result.type === 'image');
+      const videoPrompts = results.filter(result => result.type === 'video');
 
       // Kurze Verzögerung für bessere UX
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -1571,7 +1627,8 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
         timestamp: new Date().toISOString(),
         promptsData: {
           textPrompts,
-          imagePrompts
+          imagePrompts,
+          videoPrompts
         }
       };
 
@@ -1737,22 +1794,17 @@ Bitte führen Sie die Konversation fort, um mehr Kontext zu schaffen.`,
                       <PromptSelectionView
                         textPrompts={message.promptsData.textPrompts}
                         imagePrompts={message.promptsData.imagePrompts}
+                        videoPrompts={message.promptsData.videoPrompts || []}
                         selectedPrompts={selectedSuggestions}
                         onPromptSelect={(prompt) => {
-                          if ('sendAll' in prompt && prompt.sendAll) {
-                            // Wenn prompt { sendAll: true } ist, übertrage alle ausgewählten Prompts
+                          if ('sendAll' in prompt) {
                             handleSendSelectedSuggestions();
-                            return;
+                          } else {
+                            const updatedPrompts = selectedSuggestions.some(p => p.id === prompt.id)
+                              ? selectedSuggestions.filter(p => p.id !== prompt.id)
+                              : [...selectedSuggestions, prompt];
+                            setSelectedSuggestions(updatedPrompts);
                           }
-                          
-                          setSelectedSuggestions(prev => {
-                            const isSelected = prev.some(s => s.id === prompt.id);
-                            if (isSelected) {
-                              return prev.filter(s => s.id !== prompt.id);
-                            } else {
-                              return [...prev, prompt];
-                            }
-                          });
                         }}
                       />
                     ) : (

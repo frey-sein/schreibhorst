@@ -2,7 +2,7 @@ import { ChatMessage } from '@/types/chat';
 
 export interface AnalysisResult {
   id: string;
-  type: 'text' | 'image';
+  type: 'text' | 'image' | 'video';
   title: string;
   prompt: string;
   tags: string[];
@@ -69,12 +69,12 @@ export class ChatAnalyzer {
       const baseUrl = process.env.NEXT_PUBLIC_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
       
       // Erstelle Prompt für die KI
-      const prompt = `Analysiere den folgenden Konversationstext und generiere kreative, vielfältige Vorschläge für Text- und Bildprompts. Die Vorschläge sollten das Thema, den Ton und die Schlüsselinformationen der Konversation reflektieren.
+      const prompt = `Analysiere den folgenden Konversationstext und generiere kreative, vielfältige Vorschläge für Text-, Bild- und Videoprompts. Die Vorschläge sollten das Thema, den Ton und die Schlüsselinformationen der Konversation reflektieren.
 
 Konversationstext:
 ${conversationText}
 
-Erstelle 3 Textprompt-Vorschläge und 2 Bildprompt-Vorschläge.
+Erstelle 3 Textprompt-Vorschläge, 2 Bildprompt-Vorschläge und 2 Videoprompt-Vorschläge.
 Für jeden Textprompt gib folgende Informationen an:
 - Einen kurzen, ansprechenden Titel
 - Einen ausführlichen Prompt, der die zu generierenden Inhalte beschreibt
@@ -89,6 +89,12 @@ Für jeden Bildprompt gib folgende Informationen an:
 - Einen ausführlichen Prompt, der das zu erstellende Bild beschreibt
 - 3-5 relevante Tags
 - Den Stil (z.B. fotorealistisch, abstrakt, comic, 3D)
+
+Für jeden Videoprompt gib folgende Informationen an:
+- Einen kurzen, ansprechenden Titel
+- Einen ausführlichen Prompt, der das zu erstellende Video beschreibt
+- 3-5 relevante Tags
+- Den Stil (z.B. cinematic, documentary, animated, abstract)
 
 WICHTIG: Formatiere die Antwort AUSSCHLIESSLICH als JSON-Objekt ohne weitere Erklärungen oder Textelemente, mit folgendem Schema:
 {
@@ -110,6 +116,14 @@ WICHTIG: Formatiere die Antwort AUSSCHLIESSLICH als JSON-Objekt ohne weitere Erk
       "tags": ["tag1", "tag2", "tag3"],
       "style": "Visueller Stil"
     }
+  ],
+  "videoPrompts": [
+    {
+      "title": "Titel des Videoprompts",
+      "prompt": "Ausführlicher Videoprompt-Text",
+      "tags": ["tag1", "tag2", "tag3"],
+      "style": "Video-Stil"
+    }
   ]
 }`;
 
@@ -127,7 +141,7 @@ WICHTIG: Formatiere die Antwort AUSSCHLIESSLICH als JSON-Objekt ohne weitere Erk
           messages: [
             {
               role: 'system',
-              content: 'Du bist ein leistungsstarker Analyst, der Konversationen versteht und kreative Vorschläge für Text- und Bildprompts generiert. Liefere AUSSCHLIESSLICH JSON-formatierte Antworten ohne zusätzliche Erklärungen, Markdown-Formatierung oder Code-Blöcke.'
+              content: 'Du bist ein leistungsstarker Analyst, der Konversationen versteht und kreative Vorschläge für Text-, Bild- und Videoprompts generiert. Liefere AUSSCHLIESSLICH JSON-formatierte Antworten ohne zusätzliche Erklärungen, Markdown-Formatierung oder Code-Blöcke.'
             },
             {
               role: 'user',
@@ -232,6 +246,16 @@ WICHTIG: Formatiere die Antwort AUSSCHLIESSLICH als JSON-Objekt ohne weitere Erk
       styleVariant: 'lebendig'
     });
     
+    // Standardmäßiger Video-Prompt
+    results.push({
+      id: `video-kurze-sequenz-${timestamp}`,
+      type: 'video',
+      title: 'Kurze Videosequenz',
+      prompt: 'Erstelle eine kurze cineastische Videosequenz zum Thema der Konversation. Die Aufnahme sollte hochwertig mit fließenden Kamerabewegungen und gutem Licht sein.',
+      tags: ['video', 'cinematic', 'sequenz'],
+      styleVariant: 'cinematic'
+    });
+    
     return results;
   }
 
@@ -271,12 +295,168 @@ WICHTIG: Formatiere die Antwort AUSSCHLIESSLICH als JSON-Objekt ohne weitere Erk
         });
       });
     }
+    
+    // Video-Prompts verarbeiten
+    if (suggestionsData.videoPrompts && Array.isArray(suggestionsData.videoPrompts)) {
+      suggestionsData.videoPrompts.forEach((videoPrompt: any) => {
+        results.push({
+          id: `video-${videoPrompt.title.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+          type: 'video',
+          title: videoPrompt.title,
+          prompt: videoPrompt.prompt,
+          tags: videoPrompt.tags || [],
+          styleVariant: videoPrompt.style
+        });
+      });
+    }
 
     return results;
   }
 
   /**
-   * Generiert Vorschläge lokal als Fallback
+   * Generiert Prompts für Videoinhalte basierend auf dem Gesprächskontext
+   */
+  private generateVideoPrompts(topics: string[], keyPoints: string[], style: string = 'cinematic'): AnalysisResult[] {
+    const thematicString = topics.slice(0, 3).join(', ');
+    
+    // Extrahiere spezifische Konzepte aus den Schlüsselpunkten
+    const keywordExtractionRegex = /\b((?:[A-Z][a-z]+)|(?:[a-z]+))\b/g;
+    const keyPointWords = keyPoints
+      .join(' ')
+      .match(keywordExtractionRegex) || [];
+    
+    // Filtere nach relevanten, längeren Wörtern und vermeide Duplikate
+    const conceptKeywords = Array.from(new Set(
+      keyPointWords
+        .filter(word => word.length > 5)
+        .filter(word => !['sollte', 'können', 'würde', 'hätte', 'hatte', 'haben', 'nicht', 'diese', 'diesen', 'dieser'].includes(word))
+    )).slice(0, 4);
+    
+    // Stil-Beschreibung basierend auf dem erkannten Stil
+    let styleDescription = '';
+    let technicalDetails = '';
+    
+    switch (style) {
+      case 'cinematic':
+        styleDescription = 'mit cineastischer Kameraführung, filmischen Lichteffekten und dynamischen Übergängen';
+        technicalDetails = 'Hohe Bildqualität, 24fps, filmisches Breitbild-Format mit selektiver Schärfe.';
+        break;
+      case 'documentary':
+        styleDescription = 'im dokumentarischen Stil mit realistischer Darstellung und natürlichen Bewegungen';
+        technicalDetails = 'Natürliches Licht, handheld-look mit leichten Kamerabewegungen, authentische Darstellung.';
+        break;
+      case 'animated':
+        styleDescription = 'als animierte Sequenz mit lebendiger Bewegung und expressivem Stil';
+        technicalDetails = 'Fließende Animation, ausdrucksstarke Bewegungen, stilisierte Darstellung mit deutlichen Konturen.';
+        break;
+      case 'abstract':
+        styleDescription = 'mit abstrakten Formen und konzeptionellen visuellen Elementen';
+        technicalDetails = 'Fließende Übergänge zwischen abstrakten Formen, Farbverläufe und Texturen, die das Thema symbolisieren.';
+        break;
+      case 'minimalistisch':
+        styleDescription = 'im minimalistischen Stil mit klaren Formen und reduzierter Ästhetik';
+        technicalDetails = 'Klare Komposition, reduzierte Farbpalette, geometrische Formen, viel negativer Raum.';
+        break;
+      case 'vintage':
+        styleDescription = 'im Retro-Stil mit nostalgischer Anmutung';
+        technicalDetails = 'Körnige Textur, entsättigte Farben oder Sepia-Töne, leichte Vignettierung, alte Film-Ästhetik.';
+        break;
+      case 'lebendig':
+        styleDescription = 'mit lebendigen Farben und dynamischer Darstellung';
+        technicalDetails = 'Hoher Kontrast, gesättigte Farben, schnelle Schnitte, energetische Bewegungen und Übergänge.';
+        break;
+      default:
+        styleDescription = 'in hochwertiger Bildqualität mit natürlichen Bewegungen';
+        technicalDetails = 'Ausgewogene Belichtung, stabile Kameraführung, guter Kontrast, natürliche Farbwiedergabe.';
+        break;
+    }
+
+    // Erweiterte Videoarten mit filmspezifischen Beschreibungen
+    const videoTypes = [
+      {
+        title: 'Szenische Darstellung',
+        description: `Eine kurze Videosequenz zum Thema "${thematicString}" ${styleDescription}.`,
+        detail: `Das Video sollte eine atmosphärische Szene darstellen, die das Thema visuell umsetzt. ${conceptKeywords.length > 0 ? 'Folgende Elemente sollten visualisiert werden: ' + conceptKeywords.join(', ') + '.' : ''} Die Bewegung sollte fließend und natürlich sein, mit guter Tiefenwirkung. ${technicalDetails}`,
+        tags: [...topics.slice(0, 2), 'szenisch', 'atmosphärisch']
+      },
+      {
+        title: 'Konzept in Bewegung',
+        description: `Eine konzeptionelle Visualisierung von "${thematicString}" ${styleDescription}.`,
+        detail: `Das Video sollte abstrakte und konkrete Elemente kombinieren, um das Konzept lebendig werden zu lassen. ${conceptKeywords.length > 0 ? 'Kernelemente: ' + conceptKeywords.join(', ') + '.' : ''} Kamerabewegung sollte das Hauptmotiv umkreisen oder von verschiedenen Perspektiven zeigen. ${technicalDetails}`,
+        tags: [...topics.slice(0, 2), 'konzept', 'visualisierung']
+      },
+      {
+        title: 'Stimmungssequenz',
+        description: `Eine atmosphärische Videosequenz, die die Stimmung von "${thematicString}" ${styleDescription} einfängt.`,
+        detail: `Das Video sollte emotionale Aspekte des Themas durch Licht, Farbe und Bewegung transportieren. ${conceptKeywords.length > 0 ? 'Stimmungselemente: ' + conceptKeywords.join(', ') + '.' : ''} Besonderer Fokus auf Lichteffekte und subtile Bewegungen, die Emotionen verstärken. ${technicalDetails}`,
+        tags: [...topics.slice(0, 2), 'stimmung', 'emotional']
+      },
+      {
+        title: 'Prozessdarstellung',
+        description: `Eine Visualisierung des Prozesses oder der Entwicklung von "${thematicString}" ${styleDescription}.`,
+        detail: `Das Video sollte eine Transformation oder einen Ablauf darstellen, mit klarer Anfangs- und Endsequenz. ${conceptKeywords.length > 0 ? 'Prozesselemente: ' + conceptKeywords.join(', ') + '.' : ''} Die Bewegung sollte die zeitliche Entwicklung oder Veränderung visuell erfahrbar machen. ${technicalDetails}`,
+        tags: [...topics.slice(0, 2), 'prozess', 'entwicklung']
+      },
+      {
+        title: 'Erklärende Animation',
+        description: `Eine visuelle Erklärung von "${thematicString}" ${styleDescription}.`,
+        detail: `Das Video sollte komplexe Zusammenhänge durch visuelle Metaphern und Bewegungselemente erklären. ${conceptKeywords.length > 0 ? 'Zu erklärende Konzepte: ' + conceptKeywords.join(', ') + '.' : ''} Die Animation sollte informativ und leicht verständlich sein, mit klaren visuellen Übergängen zwischen verschiedenen Konzepten. ${technicalDetails}`,
+        tags: [...topics.slice(0, 2), 'erklärung', 'informativ']
+      },
+      {
+        title: 'Nahaufnahme-Sequenz',
+        description: `Eine detaillierte Nahaufnahme-Sequenz zu Aspekten von "${thematicString}" ${styleDescription}.`,
+        detail: `Das Video sollte wichtige Details in Nahaufnahme zeigen, mit selektiver Schärfe und langsamen, präzisen Kamerabewegungen. ${conceptKeywords.length > 0 ? 'Fokus auf Details wie: ' + conceptKeywords.join(', ') + '.' : ''} Der Blick sollte intim und detailliert sein, mit Fokus auf Texturen und kleine Bewegungen. ${technicalDetails}`,
+        tags: [...topics.slice(0, 2), 'nahaufnahme', 'detail']
+      },
+      {
+        title: 'Zeitraffer',
+        description: `Eine Zeitraffer-Sequenz zum Thema "${thematicString}" ${styleDescription}.`,
+        detail: `Das Video sollte zeitliche Abläufe im Schnelldurchlauf zeigen, um Entwicklungen oder Veränderungen zu verdeutlichen. ${conceptKeywords.length > 0 ? 'Zeitliche Elemente: ' + conceptKeywords.join(', ') + '.' : ''} Der Zeitraffer sollte einen klaren Anfangs- und Endzustand haben, mit flüssiger Bewegung. ${technicalDetails}`,
+        tags: [...topics.slice(0, 2), 'zeitraffer', 'bewegung']
+      }
+    ];
+    
+    // Wähle die drei am besten passenden Videotypen basierend auf dem Stil und Thema
+    let selectedVideoTypes;
+    
+    if (style === 'documentary' || style === 'fotorealistisch') {
+      // Für dokumentarischen/realistischen Stil: Szenische Darstellung, Prozessdarstellung, Nahaufnahme
+      selectedVideoTypes = [videoTypes[0], videoTypes[3], videoTypes[5]];
+    } else if (style === 'animated' || style === 'comic') {
+      // Für animierten Stil: Erklärende Animation, Konzept in Bewegung, Stimmungssequenz
+      selectedVideoTypes = [videoTypes[4], videoTypes[1], videoTypes[2]];
+    } else if (style === 'abstract' || style === 'minimalistisch') {
+      // Für abstrakte Stile: Konzept in Bewegung, Stimmungssequenz, Zeitraffer
+      selectedVideoTypes = [videoTypes[1], videoTypes[2], videoTypes[6]];
+    } else if (style === 'technisch' || style.includes('3D')) {
+      // Für technischen Stil: Prozessdarstellung, Erklärende Animation, Nahaufnahme
+      selectedVideoTypes = [videoTypes[3], videoTypes[4], videoTypes[5]];
+    } else if (style === 'vintage' || style === 'aquarell') {
+      // Für künstlerische Stile: Stimmungssequenz, Szenische Darstellung, Zeitraffer
+      selectedVideoTypes = [videoTypes[2], videoTypes[0], videoTypes[6]];
+    } else {
+      // Standard (cinematic): Szenische Darstellung, Stimmungssequenz, Konzept in Bewegung
+      selectedVideoTypes = [videoTypes[0], videoTypes[2], videoTypes[1]];
+    }
+    
+    // Erzeuge die finalen Prompt-Ergebnisse
+    return selectedVideoTypes.map(videoType => ({
+      id: `video-${videoType.title.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+      type: 'video',
+      title: videoType.title,
+      prompt: `${videoType.description}
+${videoType.detail}
+
+Stil: ${style}, hochwertige Videoqualität, mit deutlichem Bezug zum Thema "${thematicString}".
+Ideale Länge: 5-15 Sekunden.`,
+      tags: [...videoType.tags, style],
+      styleVariant: style
+    }));
+  }
+
+  /**
+   * Generiert lokale Vorschläge als Fallback
    */
   private generateLocalSuggestions(conversationText: string): AnalysisResult[] {
     const mainTopics = this.extractMainTopics(conversationText);
@@ -293,6 +473,10 @@ WICHTIG: Formatiere die Antwort AUSSCHLIESSLICH als JSON-Objekt ohne weitere Erk
     // Generiere drei Bild-Prompts
     const imagePrompts = this.generateImagePrompts(mainTopics, keyPoints, style);
     results.push(...imagePrompts);
+    
+    // Generiere drei Video-Prompts
+    const videoPrompts = this.generateVideoPrompts(mainTopics, keyPoints, 'cinematic');
+    results.push(...videoPrompts);
     
     return results;
   }
