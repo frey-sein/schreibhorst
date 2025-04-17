@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Button, TextField, Box, Typography, Paper, CircularProgress, Select, MenuItem, FormControl, InputLabel, SelectChangeEvent } from '@mui/material';
+import { CircularProgress, Snackbar, Alert } from '@mui/material';
 import { availableTextModels } from '@/lib/services/textGenerator';
 import { useStageStore } from '@/lib/store/stageStore';
 import { BlogPostDraft } from '@/types/stage';
-import { ChevronDownIcon, SparklesIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, SparklesIcon, ClockIcon, DocumentDuplicateIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 interface TextGeneratorPanelProps {
   className?: string;
@@ -20,6 +20,8 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
   const [selectedModel, setSelectedModel] = useState(selectedTextModel);
   const [error, setError] = useState<string | null>(null);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
   
   const modelSelectorRef = useRef<HTMLDivElement>(null);
 
@@ -47,12 +49,6 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [modelSelectorRef]);
-
-  const handleModelChange = (event: SelectChangeEvent) => {
-    const newModel = event.target.value;
-    setSelectedModel(newModel);
-    setSelectedTextModel(newModel);
-  };
 
   const handleGenerateText = async () => {
     if (!prompt.trim()) {
@@ -110,22 +106,50 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
   };
 
   const copyToClipboard = (text: string) => {
+    // Wenn es sich um ein vollständiges HTML-Dokument handelt,
+    // extrahiere nur den Inhalt innerhalb des article-Tags oder body-Tags
+    if (text.includes('<!DOCTYPE html>') || text.includes('<html')) {
+      // Versuche zuerst, den Inhalt des article-Tags zu extrahieren
+      const articleMatch = text.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
+      if (articleMatch && articleMatch[1]) {
+        navigator.clipboard.writeText(articleMatch[1].trim());
+        setSnackbarMessage('Artikel-Inhalt wurde in die Zwischenablage kopiert');
+        setSnackbarOpen(true);
+        return;
+      }
+      
+      // Alternativ den Inhalt des body-Tags extrahieren
+      const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      if (bodyMatch && bodyMatch[1]) {
+        navigator.clipboard.writeText(bodyMatch[1].trim());
+        setSnackbarMessage('Inhalt wurde in die Zwischenablage kopiert');
+        setSnackbarOpen(true);
+        return;
+      }
+    }
+    
+    // Fallback auf den ursprünglichen Text, wenn keine Tags gefunden wurden
     navigator.clipboard.writeText(text);
-    // Feedback könnte hier angezeigt werden
+    setSnackbarMessage('Text wurde in die Zwischenablage kopiert');
+    setSnackbarOpen(true);
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbarOpen(false);
   };
 
   return (
     <div className={className}>
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Blogbeitrag generieren</h3>
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-semibold text-gray-900">Blogbeitrag erstellen</h3>
           
           {/* Buttons für Modellauswahl und Verlauf */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
             {/* Verlaufsbutton */}
             <button
               onClick={() => alert("Verlaufsfunktion wird bald implementiert!")}
-              className="p-2 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all text-sm font-medium border border-gray-100 shrink-0 shadow-sm"
+              className="p-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all border border-gray-200 shadow-sm"
               title="Verlauf anzeigen"
             >
               <ClockIcon className="w-4 h-4" />
@@ -135,20 +159,20 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
             <div className="relative" ref={modelSelectorRef}>
               <button
                 onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
                 title="Modell wechseln"
               >
-                <SparklesIcon className="h-4 w-4 text-amber-500" />
+                <SparklesIcon className="h-4 w-4 text-gray-500" />
                 <span className="truncate max-w-[120px]">
                   {availableTextModels.find(m => m.id === selectedModel)?.name || selectedModel.split('/')[1]}
                 </span>
-                <ChevronDownIcon className="h-3 w-3 text-gray-500" />
+                <ChevronDownIcon className="h-3.5 w-3.5 text-gray-400" />
               </button>
               
               {modelDropdownOpen && (
-                <div className="absolute right-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                  <div className="p-2">
-                    <div className="text-xs font-medium text-gray-500 mb-1 px-2">
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 z-10">
+                  <div className="p-3">
+                    <div className="text-xs font-medium text-gray-500 mb-2 px-3">
                       KI-Modell wählen
                     </div>
                     {availableTextModels.map((model) => (
@@ -159,16 +183,16 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
                           setSelectedTextModel(model.id);
                           setModelDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-2 rounded transition-colors flex items-center gap-2 ${
+                        className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors flex items-center gap-2.5 mb-1 ${
                           selectedModel === model.id
-                            ? 'bg-gray-100 text-gray-900 shadow-inner'
+                            ? 'bg-gray-100 text-gray-900'
                             : 'text-gray-700 hover:bg-gray-50'
                         }`}
                       >
                         <SparklesIcon 
                           className={`h-4 w-4 ${
                             selectedModel === model.id
-                              ? 'text-amber-500'
+                              ? 'text-gray-800'
                               : 'text-gray-400'
                           }`} 
                         />
@@ -185,37 +209,41 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
           </div>
         </div>
         
-        <div className="mb-4">
-          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden mb-4">
+        <div className="mb-6">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-5 shadow-sm">
             <textarea
-              className="w-full p-4 min-h-[150px] text-gray-800 focus:outline-none resize-none"
+              className="w-full p-5 min-h-[180px] text-gray-800 focus:outline-none resize-none"
               placeholder="Beschreibe den gewünschten Blogbeitrag. Je detaillierter der Prompt, desto besser das Ergebnis..."
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
             />
           </div>
           
-          <div className="flex justify-between">
-            <Button 
-              variant="contained" 
+          <div className="flex justify-between items-center">
+            <button
               onClick={handleGenerateText}
               disabled={isLoading || !prompt.trim()}
-              sx={{ 
-                bgcolor: '#2c2c2c', 
-                '&:hover': { bgcolor: '#1a1a1a' },
-                borderRadius: '9999px',
-                textTransform: 'none',
-                fontSize: '0.875rem',
-                py: 1.2,
-                px: 4
-              }}
-              startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : null}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-white transition-all text-sm font-medium ${
+                isLoading || !prompt.trim() 
+                  ? 'bg-gray-300 cursor-not-allowed' 
+                  : 'bg-[#2c2c2c] hover:bg-[#1a1a1a]'
+              }`}
             >
-              {isLoading ? 'Generiere...' : 'Blogbeitrag erstellen'}
-            </Button>
+              {isLoading ? (
+                <>
+                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
+                  <span>Generiere...</span>
+                </>
+              ) : (
+                <>
+                  <ArrowPathIcon className="h-4 w-4" />
+                  <span>Blogbeitrag erstellen</span>
+                </>
+              )}
+            </button>
             
             {error && (
-              <div className="text-red-500 text-sm mt-2">
+              <div className="text-red-500 text-sm">
                 {error}
               </div>
             )}
@@ -224,81 +252,137 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
       </div>
 
       {(metaTitle || generatedHtml) && !isLoading && (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {metaTitle && (
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <h4 className="font-medium text-gray-900 mb-3">Meta-Informationen</h4>
+            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+              <h4 className="font-semibold text-gray-900 mb-4">Meta-Informationen</h4>
               
-              <div className="mb-4">
-                <div className="text-sm text-gray-700 mb-1">Meta-Titel ({metaTitle.length}/55):</div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-50 p-2 rounded border border-gray-200 text-sm text-gray-800">
+              <div className="mb-5">
+                <div className="text-sm text-gray-700 mb-2 flex justify-between">
+                  <span>Meta-Titel</span>
+                  <span className={`${metaTitle.length > 55 ? 'text-red-500' : 'text-gray-500'}`}>
+                    {metaTitle.length}/55
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 bg-gray-50 p-3 rounded-lg border border-gray-200 text-sm text-gray-800">
                     {metaTitle}
                   </div>
-                  <Button 
-                    size="small" 
-                    variant="outlined"
+                  <button 
                     onClick={() => copyToClipboard(metaTitle)}
-                    sx={{ 
-                      borderRadius: '9999px',
-                      textTransform: 'none',
-                      borderColor: 'rgba(0,0,0,0.12)',
-                      color: '#2c2c2c',
-                      '&:hover': { borderColor: '#2c2c2c', bgcolor: 'rgba(0,0,0,0.04)' }
-                    }}
+                    className="p-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all border border-gray-200"
+                    title="Kopieren"
                   >
-                    Kopieren
-                  </Button>
+                    <DocumentDuplicateIcon className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
               
               <div>
-                <div className="text-sm text-gray-700 mb-1">Meta-Beschreibung:</div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-50 p-2 rounded border border-gray-200 text-sm max-h-24 overflow-y-auto text-gray-800">
+                <div className="text-sm text-gray-700 mb-2 flex justify-between">
+                  <span>Meta-Beschreibung</span>
+                  <span className={`${metaDescription.length > 160 ? 'text-red-500' : 'text-gray-500'}`}>
+                    {metaDescription.length}/160
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 bg-gray-50 p-3 rounded-lg border border-gray-200 text-sm max-h-32 overflow-y-auto text-gray-800">
                     {metaDescription}
                   </div>
-                  <Button 
-                    size="small" 
-                    variant="outlined"
+                  <button 
                     onClick={() => copyToClipboard(metaDescription)}
-                    sx={{ 
-                      borderRadius: '9999px',
-                      textTransform: 'none',
-                      borderColor: 'rgba(0,0,0,0.12)',
-                      color: '#2c2c2c',
-                      '&:hover': { borderColor: '#2c2c2c', bgcolor: 'rgba(0,0,0,0.04)' }
-                    }}
+                    className="p-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all border border-gray-200"
+                    title="Kopieren"
                   >
-                    Kopieren
-                  </Button>
+                    <DocumentDuplicateIcon className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             </div>
           )}
           
           {generatedHtml && (
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <div className="flex justify-between items-center mb-3">
-                <h4 className="font-medium text-gray-900">Generierter Blogbeitrag</h4>
-                <Button 
-                  variant="outlined"
+            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+              <div className="flex justify-between items-center mb-4">
+                <h4 className="font-semibold text-gray-900">Generierter Blogbeitrag</h4>
+                <button 
                   onClick={() => copyToClipboard(generatedHtml)}
-                  sx={{ 
-                    borderRadius: '9999px',
-                    textTransform: 'none',
-                    borderColor: 'rgba(0,0,0,0.12)',
-                    color: '#2c2c2c',
-                    '&:hover': { borderColor: '#2c2c2c', bgcolor: 'rgba(0,0,0,0.04)' }
-                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  HTML kopieren
-                </Button>
+                  <DocumentDuplicateIcon className="h-4 w-4" />
+                  <span>HTML kopieren</span>
+                </button>
               </div>
               
-              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 max-h-[400px] overflow-y-auto">
+              <div className="border border-gray-200 rounded-xl p-6 bg-gray-50 overflow-y-auto max-h-[500px]">
+                <style>
+                  {`
+                  .blog-preview h1 {
+                    font-size: 2rem;
+                    font-weight: 700;
+                    color: #1a1a1a;
+                    margin-bottom: 1rem;
+                    margin-top: 0;
+                    line-height: 1.2;
+                  }
+                  .blog-preview h2 {
+                    font-size: 1.5rem;
+                    font-weight: 600;
+                    color: #2c2c2c;
+                    margin-bottom: 0.75rem;
+                    margin-top: 1.5rem;
+                    line-height: 1.3;
+                  }
+                  .blog-preview h3 {
+                    font-size: 1.25rem;
+                    font-weight: 500;
+                    color: #333333;
+                    margin-bottom: 0.75rem;
+                    margin-top: 1.25rem;
+                    line-height: 1.4;
+                  }
+                  .blog-preview h4 {
+                    font-size: 1.1rem;
+                    font-weight: 500;
+                    color: #444444;
+                    margin-bottom: 0.5rem;
+                    margin-top: 1rem;
+                  }
+                  .blog-preview p {
+                    color: #555555;
+                    margin-bottom: 1rem;
+                    line-height: 1.6;
+                  }
+                  .blog-preview ul, .blog-preview ol {
+                    margin: 1rem 0;
+                    padding-left: 1.5rem;
+                    color: #555555;
+                  }
+                  .blog-preview ul {
+                    list-style-type: disc;
+                  }
+                  .blog-preview ol {
+                    list-style-type: decimal;
+                  }
+                  .blog-preview li {
+                    margin-bottom: 0.25rem;
+                  }
+                  .blog-preview a {
+                    color: #2c2c2c;
+                    text-decoration: underline;
+                    font-weight: 500;
+                  }
+                  .blog-preview blockquote {
+                    border-left: 4px solid #e2e2e2;
+                    padding-left: 1rem;
+                    font-style: italic;
+                    color: #666666;
+                    margin: 1rem 0;
+                  }
+                  `}
+                </style>
                 <div 
-                  className="prose prose-sm max-w-none text-gray-800 prose-headings:text-gray-800 prose-h1:text-gray-900 prose-h2:text-gray-800 prose-h3:text-gray-700" 
+                  className="blog-preview"
                   dangerouslySetInnerHTML={{ __html: generatedHtml }} 
                 />
               </div>
@@ -306,6 +390,18 @@ const TextGeneratorPanel: React.FC<TextGeneratorPanelProps> = ({ className }) =>
           )}
         </div>
       )}
+
+      {/* Snackbar für Feedback */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={handleCloseSnackbar} severity="success" sx={{ width: '100%', backgroundColor: '#2c2c2c', color: 'white', '& .MuiAlert-icon': { color: 'white' } }}>
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </div>
   );
 };
