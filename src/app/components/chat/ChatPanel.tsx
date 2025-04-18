@@ -750,6 +750,25 @@ export default function ChatPanel() {
     };
   }, []);
 
+  // Füge CSS-Stile zum Dokument hinzu
+  useEffect(() => {
+    // Erstelle ein Link-Element für die externe CSS-Datei mit Cache-Busting
+    const linkElement = document.createElement('link');
+    linkElement.rel = 'stylesheet';
+    linkElement.type = 'text/css';
+    linkElement.href = `/styles/message-styles.css?v=${Date.now()}`; // Cache-Busting
+    
+    // Füge es zum Dokument-Head hinzu
+    document.head.appendChild(linkElement);
+    
+    // Clean-up Funktion
+    return () => {
+      if (document.head.contains(linkElement)) {
+        document.head.removeChild(linkElement);
+      }
+    };
+  }, []);
+
   // Stile inline definieren als Fallback
   const messageStyles = `
     .message-container {
@@ -1047,7 +1066,7 @@ export default function ChatPanel() {
             const isExpanded = expandedPrompts.includes(prompt.id);
             
             return (
-              <div key={prompt.id} className="border rounded-lg p-4 hover:shadow-sm transition-all bg-gray-50 prompt-card">
+              <div key={prompt.id} className="border rounded-lg p-4 bg-gray-50 prompt-card">
                 <div className="flex items-start">
                   <div className="mt-1 mr-3">
                     <input 
@@ -1055,7 +1074,7 @@ export default function ChatPanel() {
                       id={`prompt-${prompt.id}`}
                       checked={isSelected}
                       onChange={() => onPromptSelect({ sendAll: false, ...prompt } as any)}
-                      className="h-5 w-5 rounded border-gray-300 text-gray-900 focus:ring-gray-500 prompt-checkbox"
+                      className="h-5 w-5 rounded border-gray-300 text-[#2c2c2c] focus:ring-[#2c2c2c] prompt-checkbox"
                     />
                   </div>
                   
