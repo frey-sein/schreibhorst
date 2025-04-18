@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, createContext, useContext } from 'react';
 import { useUser } from '../hooks/useUser';
 import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import AvatarSelector from '../components/agents/AvatarSelector';
 import * as knowledgeService from '../../lib/services/knowledgeService';
 import { useUserStore, UserProfile } from '../../lib/store/userStore';
-import { UserCircleIcon, PencilIcon, TrashIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { UserCircleIcon, PencilIcon, TrashIcon, PlusIcon, TagIcon, XMarkIcon, PhotoIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 interface Agent {
   id: string;
@@ -25,6 +25,33 @@ interface Agent {
   knowledgeCategories?: string[];
 }
 
+interface Stil {
+  id: string;
+  name: string;
+  beschreibung: string;
+  tags: string[];
+  avatar?: string;
+  prompt: string;
+  beispiel?: string;
+  erstellt: string;
+  bearbeitet?: string;
+}
+
+// Kontext für die Stile-Verwaltung
+const StileContext = createContext<{
+  showEditor: boolean;
+  setShowEditor: (show: boolean) => void;
+  currentStilId: string | null;
+  setCurrentStilId: (id: string | null) => void;
+  refreshStile: () => void;
+}>({
+  showEditor: false,
+  setShowEditor: () => {},
+  currentStilId: null,
+  setCurrentStilId: () => {},
+  refreshStile: () => {}
+});
+
 export default function AdminPage() {
   const { user, isAdmin, isLoading } = useUser();
   const router = useRouter();
@@ -35,13 +62,32 @@ export default function AdminPage() {
   const [selectedCategory, setSelectedCategory] = useState<'male' | 'female'>('male');
   const [isResetting, setIsResetting] = useState(false);
   const [isUploadingAvatars, setIsUploadingAvatars] = useState(false);
-  const [activeTab, setActiveTab] = useState<'avatare' | 'dateisystem' | 'wissensdatenbank' | 'datenbank' | 'system' | 'benutzer'>('avatare');
+  const [activeTab, setActiveTab] = useState<'avatare' | 'stile' | 'dateisystem' | 'wissensdatenbank' | 'datenbank' | 'system' | 'benutzer'>('avatare');
   
   // Benutzerverwaltung Zustände
   const { users, addUser, updateUser, deleteUser, currentUser } = useUserStore();
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  // URL-Parameter verarbeiten
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      const editParam = urlParams.get('edit');
+      
+      if (tabParam === 'stile') {
+        setActiveTab('stile');
+        
+        // StileContext ist zu diesem Zeitpunkt noch nicht verfügbar,
+        // daher speichern wir die ID für die spätere Verwendung
+        if (editParam) {
+          window.localStorage.setItem('pendingEditStilId', editParam);
+        }
+      }
+    }
+  }, []);
 
   const [newUser, setNewUser] = useState<{
     name: string;
@@ -316,6 +362,16 @@ export default function AdminPage() {
                 Avatare
               </button>
               <button
+                onClick={() => setActiveTab('stile')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'stile'
+                    ? 'bg-[#2c2c2c] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Stile
+              </button>
+              <button
                 onClick={() => setActiveTab('dateisystem')}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'dateisystem'
@@ -444,6 +500,30 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* Stile-Verwaltung */}
+            {activeTab === 'stile' && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <StileProvider>
+                  <div className="p-4 md:p-6 space-y-6">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h4 className="text-base font-medium text-gray-800">Schreibstile verwalten</h4>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Hier können Sie alle verfügbaren Schreibstile verwalten und neue erstellen.
+                        </p>
+                      </div>
+                      <StileNeuButton />
+                    </div>
+                    
+                    {/* Stile anzeigen */}
+                    <div className="mt-6">
+                      <StileVerwaltung />
+                    </div>
+                  </div>
+                </StileProvider>
+              </div>
+            )}
+
             {/* Dateisystem-Verwaltung */}
             {activeTab === 'dateisystem' && (
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -479,7 +559,7 @@ export default function AdminPage() {
                     }`}
                     disabled={isResetting}
                   >
-                    {isResetting ? 'Wird geleert...' : 'Wissensdatenbank leeren'}
+                    {isResetting ? 'Wird gelöscht...' : 'Ja, alles löschen'}
                   </button>
                 </div>
               </div>
@@ -761,7 +841,7 @@ export default function AdminPage() {
       
       {/* Bestätigungsdialog für das Leeren der Wissensdatenbank */}
       {showClearConfirmation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-200 bg-opacity-70 backdrop-blur-sm">
           <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
             <h3 className="text-lg font-semibold mb-2 text-red-600">Wissensdatenbank leeren</h3>
             <p className="mb-4 text-gray-700">
@@ -791,4 +871,546 @@ export default function AdminPage() {
       )}
     </>
   );
+}
+
+// StileProvider Komponente zur Verwaltung des Zustands
+function StileProvider({ children }: { children: React.ReactNode }) {
+  const [showEditor, setShowEditor] = useState(false);
+  const [currentStilId, setCurrentStilId] = useState<string | null>(null);
+  const [refresh, setRefresh] = useState(0);
+
+  // Prüfe, ob eine zu bearbeitende Stil-ID aus der URL vorhanden ist
+  useEffect(() => {
+    const pendingEditId = localStorage.getItem('pendingEditStilId');
+    if (pendingEditId) {
+      setCurrentStilId(pendingEditId);
+      setShowEditor(true);
+      localStorage.removeItem('pendingEditStilId');
+    }
+  }, []);
+
+  const refreshStile = () => setRefresh(prev => prev + 1);
+
+  return (
+    <StileContext.Provider value={{ 
+      showEditor, 
+      setShowEditor, 
+      currentStilId, 
+      setCurrentStilId,
+      refreshStile
+    }}>
+      {children}
+      {showEditor && <StilEditor />}
+    </StileContext.Provider>
+  );
+}
+
+// Button-Komponente zum Erstellen eines neuen Stils
+function StileNeuButton() {
+  const { setShowEditor, setCurrentStilId } = useContext(StileContext);
+
+  const handleNewStil = () => {
+    setCurrentStilId(null);
+    setShowEditor(true);
+  };
+
+  return (
+    <button
+      onClick={handleNewStil}
+      className="px-4 py-2.5 text-sm font-medium text-white bg-[#2c2c2c] border border-transparent rounded-full hover:bg-[#1a1a1a] transition-colors"
+    >
+      Neuer Stil
+    </button>
+  );
+}
+
+// StileVerwaltung Komponente
+function StileVerwaltung() {
+  const [stile, setStile] = useState<Stil[]>([]);
+  const { setShowEditor, setCurrentStilId, refreshStile } = useContext(StileContext);
+  
+  // Lade Stile aus dem localStorage
+  useEffect(() => {
+    try {
+      const savedStile = localStorage.getItem('schreibstile');
+      if (savedStile) {
+        setStile(JSON.parse(savedStile));
+      }
+    } catch (error) {
+      console.error('Fehler beim Laden der Schreibstile:', error);
+    }
+  }, [refreshStile]);
+
+  const handleEditStil = (stilId: string) => {
+    setCurrentStilId(stilId);
+    setShowEditor(true);
+  };
+
+  const handleDeleteStil = async (stilId: string) => {
+    if (!confirm('Möchten Sie diesen Schreibstil wirklich löschen?')) return;
+    
+    try {
+      const updatedStile = stile.filter(stil => stil.id !== stilId);
+      setStile(updatedStile);
+      localStorage.setItem('schreibstile', JSON.stringify(updatedStile));
+    } catch (error) {
+      console.error('Fehler beim Löschen des Schreibstils:', error);
+    }
+  };
+
+  // Hilfsfunktion für formatiertes Datum
+  const formatDate = (dateString: string) => {
+    const options: Intl.DateTimeFormatOptions = { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    };
+    return new Date(dateString).toLocaleDateString('de-DE', options);
+  };
+
+  if (stile.length === 0) {
+    return (
+      <div className="text-center py-10">
+        <p className="text-gray-500">Keine Schreibstile vorhanden.</p>
+        <button
+          onClick={() => {
+            setCurrentStilId(null);
+            setShowEditor(true);
+          }}
+          className="mt-4 px-4 py-2 text-sm text-white bg-[#2c2c2c] rounded-md hover:bg-[#1a1a1a] transition-colors"
+        >
+          Ersten Stil erstellen
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {stile.map((stil) => (
+        <div
+          key={stil.id}
+          className="p-4 border border-gray-200 rounded-xl hover:border-gray-300 transition-colors"
+        >
+          <div className="flex items-start gap-4">
+            {/* Avatar/Bild */}
+            <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 bg-gray-50">
+              {stil.avatar ? (
+                <img
+                  src={stil.avatar}
+                  alt={`Bild für ${stil.name}`}
+                  className="object-cover w-full h-full"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null; // Verhindert Endlosschleifen
+                    target.src = "/images/placeholder.svg";
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                  <PencilIcon className="h-5 w-5 text-gray-400" />
+                </div>
+              )}
+            </div>
+
+            {/* Stil Info */}
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-medium text-gray-900">{stil.name}</h3>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => handleEditStil(stil.id)}
+                    className="p-1 text-gray-400 hover:text-[#2c2c2c] transition-colors"
+                    title="Stil bearbeiten"
+                  >
+                    <PencilIcon className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteStil(stil.id)}
+                    className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                    title="Stil löschen"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              
+              <p className="text-xs text-gray-500 mt-1">
+                Erstellt am {formatDate(stil.erstellt)}
+                {stil.bearbeitet && ` • Zuletzt bearbeitet am ${formatDate(stil.bearbeitet)}`}
+              </p>
+              
+              <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                {stil.beschreibung}
+              </p>
+
+              {/* Tags */}
+              {stil.tags && stil.tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {stil.tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-2 py-0.5 text-xs bg-gray-50 text-gray-600 rounded-md"
+                    >
+                      <TagIcon className="w-3 h-3 mr-1" />
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Prompt-Vorschau */}
+              <div className="mt-2">
+                <p className="text-xs font-medium text-gray-500 mb-1">Prompt:</p>
+                <div className="p-2 bg-gray-50 rounded-md">
+                  <p className="text-xs text-gray-600 line-clamp-2">
+                    {stil.prompt}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// StilEditor-Komponente für das Erstellen/Bearbeiten von Stilen
+function StilEditor() {
+  const { currentStilId, setShowEditor, refreshStile } = useContext(StileContext);
+  const isNewStil = currentStilId === null;
+
+  const [name, setName] = useState('');
+  const [beschreibung, setBeschreibung] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [prompt, setPrompt] = useState('');
+  const [beispiel, setBeispiel] = useState('');
+  const [avatar, setAvatar] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Lade Stil-Daten, wenn es sich um eine Bearbeitung handelt
+  useEffect(() => {
+    setMounted(true);
+    if (!isNewStil && currentStilId) {
+      try {
+        const stile = localStorage.getItem('schreibstile');
+        if (stile) {
+          const parsedStile = JSON.parse(stile);
+          const stil = parsedStile.find((s: Stil) => s.id === currentStilId);
+          
+          if (stil) {
+            setName(stil.name);
+            setBeschreibung(stil.beschreibung);
+            setTags(stil.tags || []);
+            setPrompt(stil.prompt);
+            setBeispiel(stil.beispiel || '');
+            setAvatar(stil.avatar || '');
+          } else {
+            setError('Schreibstil nicht gefunden');
+            setTimeout(() => {
+              setShowEditor(false);
+            }, 2000);
+          }
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden des Schreibstils:', error);
+        setError('Fehler beim Laden des Schreibstils');
+      }
+    }
+  }, [currentStilId, isNewStil, setShowEditor]);
+
+  const handleAddTag = () => {
+    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
+      setTags([...tags, tagInput.trim()]);
+      setTagInput('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const stileStr = localStorage.getItem('schreibstile');
+      const stile = stileStr ? JSON.parse(stileStr) : [];
+      const currentDate = new Date().toISOString();
+      
+      if (isNewStil) {
+        // Erzeuge neue ID für neuen Stil
+        const newId = `stil_${Date.now()}`;
+        const newStil: Stil = {
+          id: newId,
+          name,
+          beschreibung,
+          tags,
+          avatar: avatar || undefined,
+          prompt,
+          beispiel: beispiel || undefined,
+          erstellt: currentDate,
+        };
+        
+        localStorage.setItem('schreibstile', JSON.stringify([...stile, newStil]));
+      } else {
+        // Aktualisiere bestehenden Stil
+        const updatedStile = stile.map((s: Stil) => {
+          if (s.id === currentStilId) {
+            return {
+              ...s,
+              name,
+              beschreibung,
+              tags,
+              avatar: avatar || undefined,
+              prompt,
+              beispiel: beispiel || undefined,
+              bearbeitet: currentDate,
+            };
+          }
+          return s;
+        });
+        
+        localStorage.setItem('schreibstile', JSON.stringify(updatedStile));
+      }
+      
+      // Schließe Editor und aktualisiere Liste
+      refreshStile();
+      setShowEditor(false);
+    } catch (error) {
+      console.error('Fehler beim Speichern des Schreibstils:', error);
+      setError('Fehler beim Speichern. Bitte versuchen Sie es erneut.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Zeige Ladeindikator während des ersten Mounts
+  if (!mounted) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-200 bg-opacity-70">
+        <div className="bg-white rounded-lg p-6 w-full max-w-3xl">
+          <p className="text-center">Wird geladen...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-200 bg-opacity-70 backdrop-blur-sm overflow-y-auto py-8">
+      <div className="bg-white rounded-xl p-6 w-full max-w-3xl m-auto shadow-xl">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-medium text-gray-900">
+            {isNewStil ? 'Neuen Schreibstil erstellen' : 'Schreibstil bearbeiten'}
+          </h2>
+          <button 
+            onClick={() => setShowEditor(false)}
+            className="text-gray-500 hover:text-gray-700 rounded-full p-1 hover:bg-gray-100"
+          >
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg">
+            {error}
+          </div>
+        )}
+        
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Name */}
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+              Name des Schreibstils <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#2c2c2c] focus:border-[#2c2c2c] text-gray-900"
+              placeholder="z.B. Business Formal"
+            />
+          </div>
+
+          {/* Beschreibung */}
+          <div>
+            <label htmlFor="beschreibung" className="block text-sm font-medium text-gray-700 mb-1">
+              Beschreibung <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="beschreibung"
+              value={beschreibung}
+              onChange={(e) => setBeschreibung(e.target.value)}
+              required
+              rows={2}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#2c2c2c] focus:border-[#2c2c2c] text-gray-900 resize-none"
+              placeholder="Kurze Beschreibung des Schreibstils"
+            />
+          </div>
+          
+          {/* Tags */}
+          <div>
+            <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-1">
+              Tags
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                id="tags"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#2c2c2c] focus:border-[#2c2c2c] text-gray-900"
+                placeholder="Tag hinzufügen und Enter drücken"
+              />
+              <button
+                type="button"
+                onClick={handleAddTag}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200"
+              >
+                Hinzufügen
+              </button>
+            </div>
+            
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {tags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-sm"
+                  >
+                    <TagIcon className="h-3.5 w-3.5" />
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTag(tag)}
+                      className="ml-1 text-gray-500 hover:text-gray-700 rounded-full"
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Avatar/Bild */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Bild/Avatar
+            </label>
+            <div className="mt-2 flex items-start gap-6">
+              <div className="flex-shrink-0">
+                <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-300 bg-gray-50 flex items-center justify-center">
+                  {avatar ? (
+                    <>
+                      <img 
+                        src={avatar} 
+                        alt="Vorschau" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.onerror = null;
+                          target.src = "/images/placeholder.svg";
+                        }} 
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAvatar('')}
+                        className="absolute top-1 right-1 bg-gray-800 bg-opacity-60 rounded-full p-0.5 text-white"
+                        title="Bild entfernen"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <PhotoIcon className="h-8 w-8 text-gray-400" />
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex-1">
+                <p className="text-xs text-gray-500 mb-2">
+                  Wählen Sie ein Bild, das den Stil repräsentiert. Optional.
+                </p>
+                <div className="mt-2">
+                  <AvatarSelector
+                    selectedAvatar={avatar}
+                    onSelect={(avatar) => setAvatar(avatar || '')}
+                    isAdminView={true}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Prompt */}
+          <div>
+            <label htmlFor="prompt" className="block text-sm font-medium text-gray-700 mb-1">
+              Prompt <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="prompt"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              required
+              rows={4}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#2c2c2c] focus:border-[#2c2c2c] text-gray-900"
+              placeholder="Anweisungen für den Stil, z.B. 'Schreibe in einem formellen, präzisen und professionellen Business-Stil...'"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Die Anweisungen für die KI, wie der Text geschrieben werden soll.
+            </p>
+          </div>
+
+          {/* Beispiel */}
+          <div>
+            <label htmlFor="beispiel" className="block text-sm font-medium text-gray-700 mb-1">
+              Beispiel
+            </label>
+            <textarea
+              id="beispiel"
+              value={beispiel}
+              onChange={(e) => setBeispiel(e.target.value)}
+              rows={3}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#2c2c2c] focus:border-[#2c2c2c] text-gray-900"
+              placeholder="Optionales Beispiel für diesen Schreibstil"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Ein Beispieltext, der den Stil verdeutlicht. Optional.
+            </p>
+          </div>
+
+          {/* Aktionen */}
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={() => setShowEditor(false)}
+              className="px-6 py-2.5 text-gray-700 bg-gray-100 rounded-full hover:bg-gray-200"
+              disabled={isLoading}
+            >
+              Abbrechen
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2.5 bg-[#2c2c2c] text-white rounded-full hover:bg-[#1a1a1a] disabled:opacity-50"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Wird gespeichert...' : (isNewStil ? 'Erstellen' : 'Speichern')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
 } 
